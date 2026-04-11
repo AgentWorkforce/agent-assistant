@@ -1,3 +1,5 @@
+import type { TraitsProvider } from '@relay-assistant/traits';
+
 export interface InboundMessage {
   id: string;
   surfaceId: string;
@@ -78,6 +80,7 @@ export interface AssistantDefinition {
   id: string;
   name: string;
   description?: string;
+  traits?: TraitsProvider;
   capabilities: Record<string, CapabilityHandler>;
   hooks?: AssistantHooks;
   constraints?: RuntimeConstraints;

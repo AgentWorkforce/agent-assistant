@@ -1,9 +1,0 @@
-All four files have been written:
-
-**`docs/specs/v1-connectivity-spec.md`** — Complete implementation-facing spec replacing the prior one. Covers: signal envelope with all field contracts and validation rules, salience definition (via `confidence` field + priority semantics), suppression config (step-basis and time-basis), all 11 signal classes with `confidence` range requirements, lifecycle state machine, convergence rules (when to resolve/supersede, thread convergence criteria), audience resolution rules, routing escalation hook with exact call sequence, factory + config interface, full v1 export surface, and four workflow shapes as integration test targets. Ends with `V1_CONNECTIVITY_SPEC_READY`.
-
-**`docs/architecture/v1-connectivity-implementation-plan.md`** — Eight-step implementation plan with file structure (22 files), per-step implementation details and test specs, integration test specs for WF-C1 through WF-C4 with exact setup/assertion patterns, `package.json` and `tsconfig.json` shapes, and a seven-point definition of done. Ends with `V1_CONNECTIVITY_IMPLEMENTATION_PLAN_READY`.
-
-**`docs/reference/connectivity-signal-catalog.md`** — Per-signal-class reference for all 11 classes: semantics, when to use, required/optional fields with value guidance, audience and priority defaults, convergence responsibilities, and anti-patterns. Plus cross-cutting rules on confidence field usage, priority defaults by message class, broadcast guidance, supersession rules, and resolution order.
-
-**`packages/connectivity/README.md`** — Rewritten from the docs-spike placeholder to align with the canonical v1 spec. Covers: what the package is and is not, quick start code, signal class summary table, full core API docs with code examples, lifecycle diagram, suppression behavior, routing integration, and package boundary rules. Ends with `CONNECTIVITY_PACKAGE_READY`.

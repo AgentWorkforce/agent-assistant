@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/core",
+  "name": "@relay-assistant/traits",
   "version": "0.1.0",
-  "description": "Assistant definition, lifecycle, and runtime composition for Relay Agent Assistant SDK",
+  "description": "Validated immutable assistant traits for Relay Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,13 +17,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@relay-assistant/traits": "file:../traits"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "license": "MIT"
 }

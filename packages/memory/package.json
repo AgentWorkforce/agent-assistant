@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/core",
+  "name": "@relay-assistant/memory",
   "version": "0.1.0",
-  "description": "Assistant definition, lifecycle, and runtime composition for Relay Agent Assistant SDK",
+  "description": "Assistant-scoped memory composition layer over @agent-relay/memory",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,13 +17,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@relay-assistant/traits": "file:../traits"
+    "@agent-relay/hooks": "file:../../../relay/packages/hooks",
+    "@agent-relay/memory": "file:../../../relay/packages/memory"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "license": "MIT"
 }

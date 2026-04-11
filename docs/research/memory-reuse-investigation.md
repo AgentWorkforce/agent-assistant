@@ -23,7 +23,7 @@ This document records the investigation that determined the reuse-first strategy
 |---|---|---|
 | `MemoryEntry` | content, id, tags, metadata, timestamps, source, agentId, projectId, sessionId, score | **REUSE** — maps cleanly to assistant entry with scope fields stored in metadata |
 | `MemoryAdapter` | CRUD interface: `add`, `search`, `get`, `delete`, `update?`, `list?`, `clear?`, `stats?`, `close?` | **REUSE** — assistant `MemoryStoreAdapter` wraps this |
-| `MemorySearchQuery` | semantic search: query text, limit, minScore, tags, agentId, projectId, time filters | **REUSE** — scope mapper translates assistant queries into this shape |
+| `MemorySearchQuery` | semantic search: query text, limit, minScore, tags, agentId, projectId, time filters | **NOT used in v1.** Requires a non-empty `query: string`; both adapters score by text match and return zero results without it. Reserved for v1.1 semantic search. v1 retrieval uses `list()` instead. |
 | `AddMemoryOptions` | tags, source, agentId, projectId, sessionId, metadata | **REUSE** — assistant write input maps to this |
 | `MemoryResult` | success/failure with id and error | **REUSE** — wrapped by assistant store error types |
 | `MemoryConfig` | adapter type, apiKey, endpoint, defaults | **REUSE** — passed through at config time |
@@ -32,8 +32,8 @@ This document records the investigation that determined the reuse-first strategy
 
 | Component | What it provides | Reuse decision |
 |---|---|---|
-| `MemoryService` | `add`, `search`, `delete`, `list`, `isAvailable` | **REUSE** — used internally by the adapter bridge |
-| `createMemoryService()` | factory with lazy adapter init, default injection for agentId/projectId/sessionId | **REUSE** — used as the inner engine |
+| `MemoryService` | `add`, `search`, `delete`, `list`, `isAvailable` | **NOT USED in v1.** `MemoryService` lacks `get()`, `update()`, and bulk-delete-by-scope. The bridge (`RelayMemoryStoreAdapter`) connects to `MemoryAdapter` directly to access these operations. |
+| `createMemoryService()` | factory with lazy adapter init, default injection for agentId/projectId/sessionId | **NOT USED in v1.** Adapter construction is the caller's responsibility; the assistant factory (`createMemoryStore`) accepts a pre-constructed `MemoryStoreAdapter`. |
 
 ### 2.3 Adapter Implementations
 
@@ -140,10 +140,10 @@ These gaps are what necessitate the `@relay-assistant/memory` layer. Each gap be
 |---|---|---|
 | `MemoryEntry` type | Direct reuse | Import and wrap in assistant entry mapping |
 | `MemoryAdapter` interface | Direct reuse | Use as the inner engine behind `MemoryStoreAdapter` bridge |
-| `MemorySearchQuery` | Direct reuse | Scope mapper translates to this |
+| `MemorySearchQuery` | Not used in v1 | Reserved for v1.1 semantic search; v1 retrieval uses `list()` |
 | `AddMemoryOptions` | Direct reuse | Write input maps to this |
-| `MemoryService` | Direct reuse | Used internally |
-| `createMemoryService()` | Direct reuse | Inner factory |
+| `MemoryService` | Not used in v1 | Lacks get(), update(), bulk-delete; bridge targets MemoryAdapter directly |
+| `createMemoryService()` | Not used in v1 | Adapter construction is the caller's responsibility |
 | `InMemoryAdapter` | Direct reuse | Default test adapter |
 | `SupermemoryAdapter` | Direct reuse | Default production adapter |
 | `ContextCompactor` (utilities) | Partial reuse | Token counting + similarity only |
@@ -166,11 +166,12 @@ The investigation considered four architectural patterns for `@relay-assistant/m
 
 **The composition layer is the right pattern because:**
 
-1. Relay `MemoryAdapter` and `MemoryService` handle storage and retrieval — proven infrastructure.
+1. Relay `MemoryAdapter` handles storage and retrieval — proven infrastructure. The bridge connects directly to `MemoryAdapter` (not `MemoryService`) to access the full operation surface (`get()`, `update()`, `list()`, `delete()`).
 2. The assistant layer adds scope semantics, promotion, compaction, and expiry on top — genuinely new behavior that relay has no reason to provide.
 3. Product code imports only `@relay-assistant/memory` types — the relay dependency is an implementation detail.
 4. Relay can be upgraded without changing the assistant API surface.
 5. The assistant layer is thin (~650-890 lines) — it does not duplicate relay's storage logic.
+6. v1 retrieval is structured (scope + tags + recency) using `MemoryAdapter.list()` as the relay primitive. `MemoryAdapter.search()` is reserved for v1.1 semantic retrieval because it requires a non-empty query string and both current adapters return zero results without one.
 
 ---
 

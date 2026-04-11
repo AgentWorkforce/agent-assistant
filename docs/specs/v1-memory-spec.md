@@ -70,18 +70,20 @@ The following relay components are reused directly. No reimplementation.
 | Relay Type | Reuse | Notes |
 |---|---|---|
 | `MemoryEntry` | Direct import | Used internally; assistant-facing `MemoryEntry` is a distinct type that maps to relay's |
-| `MemoryAdapter` | Direct import | Used as the inner engine behind `MemoryStoreAdapter` |
-| `MemorySearchQuery` | Direct import | Scope mapper translates `MemoryQuery` to this |
+| `MemoryAdapter` | Direct import | Used as the inner engine behind `MemoryStoreAdapter` bridge |
+| `MemorySearchQuery` | **Not used in v1** | Requires a semantic `query: string`; v1 retrieval uses `list()` instead. Reserved for v1.1 semantic search. |
 | `AddMemoryOptions` | Direct import | `WriteMemoryInput` maps to this |
 | `MemoryResult` | Direct import | Wrapped by assistant store error types |
 | `MemoryConfig` | Direct import | Passed through at configuration time |
 
-### 4.2 Service (direct use)
+### 4.2 Service (NOT used in v1)
 
-| Relay Component | Reuse |
+`MemoryService` and `createMemoryService()` are **not used** by the assistant memory package. The adapter bridge (`RelayMemoryStoreAdapter`) connects directly to a `MemoryAdapter` instance. This avoids the `MemoryService` surface gap — `MemoryService` does not expose `get()`, `update()`, or bulk-delete-by-scope operations that the assistant layer requires.
+
+| Relay Component | v1 Decision |
 |---|---|
-| `MemoryService` | Used internally by the adapter bridge |
-| `createMemoryService()` | Inner factory; provides lazy adapter init and default field injection |
+| `MemoryService` | **Not used.** `RelayMemoryStoreAdapter` bridges to `MemoryAdapter` directly. |
+| `createMemoryService()` | **Not used.** Construction and initialization of relay adapters is the caller's responsibility. |
 
 ### 4.3 Adapters (direct use, no modification)
 
@@ -120,9 +122,11 @@ New code: `MemoryScope` type and scope-to-relay-field translation (~80-100 lines
 
 ### 5.2 Scope Query Expansion
 
-`includeNarrower: true` on a query causes the assistant layer to issue multiple relay search calls and merge results. Relay has no multi-scope fan-out.
+`includeNarrower: true` on a query causes the assistant layer to issue multiple `list()` calls (one per scope) and merge results. Relay has no multi-scope fan-out.
 
-New code: query expansion and result merge logic (~60-80 lines). Defaults to `includeNarrower: false` (opt-in) to prevent unintended cross-scope data leakage.
+`includeNarrower: true` on a `user`-scope query includes session entries **only when the caller provides an explicit `sessionId` via the `context` field** on `MemoryQuery`. No implicit session discovery.
+
+New code: query expansion, `list()` fan-out, and result merge logic (~60-80 lines). Defaults to `includeNarrower: false` (opt-in) to prevent unintended cross-scope data leakage.
 
 ### 5.3 Promotion
 
@@ -167,7 +171,7 @@ No new infrastructure. Convention + pass-through enforcement in every write path
 
 ## 6. Non-Goals (v1)
 
-- Memory is not a vector store. Retrieval in v1 is structured (scope + tags + recency). Semantic/embedding search requires a separate adapter interface.
+- Memory is not a vector store. Retrieval in v1 is structured (scope + tags + recency) using `MemoryAdapter.list()` as the relay primitive, with assistant-side filtering for tags, time ranges, and expiry. Semantic/embedding search via `MemoryAdapter.search()` requires a query string and is reserved for v1.1.
 - Memory does not implement the compaction LLM call. It provides a `CompactionCallback` interface; the caller provides the model invocation.
 - Memory does not sync across distributed instances. Consistency is the storage adapter's responsibility.
 - Memory does not own session archival decisions. It provides query + bulk-delete; sessions or policy drives archival.
@@ -330,13 +334,19 @@ export interface MemoryQuery {
    * When true, include entries from narrower scopes according to default
    * inclusion rules. Defaults to false (opt-in to prevent surprise data
    * leakage across scopes).
+   *
+   * For a user-scope query, session entries are only included when
+   * context.sessionId is explicitly provided. No implicit session discovery.
    */
   includeNarrower?: boolean;
 
-  /** Filter to entries that have ALL of the specified tags. */
+  /** Filter to entries that have ALL of the specified tags. Applied post-retrieval. */
   tags?: string[];
 
-  /** Return entries created/updated after this ISO-8601 timestamp. */
+  /**
+   * Return entries created at or after this ISO-8601 timestamp.
+   * Applied post-retrieval (relay list() does not support time-range filters).
+   */
   since?: string;
 
   /** Maximum entries to return. Defaults to 20. */
@@ -344,6 +354,15 @@ export interface MemoryQuery {
 
   /** Sort order. Defaults to 'newest'. */
   order?: 'newest' | 'oldest';
+
+  /**
+   * Additional context for scope expansion. When includeNarrower is true
+   * and the primary scope is 'user', a sessionId here causes session-scope
+   * entries for that session to be included in results.
+   */
+  context?: {
+    sessionId?: string;
+  };
 }
 ```
 
@@ -405,9 +424,11 @@ export type CompactionCallback = (
 
 ```typescript
 /**
- * Storage backend interface. In v1, implementations wrap @agent-relay/memory
- * adapters (InMemoryAdapter, SupermemoryAdapter). Memory package never
- * imports a specific storage driver.
+ * Storage backend interface. In v1, implementations bridge to @agent-relay/memory
+ * MemoryAdapter instances directly (InMemoryAdapter, SupermemoryAdapter).
+ * The memory package bridges to MemoryAdapter — not MemoryService — because
+ * MemoryService lacks get(), update(), and bulk-delete-by-scope.
+ * Memory package never imports a specific storage driver.
  */
 export interface MemoryStoreAdapter {
   insert(entry: MemoryEntry): Promise<void>;
@@ -544,7 +565,7 @@ Semantic retrieval (embedding-based search) is out of scope for v1. When added, 
 ## 14. Explicitly Deferred
 
 ### Deferred to v1.1
-- Semantic/embedding search — relay's `SupermemoryAdapter` supports it; assistant adapter wire-up deferred
+- Semantic/embedding search — relay's `SupermemoryAdapter` supports it via `MemoryAdapter.search()`. In v1, `search()` is not called by the assistant layer (it requires a semantic query string). Wire-up deferred to v1.1 via an optional `semanticQuery` field on `MemoryQuery`.
 - Session archival workflow — requires `@relay-assistant/sessions` coordination
 
 ### Deferred to v1.2+
