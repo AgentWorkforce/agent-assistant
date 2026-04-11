@@ -83,34 +83,40 @@ has_file() {
   [[ -f "$1" ]]
 }
 
+# helper: workflow is considered complete enough if its review verdict exists
+already_reviewed() {
+  local verdict="$1"
+  [[ -f "$verdict" ]]
+}
+
 pick_next_workflow() {
-  # Traits implementation (spec exists, implementation exists? if no review maybe run; otherwise skip)
-  if has_file workflows/implement-v1-traits.ts && ! has_file docs/architecture/v1-traits-package-review-verdict.md; then
-    echo "traits implementation|workflows/implement-v1-traits.ts"
+  # Traits already complete if review verdict exists.
+  if has_file workflows/implement-v1-traits.ts && ! already_reviewed docs/architecture/v1-traits-package-review-verdict.md; then
+    echo "v1 traits implementation|workflows/implement-v1-traits.ts"
     return 0
   fi
 
-  # Proactive and policy if available and not yet reviewed
-  if has_file workflows/specify-v1-proactive.ts && ! has_file docs/architecture/v1-proactive-review-verdict.md; then
+  # If policy/proactive are added later, only run when missing their review verdicts.
+  if has_file workflows/specify-v1-proactive.ts && ! already_reviewed docs/architecture/v1-proactive-review-verdict.md; then
     echo "v1 proactive specification|workflows/specify-v1-proactive.ts"
     return 0
   fi
-  if has_file workflows/implement-v1-proactive.ts && ! has_file docs/architecture/v1-proactive-package-review-verdict.md; then
+  if has_file workflows/implement-v1-proactive.ts && ! already_reviewed docs/architecture/v1-proactive-package-review-verdict.md; then
     echo "v1 proactive implementation|workflows/implement-v1-proactive.ts"
     return 0
   fi
-  if has_file workflows/specify-v1-policy.ts && ! has_file docs/architecture/v1-policy-review-verdict.md; then
+  if has_file workflows/specify-v1-policy.ts && ! already_reviewed docs/architecture/v1-policy-review-verdict.md; then
     echo "v1 policy specification|workflows/specify-v1-policy.ts"
     return 0
   fi
-  if has_file workflows/implement-v1-policy.ts && ! has_file docs/architecture/v1-policy-package-review-verdict.md; then
+  if has_file workflows/implement-v1-policy.ts && ! already_reviewed docs/architecture/v1-policy-package-review-verdict.md; then
     echo "v1 policy implementation|workflows/implement-v1-policy.ts"
     return 0
   fi
 
-  # If traits spec exists but impl missing review, prefer traits implementation.
-  if has_file workflows/implement-v1-traits.ts && has_file docs/specs/v1-traits-spec.md && ! has_file docs/architecture/v1-traits-package-review-verdict.md; then
-    echo "v1 traits implementation|workflows/implement-v1-traits.ts"
+  # Future consensus track.
+  if has_file workflows/specify-consensus-protocols.ts && ! already_reviewed docs/architecture/consensus-review-verdict.md; then
+    echo "consensus protocols specification|workflows/specify-consensus-protocols.ts"
     return 0
   fi
 
@@ -138,9 +144,11 @@ main() {
   append_summary "- ℹ️ Repo: $REPO_ROOT"
 
   local iterations=0
-  while (( iterations < 6 )); do
+  local ran_any=0
+  while (( iterations < 8 )); do
     iterations=$((iterations + 1))
     if next=$(pick_next_workflow); then
+      ran_any=1
       label=${next%%|*}
       workflow=${next#*|}
       run_workflow "$label" "$workflow" || true
@@ -149,6 +157,10 @@ main() {
       break
     fi
   done
+
+  if (( ran_any == 0 )); then
+    log "no eligible workflows found under current state rules"
+  fi
 
   cleanup_noise
   commit_and_push_if_needed "chore: overnight final cleanup" || true
