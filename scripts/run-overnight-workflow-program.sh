@@ -22,16 +22,8 @@ append_summary() {
 }
 
 cleanup_noise() {
-  log "cleaning transient package/build noise"
   rm -rf .agent-relay || true
-  rm -rf packages/core/dist packages/core/node_modules packages/core/package-lock.json || true
-  rm -rf packages/sessions/dist packages/sessions/node_modules packages/sessions/package-lock.json || true
-  rm -rf packages/surfaces/dist packages/surfaces/node_modules packages/surfaces/package-lock.json || true
-  rm -rf packages/connectivity/dist packages/connectivity/node_modules packages/connectivity/package-lock.json || true
-  rm -rf packages/coordination/dist packages/coordination/node_modules packages/coordination/package-lock.json || true
-  rm -rf packages/routing/dist packages/routing/node_modules packages/routing/package-lock.json || true
-  rm -rf packages/memory/dist packages/memory/node_modules packages/memory/package-lock.json || true
-  rm -rf packages/traits/dist packages/traits/node_modules packages/traits/package-lock.json || true
+  rm -rf packages/*/dist packages/*/node_modules packages/*/package-lock.json || true
 }
 
 ensure_branch() {
@@ -62,13 +54,11 @@ commit_and_push_if_needed() {
 
 ensure_pr() {
   if gh pr view "$BRANCH_NAME" >/dev/null 2>&1; then
-    log "overnight PR already exists for $BRANCH_NAME"
     return 0
   fi
   gh pr create --base main --head "$BRANCH_NAME" \
     --title "WIP: overnight RelayAssistant workflow progress" \
-    --body "Automated overnight progress branch for RelayAssistant SDK workflows.\n\nThis PR is continuously updated by the overnight workflow executor."
-  append_summary "- 🔗 created overnight PR for $BRANCH_NAME"
+    --body "Automated overnight progress branch for RelayAssistant SDK workflows. This PR is continuously updated by the overnight workflow executor." || true
 }
 
 run_workflow() {
@@ -78,28 +68,53 @@ run_workflow() {
   local output
   if output=$(agent-relay run "$workflow_file" 2>&1); then
     printf '%s\n' "$output" | tee -a "$LOG_FILE"
-    log "$label completed"
     append_summary "- ✅ $label completed"
     commit_and_push_if_needed "chore: overnight progress after $label" || true
     return 0
   else
     printf '%s\n' "$output" | tee -a "$LOG_FILE"
-    log "$label failed"
     append_summary "- ❌ $label failed"
     commit_and_push_if_needed "chore: overnight partial progress after failed $label" || true
     return 1
   fi
 }
 
-run_if_present() {
-  local label="$1"
-  local workflow_file="$2"
-  if [[ -f "$workflow_file" ]]; then
-    run_workflow "$label" "$workflow_file"
-  else
-    log "skipping $label; missing $workflow_file"
-    append_summary "- ⏭️ $label skipped (missing workflow)"
+has_file() {
+  [[ -f "$1" ]]
+}
+
+pick_next_workflow() {
+  # Traits implementation (spec exists, implementation exists? if no review maybe run; otherwise skip)
+  if has_file workflows/implement-v1-traits.ts && ! has_file docs/architecture/v1-traits-package-review-verdict.md; then
+    echo "traits implementation|workflows/implement-v1-traits.ts"
+    return 0
   fi
+
+  # Proactive and policy if available and not yet reviewed
+  if has_file workflows/specify-v1-proactive.ts && ! has_file docs/architecture/v1-proactive-review-verdict.md; then
+    echo "v1 proactive specification|workflows/specify-v1-proactive.ts"
+    return 0
+  fi
+  if has_file workflows/implement-v1-proactive.ts && ! has_file docs/architecture/v1-proactive-package-review-verdict.md; then
+    echo "v1 proactive implementation|workflows/implement-v1-proactive.ts"
+    return 0
+  fi
+  if has_file workflows/specify-v1-policy.ts && ! has_file docs/architecture/v1-policy-review-verdict.md; then
+    echo "v1 policy specification|workflows/specify-v1-policy.ts"
+    return 0
+  fi
+  if has_file workflows/implement-v1-policy.ts && ! has_file docs/architecture/v1-policy-package-review-verdict.md; then
+    echo "v1 policy implementation|workflows/implement-v1-policy.ts"
+    return 0
+  fi
+
+  # If traits spec exists but impl missing review, prefer traits implementation.
+  if has_file workflows/implement-v1-traits.ts && has_file docs/specs/v1-traits-spec.md && ! has_file docs/architecture/v1-traits-package-review-verdict.md; then
+    echo "v1 traits implementation|workflows/implement-v1-traits.ts"
+    return 0
+  fi
+
+  return 1
 }
 
 write_header() {
@@ -117,22 +132,29 @@ EOF
 main() {
   write_header
   ensure_branch
-  ensure_pr || true
+  ensure_pr
   cleanup_noise
 
   append_summary "- ℹ️ Repo: $REPO_ROOT"
 
-  run_if_present "v1 proactive specification" "workflows/specify-v1-proactive.ts" || true
-  run_if_present "v1 proactive implementation" "workflows/implement-v1-proactive.ts" || true
-  run_if_present "v1 policy specification" "workflows/specify-v1-policy.ts" || true
-  run_if_present "v1 policy implementation" "workflows/implement-v1-policy.ts" || true
+  local iterations=0
+  while (( iterations < 6 )); do
+    iterations=$((iterations + 1))
+    if next=$(pick_next_workflow); then
+      label=${next%%|*}
+      workflow=${next#*|}
+      run_workflow "$label" "$workflow" || true
+    else
+      append_summary "- ⏹️ no eligible next workflow found; stopping safely"
+      break
+    fi
+  done
 
   cleanup_noise
   commit_and_push_if_needed "chore: overnight final cleanup" || true
 
   append_summary "\nFinished: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   log "overnight program complete"
-  log "summary written to $SUMMARY_FILE"
 }
 
 main "$@"
