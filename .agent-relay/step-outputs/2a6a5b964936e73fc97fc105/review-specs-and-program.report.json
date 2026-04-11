@@ -1,0 +1,48 @@
+{
+  "cli": "codex",
+  "sessionId": "019d7b9d-8928-7233-8268-1c665389b434",
+  "model": null,
+  "provider": "openai",
+  "durationMs": 108000,
+  "cost": null,
+  "tokens": {
+    "input": 334590,
+    "output": 0,
+    "cacheRead": 0
+  },
+  "turns": 0,
+  "toolCalls": [],
+  "errors": [],
+  "finalStatus": "unknown",
+  "summary": null,
+  "raw": {
+    "matchedVia": "threads",
+    "thread": {
+      "id": "019d7b9d-8928-7233-8268-1c665389b434",
+      "rollout_path": "/Users/khaliqgant/.codex/sessions/2026/04/11/rollout-2026-04-11T10-16-55-019d7b9d-8928-7233-8268-1c665389b434.jsonl",
+      "created_at": 1775895415,
+      "updated_at": 1775895523,
+      "source": "exec",
+      "model_provider": "openai",
+      "cwd": "/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant",
+      "title": "You are a non-interactive reviewer agent. Read the specified files/artifacts and produce a clear verdict.\nDo NOT spawn sub-agents or use any Relaycast messaging tools.\n\nReview the new spec and v1 program docs for relay-agent-assistant.\n\nRead:\n- docs/architecture/spec-program-plan.md\n- docs/specs/v1-core-spec.md\n- docs/specs/v1-sessions-spec.md\n- docs/specs/v1-memory-spec.md\n- docs/specs/v1-surfaces-spec.md\n- docs/specs/v1-connectivity-spec.md\n- docs/specs/v1-routing-spec.md\n- docs/architecture/v1-sectioning-and-priorities.md\n- docs/workflows/v1-workflow-backlog.md\n- docs/workflows/weekend-delivery-plan.md\n\nAssess:\n1. Are these docs concrete enough to become implementation inputs this weekend?\n2. Is the v1 sectioning coherent and useful?\n3. Is the workflow backlog sequenced sensibly?\n4. Are Sage, MSD, and NightCTO adoption goals actually reflected?\n5. What still needs tightening before implementation workflows begin?\n\nWrite docs/architecture/spec-program-review-verdict.md.\nUse PASS, PASS_WITH_FOLLOWUPS, or FAIL.\nEnd with SPEC_PROGRAM_REVIEW_COMPLETE.\n\n---\nIMPORTANT: You are running as a non-interactive subprocess. Do NOT call mcp__relaycast__agent_add, add_agent, or any MCP tool to spawn or manage other agents.\n\nCRITICAL REQUIREMENT — YOU MUST FOLLOW THIS EXACTLY:\nYou are running in non-interactive mode. There is NO opportunity for follow-up, clarification, or additional input. Your stdout output is your ONLY deliverable.\n\nYou MUST:\n1. Complete the ENTIRE task in a single pass — no partial work, no \"I'll continue later\"\n2. Print your COMPLETE deliverable to stdout — this is the ONLY output that will be captured\n3. Be thorough and self-contained — another agent will consume your output with zero context about your process\n4. End with a clear summary of what was accomplished and any artifacts produced\n\nDO NOT:\n- Ask questions or request clarification (there is no one to answer)\n- Output partial results expecting a follow-up (there will be none)\n- Skip steps or leave work incomplete\n- Output only status messages without the actual deliverable content",
+      "sandbox_policy": "{\"type\":\"danger-full-access\"}",
+      "approval_mode": "never",
+      "tokens_used": 334590,
+      "has_user_event": 0,
+      "archived": 0,
+      "archived_at": null,
+      "git_sha": null,
+      "git_branch": null,
+      "git_origin_url": null,
+      "cli_version": "0.117.0",
+      "first_user_message": "You are a non-interactive reviewer agent. Read the specified files/artifacts and produce a clear verdict.\nDo NOT spawn sub-agents or use any Relaycast messaging tools.\n\nReview the new spec and v1 program docs for relay-agent-assistant.\n\nRead:\n- docs/architecture/spec-program-plan.md\n- docs/specs/v1-core-spec.md\n- docs/specs/v1-sessions-spec.md\n- docs/specs/v1-memory-spec.md\n- docs/specs/v1-surfaces-spec.md\n- docs/specs/v1-connectivity-spec.md\n- docs/specs/v1-routing-spec.md\n- docs/architecture/v1-sectioning-and-priorities.md\n- docs/workflows/v1-workflow-backlog.md\n- docs/workflows/weekend-delivery-plan.md\n\nAssess:\n1. Are these docs concrete enough to become implementation inputs this weekend?\n2. Is the v1 sectioning coherent and useful?\n3. Is the workflow backlog sequenced sensibly?\n4. Are Sage, MSD, and NightCTO adoption goals actually reflected?\n5. What still needs tightening before implementation workflows begin?\n\nWrite docs/architecture/spec-program-review-verdict.md.\nUse PASS, PASS_WITH_FOLLOWUPS, or FAIL.\nEnd with SPEC_PROGRAM_REVIEW_COMPLETE.\n\n---\nIMPORTANT: You are running as a non-interactive subprocess. Do NOT call mcp__relaycast__agent_add, add_agent, or any MCP tool to spawn or manage other agents.\n\nCRITICAL REQUIREMENT — YOU MUST FOLLOW THIS EXACTLY:\nYou are running in non-interactive mode. There is NO opportunity for follow-up, clarification, or additional input. Your stdout output is your ONLY deliverable.\n\nYou MUST:\n1. Complete the ENTIRE task in a single pass — no partial work, no \"I'll continue later\"\n2. Print your COMPLETE deliverable to stdout — this is the ONLY output that will be captured\n3. Be thorough and self-contained — another agent will consume your output with zero context about your process\n4. End with a clear summary of what was accomplished and any artifacts produced\n\nDO NOT:\n- Ask questions or request clarification (there is no one to answer)\n- Output partial results expecting a follow-up (there will be none)\n- Skip steps or leave work incomplete\n- Output only status messages without the actual deliverable content",
+      "agent_nickname": null,
+      "agent_role": null,
+      "memory_mode": "enabled",
+      "model": "gpt-5.4",
+      "reasoning_effort": null,
+      "agent_path": null
+    }
+  }
+}

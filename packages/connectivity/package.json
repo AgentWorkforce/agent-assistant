@@ -1,0 +1,32 @@
+{
+  "name": "@relay-assistant/connectivity",
+  "version": "0.1.0",
+  "description": "Typed in-process connectivity signals for Relay Agent Assistant",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "npm --prefix ../routing run build",
+    "build": "tsc -p tsconfig.json",
+    "pretest": "npm --prefix ../routing run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "@relay-assistant/routing": "file:../routing",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

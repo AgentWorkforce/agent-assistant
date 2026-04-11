@@ -1,0 +1,3599 @@
+[stderr] OpenAI Codex v0.117.0 (research preview)
+--------
+workdir: /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+model: gpt-5.4
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: none
+reasoning summaries: none
+session id: 019d7bdc-c68b-7320-a69a-4d39934c49af
+--------
+user
+You are a non-interactive reviewer agent. Read the specified files/artifacts and produce a clear verdict.
+Do NOT spawn sub-agents or use any Relaycast messaging tools.
+
+Review the updated canonical specs.
+
+Read:
+- docs/architecture/canonical-spec-fix-plan.md
+- docs/specs/v1-core-spec.md
+- docs/specs/v1-surfaces-spec.md
+- docs/specs/v1-sessions-spec.md
+- docs/workflows/v1-workflow-backlog.md
+- docs/architecture/spec-reconciliation-rules.md
+
+Assess:
+1. Do the canonical specs now reflect the reconciliation rules?
+2. Is inbound normalization ownership now clear and consistent?
+3. Are InboundMessage identity fields and outbound targeting/fanout rules now coherent?
+4. Are stale session lifecycle terms cleaned up sufficiently?
+5. What follow-ups remain, if any?
+
+Write docs/architecture/canonical-spec-review-verdict.md.
+Use PASS, PASS_WITH_FOLLOWUPS, or FAIL.
+End with CANONICAL_SPEC_REVIEW_COMPLETE.
+
+---
+IMPORTANT: You are running as a non-interactive subprocess. Do NOT call mcp__relaycast__agent_add, add_agent, or any MCP tool to spawn or manage other agents.
+
+CRITICAL REQUIREMENT — YOU MUST FOLLOW THIS EXACTLY:
+You are running in non-interactive mode. There is NO opportunity for follow-up, clarification, or additional input. Your stdout output is your ONLY deliverable.
+
+You MUST:
+1. Complete the ENTIRE task in a single pass — no partial work, no "I'll continue later"
+2. Print your COMPLETE deliverable to stdout — this is the ONLY output that will be captured
+3. Be thorough and self-contained — another agent will consume your output with zero context about your process
+4. End with a clear summary of what was accomplished and any artifacts produced
+
+DO NOT:
+- Ask questions or request clarification (there is no one to answer)
+- Output partial results expecting a follow-up (there will be none)
+- Skip steps or leave work incomplete
+- Output only status messages without the actual deliverable content
+[stderr] codex
+Reviewing the listed spec and architecture docs first, then I’ll write the verdict document with a concrete PASS/FAIL assessment and remaining follow-ups.
+[stderr] exec
+/bin/zsh -lc "sed -n '1,260p' docs/specs/v1-surfaces-spec.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "sed -n '1,260p' docs/architecture/spec-reconciliation-rules.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "sed -n '1,240p' docs/architecture/canonical-spec-fix-plan.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr] exec
+/bin/zsh -lc "sed -n '1,260p' docs/specs/v1-sessions-spec.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "sed -n '1,260p' docs/specs/v1-core-spec.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "sed -n '1,260p' docs/workflows/v1-workflow-backlog.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+ succeeded in 0ms:
+# v1 Surfaces Spec — `@relay-assistant/surfaces`
+
+**Status:** IMPLEMENTATION_READY
+**Date:** 2026-04-11
+**Package:** `@relay-assistant/surfaces`
+**Version target:** v0.1.0 (pre-1.0, provisional)
+
+---
+
+## 1. Responsibilities
+
+`@relay-assistant/surfaces` manages the connections between the assistant runtime and user-facing interaction mediums. A surface is any channel through which a user sends messages to or receives messages from the assistant (web chat, Slack, desktop, API, etc.).
+
+**Owns:**
+- `SurfaceConnection` — registered connection to one surface; carries inbound and outbound contracts
+- `SurfaceRegistry` — tracks all registered surface connections; routes outbound events to the correct adapter
+- Inbound normalization — converts surface-specific raw payloads into `InboundMessage` before handing to core
+- `RelayInboundAdapter` and `RelayOutboundAdapter` implementation — `SurfaceRegistry` implements both core adapter interfaces, acting as the bridge between the relay foundation and core
+- Outbound dispatch — converts `OutboundEvent` from core into surface-specific format via format hooks
+- Fanout — when a session has multiple attached surfaces, deliver an outbound event to all of them (with configurable policy)
+- Format hooks — product-supplied functions that transform text + metadata into surface-specific structures (Slack block kit, markdown, plain text, etc.)
+- Surface capability advertising — surfaces may declare what formatting capabilities they support; format hooks receive this as context
+
+**Does NOT own:**
+- The underlying transport protocol (HTTP, WebSocket, Slack Events API). That is the relay foundation.
+- Session attachment decisions (→ `@relay-assistant/sessions`)
+- Routing decisions about which model to call (→ `@relay-assistant/routing`)
+- Memory (→ `@relay-assistant/memory`)
+- Delivery guarantees or retry logic (→ relay foundation)
+
+---
+
+## 2. Non-Goals
+
+- Surfaces does not implement Slack, Teams, or any specific surface protocol. It defines the adapter interface; product code or a platform package provides the implementation.
+- Surfaces does not manage authentication or access control for surface connections. That is the relay foundation's responsibility.
+- Surfaces does not buffer or queue messages for offline surfaces. If a surface adapter's send fails, the error propagates to the caller.
+- Surfaces does not know about conversation history. It handles one outbound event at a time.
+- Surfaces is not a notification system. Proactive delivery is driven by `@relay-assistant/proactive`; surfaces handles the actual send once triggered.
+
+---
+
+## 3. Surface Lifecycle
+
+```
+registered → active → inactive → active  (reconnect)
+          └──────────────────── removed
+```
+
+| State | Meaning |
+|---|---|
+| `registered` | Surface connection is registered with the registry. Adapter may not yet be connected. |
+| `active` | Adapter reports it is connected and can send/receive. |
+| `inactive` | Adapter has disconnected. Registry retains the connection record; messages directed here are dropped or queued per fanout policy. |
+
+State transitions are driven by the adapter via callbacks; the registry does not poll.
+
+---
+
+## 4. Interfaces and Contracts
+
+### 4.1 `SurfaceConnection`
+
+```typescript
+export interface SurfaceConnection {
+  /** Stable ID matching the surfaceId in InboundMessage and Session.attachedSurfaces. */
+  id: string;
+
+  /** Human-readable surface type. Used in logs and admin UIs. */
+  type: SurfaceType;
+
+  /** Current connection state. Updated by adapter callbacks. */
+  state: SurfaceState;
+
+  /**
+   * Declared formatting capabilities. Format hooks receive this to
+   * tailor output (e.g., whether markdown is supported).
+   */
+  capabilities: SurfaceCapabilities;
+
+  /**
+   * The adapter implementation. Injected at registration time.
+   * Registry calls adapter.send() to deliver outbound events.
+   */
+  adapter: SurfaceAdapter;
+
+  /**
+   * Optional format hook. If provided, called before adapter.send() to
+   * transform the OutboundEvent into a surface-specific payload.
+   * If not provided, adapter receives the OutboundEvent unchanged.
+   */
+  formatHook?: SurfaceFormatHook;
+}
+
+export type SurfaceType = 'web' | 'slack' | 'desktop' | 'api' | string;
+export type SurfaceState = 'registered' | 'active' | 'inactive';
+```
+
+### 4.2 `SurfaceCapabilities`
+
+```typescript
+export interface SurfaceCapabilities {
+  /** Surface renders markdown. */
+  markdown: boolean;
+
+  /** Surface renders structured blocks (e.g., Slack block kit). */
+  richBlocks: boolean;
+
+  /** Surface supports file attachments. */
+  attachments: boolean;
+
+  /** Surface supports streaming partial responses. */
+  streaming: boolean;
+
+  /**
+   * Maximum response length in characters. 0 = no limit.
+   * Format hooks should not produce output exceeding this.
+   */
+  maxResponseLength: number;
+}
+```
+
+### 4.3 `SurfaceAdapter`
+
+```typescript
+/**
+ * Interface implemented by the surface-specific transport integration.
+ * The relay foundation or product code provides this implementation.
+ * Surfaces package never imports a specific transport library.
+ */
+export interface SurfaceAdapter {
+  /**
+   * Send a formatted payload to the surface.
+   * Throws SurfaceDeliveryError if delivery fails.
+   */
+  send(payload: SurfacePayload): Promise<void>;
+
+  /**
+   * Register a callback to be invoked when the connection becomes active.
+   * Called once immediately if already active.
+   */
+  onConnect(callback: () => void): void;
+
+  /**
+   * Register a callback to be invoked when the connection becomes inactive.
+   */
+  onDisconnect(callback: () => void): void;
+}
+```
+
+### 4.4 `SurfacePayload`
+
+```typescript
+/**
+ * The normalized payload passed to SurfaceAdapter.send().
+ * Contains both the original OutboundEvent and the formatted output.
+ */
+export interface SurfacePayload {
+  /** Source OutboundEvent from core. */
+  event: OutboundEvent;
+
+  /**
+   * Formatted content. Plain string if no formatHook; surface-specific
+   * structure if formatHook was applied.
+   */
+  formatted: unknown;
+
+  /** The surface's declared capabilities at send time. */
+  surfaceCapabilities: SurfaceCapabilities;
+}
+```
+
+### 4.5 `SurfaceFormatHook`
+
+```typescript
+/**
+ * Transforms an OutboundEvent into surface-specific formatted content.
+ * Products provide these; surfaces package defines the contract.
+ */
+export type SurfaceFormatHook = (
+  event: OutboundEvent,
+  capabilities: SurfaceCapabilities,
+) => Promise<unknown> | unknown;
+```
+
+### 4.6 `SurfaceRegistry`
+
+```typescript
+/**
+ * Central surface management object. Implements both RelayInboundAdapter
+ * and RelayOutboundAdapter from @relay-assistant/core, serving as the
+ * bridge between the relay foundation and the assistant runtime.
+ */
+export interface SurfaceRegistry {
+  /**
+   * Register a surface connection. Throws SurfaceConflictError if a
+   * connection with this id is already registered.
+   */
+  register(connection: SurfaceConnection): void;
+
+  /**
+   * Remove a surface connection. Idempotent.
+   */
+  unregister(surfaceId: string): void;
+
+  /**
+   * Retrieve a registered surface connection. Returns null if not found.
+   */
+  get(surfaceId: string): SurfaceConnection | null;
+
+  /**
+   * List all registered surfaces, optionally filtered by state.
+   */
+  list(filter?: { state?: SurfaceState; type?: SurfaceType }): SurfaceConnection[];
+
+  /**
+   * Deliver an OutboundEvent to one specific surface.
+   * Throws SurfaceNotFoundError if the surfaceId is not registered.
+   * Throws SurfaceDeliveryError if the adapter fails.
+   */
+  send(event: OutboundEvent): Promise<void>;
+
+  /**
+   * Fanout an OutboundEvent to all surfaces attached to a session.
+   * Reads attached surfaces from the provided session object.
+   * Returns a FanoutResult describing per-surface delivery outcomes.
+   */
+  fanout(event: OutboundEvent, attachedSurfaceIds: string[], policy?: FanoutPolicy): Promise<FanoutResult>;
+}
+```
+
+### 4.7 `FanoutPolicy`
+
+```typescript
+export interface FanoutPolicy {
+  /**
+   * What to do when one surface fails during fanout.
+   * - 'continue': attempt all surfaces; collect errors; return FanoutResult.
+   * - 'abort': throw on first error; remaining surfaces are not attempted.
+   * Defaults to 'continue'.
+   */
+  onError?: 'continue' | 'abort';
+
+  /**
+   * Whether to skip inactive surfaces silently.
+   * When false, inactive surfaces produce a FanoutOutcome with status='skipped'.
+   * Defaults to true.
+   */
+  skipInactive?: boolean;
+}
+```
+
+### 4.8 `FanoutResult`
+
+```typescript
+export interface FanoutResult {
+  /** Total number of surfaces targeted. */
+  total: number;
+
+  /** Number of surfaces that received the event successfully. */
+
+ succeeded in 0ms:
+# Canonical Spec Fix Plan
+
+Date: 2026-04-11
+Triggered by: `docs/architecture/spec-reconciliation-review-verdict.md` (FAIL verdict)
+Input documents:
+- `docs/architecture/spec-reconciliation-rules.md` (rules and resolution definitions)
+- `docs/architecture/spec-reconciliation-review-verdict.md` (FAIL verdict with specific findings)
+- `docs/specs/v1-core-spec.md` (current, pre-reconciliation)
+- `docs/specs/v1-surfaces-spec.md` (current, pre-reconciliation)
+- `docs/specs/v1-sessions-spec.md` (current, minor cleanup needed)
+- `docs/workflows/v1-workflow-backlog.md` (current, stale-term fix needed)
+
+---
+
+## 1. Exact Edits Required in `docs/specs/v1-core-spec.md`
+
+### Edit 1.1 — Remove "owns inbound normalization" from section 1 (Contradiction 1)
+
+**Location:** Section 1 "Responsibilities", "Owns" list, line 19
+
+**Current text:**
+```
+- Inbound message normalization — converts raw relay-layer events into the canonical `InboundMessage` type before routing to handlers
+```
+
+**Action:** Remove this bullet entirely. Core does not own inbound normalization; surfaces does.
+
+### Edit 1.2 — Add clarification that core receives already-normalized messages (Contradiction 1)
+
+**Location:** Section 1 "Responsibilities", after the "Owns" list (after line 20 / the health probe bullet)
+
+**Action:** Add a new paragraph:
+
+```markdown
+> **Normalization boundary:** Core does not normalize raw relay events. It receives already-normalized `InboundMessage` objects from the surfaces layer. The `SurfaceRegistry` (from `@relay-assistant/surfaces`) implements core's `RelayInboundAdapter` interface and performs normalization before calling the registered handler. See Contradiction 1 resolution in `docs/architecture/spec-reconciliation-rules.md`.
+```
+
+### Edit 1.3 — Add `userId` and `workspaceId?` to `InboundMessage` (Contradiction 2)
+
+**Location:** Section 3.3 `InboundMessage` interface, lines 92-117
+
+**Current interface** is missing `userId` and `workspaceId`.
+
+**Action:** Add two fields after the `sessionId?` field:
+
+```typescript
+export interface InboundMessage {
+  /** Relay-assigned message ID. Globally unique. */
+  id: string;
+
+  /** Surface this message arrived on. Opaque string; not parsed by core. */
+  surfaceId: string;
+
+  /** Session this message belongs to. May be undefined for sessionless surfaces. */
+  sessionId?: string;
+
+  /** User who sent this message. Required. Extracted during surface normalization. */
+  userId: string;
+
+  /** Workspace scope. Optional. Used for scoped session affinity. */
+  workspaceId?: string;
+
+  /** Normalized text body. Core does not parse further. */
+  text: string;
+
+  /**
+   * Original relay payload. Core preserves this verbatim so capability
+   * handlers can access surface-specific fields without core needing to
+   * understand them.
+   */
+  raw: unknown;
+
+  /** ISO-8601 timestamp of message receipt at the relay layer. */
+  receivedAt: string;
+
+  /** Name of the capability this message was dispatched to. Set by core. */
+  capability: string;
+}
+```
+
+### Edit 1.4 — Make `OutboundEvent.surfaceId` optional (Contradiction 3)
+
+**Location:** Section 3.8 `OutboundEvent` interface, lines 220-235
+
+**Current:** `surfaceId: string;` (required)
+
+**Action:** Replace the full interface with:
+
+```typescript
+export interface OutboundEvent {
+  /** Surface to deliver to. When present, targeted send. When absent, session fanout. */
+  surfaceId?: string;
+
+  /** Session context. When surfaceId is absent, used for fanout to all attached surfaces. */
+  sessionId?: string;
+
+  /** Normalized text response. */
+  text: string;
+
+  /**
+   * Surface-specific formatting hints. Core passes verbatim to the surface
+   * adapter; does not interpret.
+   */
+  format?: unknown;
+}
+```
+
+### Edit 1.5 — Add `OutboundEventError` type (Contradiction 3)
+
+**Location:** After section 3.9 `RuntimeStatus` (after line 248), add a new section 3.10.
+
+**Action:** Add:
+
+```markdown
+### 3.10 `OutboundEventError`
+
+\```typescript
+export class OutboundEventError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OutboundEventError';
+  }
+}
+\```
+
+Thrown by `runtime.emit()` when an `OutboundEvent` has neither `surfaceId` nor `sessionId` set.
+```
+
+### Edit 1.6 — Add normative outbound routing rule to `runtime.emit()` contract (Contradiction 3)
+
+**Location:** Section 3.7 `AssistantRuntime`, the `emit()` method JSDoc (lines 184-186)
+
+**Action:** Replace the `emit()` JSDoc + signature block with:
+
+```typescript
+  /**
+   * Emit an outbound event. Routing rule:
+   * - **Targeted send:** When `event.surfaceId` is present, calls `RelayOutboundAdapter.send(event)`.
+   * - **Session fanout:** When `event.surfaceId` is absent and `event.sessionId` is present,
+   *   the runtime resolves the session's `attachedSurfaces` and calls
+   *   `outboundAdapter.fanout(event, attachedSurfaceIds)` (implemented by `SurfaceRegistry`).
+   * - **Invalid:** When both `surfaceId` and `sessionId` are absent, throws `OutboundEventError`.
+   */
+  emit(event: OutboundEvent): Promise<void>;
+```
+
+### Edit 1.7 — Update `RelayInboundAdapter` to accept `InboundMessage` (Contradiction 1)
+
+**Location:** Section 4 "Package Boundaries", `RelayInboundAdapter` interface, lines 267-272
+
+**Current:**
+```typescript
+export interface RelayInboundAdapter {
+  onMessage(handler: (raw: unknown) => void): void;
+  offMessage(handler: (raw: unknown) => void): void;
+}
+```
+
+**Action:** Replace with:
+
+```typescript
+/** Injected by the surfaces layer to push normalized inbound messages into core. */
+export interface RelayInboundAdapter {
+  onMessage(handler: (message: InboundMessage) => void): void;
+  offMessage(handler: (message: InboundMessage) => void): void;
+}
+```
+
+### Edit 1.8 — Update `RelayOutboundAdapter` to include fanout capability (Contradiction 3)
+
+**Location:** Section 4, `RelayOutboundAdapter` interface, lines 274-277
+
+**Current:**
+```typescript
+export interface RelayOutboundAdapter {
+  send(event: OutboundEvent): Promise<void>;
+}
+```
+
+**Action:** Replace with:
+
+```typescript
+/** Injected by the surfaces layer to deliver outbound events. */
+export interface RelayOutboundAdapter {
+  /** Targeted send to a single surface. */
+  send(event: OutboundEvent): Promise<void>;
+  /** Fanout to all attached surfaces of a session. */
+  fanout?(event: OutboundEvent, attachedSurfaceIds: string[]): Promise<void>;
+}
+```
+
+Note: `fanout` is optional on the interface so that test stubs can implement just `send`. `SurfaceRegistry` implements both.
+
+### Edit 1.9 — Update first implementation slice step 3 (Contradiction 1)
+
+**Location:** Section 9 "First Implementation Slice", Step 3, lines 348-351
+
+**Current:**
+```
+- Wire `RelayInboundAdapter.onMessage` to normalize raw events into `InboundMessage` and route to the correct handler.
+- Tests: mock adapter pushes a raw event; correct handler is called with correct `InboundMessage`.
+```
+
+**Action:** Replace with:
+
+```
+- Wire `RelayInboundAdapter.onMessage` to receive normalized `InboundMessage` and route to the correct handler by `message.capability`.
+- Tests: mock adapter pushes an `InboundMessage`; correct handler is called with correct message and `CapabilityContext`.
+```
+
+### Edit 1.10 — Append `SPEC_RECONCILED` marker
+
+**Location:** End of file, after `SPEC_READY` on line 371.
+
+**Action:** Append on a new line:
+
+```
+SPEC_RECONCILED
+```
+
+---
+
+## 2. Exact Edits Required in `docs/specs/v1-surfaces-spec.md`
+
+### Edit 2.1 — State that `SurfaceRegistry` implements core's adapter interfaces (Contradiction 1)
+
+**Location:** Section 1 "Responsibilities", "Owns" list, after the "Inbound normalization" bullet (line 17)
+
+**Action:** Add a new bullet after "Inbound normalization":
+
+```markdown
+- `RelayInboundAdapter` and `RelayOutboundAdapter` implementation — `SurfaceRegistry` implements both core adapter interfaces, acting as the bridge between the relay foundation and core
+```
+
+### Edit 2.2 — Add `userId` and `workspaceId` to normalization table (Contradiction 2)
+
+**Location:** Section 4.10 "Normalization" table, lines 299-306
+
+**Current table** has rows for `id`, `surfaceId`, `sessionId`, `text`, `receivedAt`, `raw` but is missing `userId` and `workspaceId`.
+
+
+ succeeded in 0ms:
+# Spec Reconciliation Rules
+
+Date: 2026-04-11
+Triggered by: `docs/architecture/spec-program-review-verdict.md` (FAIL verdict, 2026-04-11)
+
+---
+
+## Rule 0: Package Specs Are the Source of Truth
+
+When any planning document, workflow document, backlog, delivery plan, adoption example, or architecture overview conflicts with a canonical package spec in `docs/specs/`, **the package spec wins**.
+
+Documents subject to this rule (non-exhaustive):
+
+| Document | Path | Role |
+|---|---|---|
+| Spec Program Plan | `docs/architecture/spec-program-plan.md` | Planning; subordinate to specs |
+| V1 Sectioning | `docs/architecture/v1-sectioning-and-priorities.md` | Planning; subordinate to specs |
+| V1 Workflow Backlog | `docs/workflows/v1-workflow-backlog.md` | Implementation guide; subordinate to specs |
+| Weekend Delivery Plan | `docs/workflows/weekend-delivery-plan.md` | Schedule; subordinate to specs |
+| Review Verdict | `docs/architecture/spec-program-review-verdict.md` | Diagnostic; does not override specs |
+
+Canonical specs (authoritative):
+
+| Spec | Path |
+|---|---|
+| Core v1 | `docs/specs/v1-core-spec.md` |
+| Sessions v1 | `docs/specs/v1-sessions-spec.md` |
+| Surfaces v1 | `docs/specs/v1-surfaces-spec.md` |
+| Memory v1 | `docs/specs/v1-memory-spec.md` |
+| Connectivity v1 | `docs/specs/v1-connectivity-spec.md` |
+| Routing v1 | `docs/specs/v1-routing-spec.md` |
+
+If a spec itself contains an internal contradiction, the interface definition (TypeScript block) takes precedence over prose descriptions within the same spec.
+
+---
+
+## Rule 1: Stale API Terms — Full Replacement Table
+
+The following terms appear in planning docs written before the spec review. They are **retired**. Any document or code using a stale term must be updated to the current term before implementation begins.
+
+| Stale term | Current term | Canonical source |
+|---|---|---|
+| `AssistantConfig` | `AssistantDefinition` | `docs/specs/v1-core-spec.md` section 3.1 |
+| `Assistant` (as the live object type) | `AssistantRuntime` | `docs/specs/v1-core-spec.md` section 3.7 |
+| `handleMessage(msg)` | `runtime.dispatch(msg)` | `docs/specs/v1-core-spec.md` section 3.7 |
+| `assistant.onMessage(handler)` | `AssistantDefinition.capabilities` (`Record<string, CapabilityHandler>`) | `docs/specs/v1-core-spec.md` sections 3.1, 3.2 |
+| `AssistantMessage` (single envelope) | `InboundMessage` (inbound) / `OutboundEvent` (outbound) | `docs/specs/v1-core-spec.md` sections 3.3, 3.8 |
+| `createSurfaceConnection(config)` | `SurfaceConnection` registered via `createSurfaceRegistry()` | `docs/specs/v1-surfaces-spec.md` sections 4.1, 5 |
+| `assistant.attachSurface(surface)` | `surfaceRegistry.register(connection)` | `docs/specs/v1-surfaces-spec.md` section 4.6 |
+| `sessions.suspend(id)` | Automatic via `sessionStore.sweepStale(ttlMs)` | `docs/specs/v1-sessions-spec.md` section 4.2 |
+| `sessions.resume(id)` | `sessionStore.touch(id)` (transitions `suspended` -> `active`) | `docs/specs/v1-sessions-spec.md` section 4.2 |
+| `sessions.close(id)` | `sessionStore.expire(id)` | `docs/specs/v1-sessions-spec.md` section 4.2 |
+| Session state `resumed` | Session state `active` (reached via `touch()`) | `docs/specs/v1-sessions-spec.md` section 4.1 |
+| Session state `closed` | Session state `expired` | `docs/specs/v1-sessions-spec.md` section 4.1 |
+| `docs/specs/core-v1.md` | `docs/specs/v1-core-spec.md` | Actual file path |
+| `docs/specs/sessions-v1.md` | `docs/specs/v1-sessions-spec.md` | Actual file path |
+| `docs/specs/surfaces-v1.md` | `docs/specs/v1-surfaces-spec.md` | Actual file path |
+
+**Enforcement:** Any PR that introduces a stale term in code, types, tests, or docs must be rejected in review. The v1 sectioning document's API Crosswalk table is the secondary reference; this table is the primary reference.
+
+---
+
+## Rule 2: High-Risk Contradictions Requiring Immediate Resolution
+
+The spec program review identified three cross-package contract conflicts that **must be resolved in the specs before any v1 code is committed**. Each contradiction is stated below with the required resolution.
+
+### Contradiction 1: Inbound normalization ownership
+
+**Conflict:** Core spec says core owns inbound normalization and defines `RelayInboundAdapter` with `onMessage(handler) / offMessage(handler)` over raw events. Surfaces spec says surfaces owns normalization, defines `RelayInboundSurfaceAdapter` with `receiveRaw() / setInboundHandler()`, and the workflow docs wire `surfaceRegistry` directly as the inbound adapter.
+
+**Resolution (must be applied to specs):**
+
+Surfaces owns inbound normalization. The flow is:
+
+```
+relay foundation -> surfaceRegistry.receiveRaw(surfaceId, raw) -> normalization -> InboundMessage -> core.dispatch()
+```
+
+Required spec changes:
+- `docs/specs/v1-core-spec.md`: Remove the claim that core owns inbound normalization (section 1, "Owns" list). Core receives already-normalized `InboundMessage` via `runtime.dispatch()`. The `RelayInboundAdapter` interface in core must be updated to accept `InboundMessage` (not raw events), or core must accept that `surfaceRegistry` implements `RelayInboundAdapter` by normalizing before calling the registered handler.
+- `docs/specs/v1-surfaces-spec.md`: Confirm that `SurfaceRegistry` implements `RelayInboundAdapter` from core. The `setInboundHandler` callback receives normalized `InboundMessage`, not raw payloads.
+- Both specs must agree on a single adapter interface shape. The recommended shape is:
+
+```typescript
+// In core — what core expects to receive
+export interface RelayInboundAdapter {
+  onMessage(handler: (message: InboundMessage) => void): void;
+  offMessage(handler: (message: InboundMessage) => void): void;
+}
+
+// SurfaceRegistry implements RelayInboundAdapter:
+// - receiveRaw() is called by relay foundation
+// - normalization happens inside SurfaceRegistry
+// - the registered handler from onMessage() receives InboundMessage
+```
+
+### Contradiction 2: Missing identity fields for session resolution
+
+**Conflict:** `InboundMessage` in core spec carries `id`, `surfaceId`, `sessionId?`, `text`, `raw`, `receivedAt`, `capability`. Sessions spec and all workflow/adoption examples depend on `userId` (and sometimes `workspaceId`) being available for `resolveSession()`. There is no canonical `userId` on `InboundMessage`.
+
+**Resolution (must be applied to specs):**
+
+Add `userId` and `workspaceId?` to `InboundMessage` in `docs/specs/v1-core-spec.md`:
+
+```typescript
+export interface InboundMessage {
+  id: string;
+  surfaceId: string;
+  sessionId?: string;
+  userId: string;           // ADDED — required for session resolution
+  workspaceId?: string;     // ADDED — optional; used for scoped session affinity
+  text: string;
+  raw: unknown;
+  receivedAt: string;
+  capability: string;
+}
+```
+
+- `userId` is **required**. Surfaces normalization must extract it from the raw payload (or the relay foundation must provide it). If the raw event does not contain a user identifier, normalization must reject the message or assign a system-generated anonymous ID — this is a normalization-layer decision, not a core decision.
+- `workspaceId` is **optional**. Products that scope sessions by workspace provide it; others omit it.
+- `resolveSession(message, store, resolver)` in `docs/specs/v1-sessions-spec.md` reads `message.userId` and `message.workspaceId` directly. No separate input contract is needed.
+
+Update the normalization table in `docs/specs/v1-surfaces-spec.md` section 4.10:
+
+| Target field | Source | Fallback |
+|---|---|---|
+| `userId` | `raw.userId` or `raw.user?.id` or `raw.user` (if string) | Error: reject message; log error |
+| `workspaceId` | `raw.workspaceId` or `raw.workspace?.id` | `undefined` |
+
+### Contradiction 3: Outbound targeting — required `surfaceId` vs. fanout
+
+**Conflict:** Core spec defines `OutboundEvent.surfaceId` as required (non-optional string). Surfaces spec, sectioning doc, and workflow backlog all require a fanout case where an event carries `sessionId` but no `surfaceId`, and `surfaceRegistry.fanout()` delivers to all session-attached surfaces.
+
+**Resolution (must be applied to specs):**
+
+Make `surfaceId` optional on `OutboundEvent` in `docs/specs/v1-core-spec.md`:
+
+```typescript
+export interface OutboundEvent {
+  surfaceId?: string;      // CHANGED from required to optional
+  sessionId?: string;
+  text: string;
+  format?: unknown;
+}
+```
+
+The normative outbound routing rule (must appear in both core and surfaces specs):
+
+- **Targeted send:** When `surfaceId` is present, use `surfaceRegistry.send(event)`. Delivers to exactly one surface.
+- **Session fanout:** When `surfaceId` is absent and `sessionId` is present, the caller must resolve `session.attachedSurfaces` and call `surfaceRegistry.fanout(event, attachedSurfaceIds, policy?)`. Delivers to all attached surfaces per `FanoutPolicy`.
+- **Invalid:** When both `surfaceId` and `sessionId` are absent, `runtime.emit()` must throw an `OutboundEventError` (new error type to add to core).
+
+This rule must be stated once in `docs/specs/v1-core-spec.md` (in the `runtime.emit()` contract) and once in `docs/specs/v1-surfaces-spec.md` (in the `SurfaceRegistry.send()` / `SurfaceRegistry.fanout()` contract).
+
+---
+
+## Rule 3: Keeping Weekend Examples Spec-Conformant
+
+All code examples in planning docs, adoption paths, and workflow guides must conform to the canonical specs **after the contradiction resolutions above are applied**. The following rules govern example conformance:
+
+### 3a. Import paths and factory names
+
+Examples must use these exact imports:
+
+```typescript
+// Core
+import { createAssistant } from "@relay-assistant/core";
+import type {
+  AssistantDefinition,
+  AssistantRuntime,
+  InboundMessage,
+  OutboundEvent,
+  CapabilityHandler,
+  CapabilityContext,
+} from "@relay-assistant/core";
+
+// Sessions
+import {
+  createSessionStore,
+  InMemorySessionStoreAdapter,  // or createInMemorySessionStoreAdapter()
+  resolveSession,
+  createDefaultAffinityResolver,
+} from "@relay-assistant/sessions";
+import type { Session, SessionStore } from "@relay-assistant/sessions";
+
+// Surfaces
+import { createSurfaceRegistry } from "@relay-assistant/surfaces";
+import type {
+  SurfaceConnection,
+  SurfaceRegistry,
+  SurfaceAdapter,
+  SurfaceCapabilities,
+  SurfaceFormatHook,
+} from "@relay-assistant/surfaces";
+```
+
+### 3b. Assembly pattern
+
+The canonical v1 assembly pattern is:
+
+```typescript
+// 1. Define
+const definition: AssistantDefinition = { id, name, capabilities };
+
+// 2. Create subsystems
+const sessionStore = createSessionStore({ adapter });
+const surfaceRegistry = createSurfaceRegistry();
+surfaceRegistry.register(connection);
+
+// 3. Create runtime with surfaces as relay adapters
+const runtime = createAssistant(definition, {
+  inbound: surfaceRegistry,   // surfaces implements RelayInboundAdapter
+  outbound: surfaceRegistry,  // surfaces implements RelayOutboundAdapter
+});
+
+// 4. Register subsystems
+runtime.register("sessions", sessionStore);
+
+// 5. Start
+await runtime.start();
+```
+
+Any example that deviates from this pattern must be corrected before it appears in a committed document.
+
+### 3c. Capability handler pattern
+
+Handlers must use current vocabulary:
+
+```typescript
+const handler: CapabilityHandler = async (
+  message: InboundMessage,
+  context: CapabilityContext,
+) => {
+  // Session resolution uses message.userId (not extracted from raw)
+  const store = context.runtime.get<SessionStore>("sessions");
+  const session = await resolveSession(message, store, affinityResolver);
+  await store.touch(session.id);
+
+  // Outbound: targeted send (surfaceId present)
+  await context.runtime.emit({
+    surfaceId: message.surfaceId,
+    sessionId: session.id,
+    text: "response",
+  });
+
+  // Outbound: session fanout (surfaceId absent)
+  await context.runtime.emit({
+    sessionId: session.id,
+    text: "broadcast to all session surfaces",
+  });
+};
+```
+
+### 3d. Validation checklist for any new or updated example
+
+Before committing any example code to the repo:
+
+- [ ] All type names match Rule 1 current vocabulary (no stale terms)
+- [ ] `InboundMessage` includes `userId` (required) and `workspaceId?` (optional)
+- [ ] `OutboundEvent.surfaceId` is treated as optional
+
+ succeeded in 0ms:
+# v1 Core Spec — `@relay-assistant/core`
+
+**Status:** IMPLEMENTATION_READY
+**Date:** 2026-04-11
+**Package:** `@relay-assistant/core`
+**Version target:** v0.1.0 (pre-1.0, provisional)
+
+---
+
+## 1. Responsibilities
+
+`@relay-assistant/core` is the root composition layer. Every other package in this SDK depends on contracts exported from core; core depends on nothing else in this monorepo.
+
+**Owns:**
+- `AssistantDefinition` — the declarative config struct describing an assistant's identity, capabilities, and runtime constraints
+- `AssistantRuntime` — the live object returned by `createAssistant()`; holds registered subsystems and drives the main event loop
+- Capability registration — typed registry mapping capability names to handler functions
+- Lifecycle hooks — `onStart`, `onStop`, `onMessage`, `onError` (synchronous signatures; async adapters are the caller's responsibility)
+- Health/readiness probe — `runtime.status()` returns a structured object suitable for a health endpoint
+
+> **Normalization boundary:** Core does not normalize raw relay events. It receives already-normalized `InboundMessage` objects from the surfaces layer. The `SurfaceRegistry` (from `@relay-assistant/surfaces`) implements core's `RelayInboundAdapter` interface and performs normalization before calling the registered handler. See Contradiction 1 resolution in `docs/architecture/spec-reconciliation-rules.md`.
+
+**Does NOT own:**
+- Session state (→ `@relay-assistant/sessions`)
+- Surface I/O (→ `@relay-assistant/surfaces`)
+- Memory retrieval or storage (→ `@relay-assistant/memory`)
+- Model selection or routing (→ `@relay-assistant/routing`)
+- Multi-agent coordination (→ `@relay-assistant/coordination`)
+- Any transport protocol, HTTP server, or relay socket management (→ relay foundation layer)
+
+---
+
+## 2. Non-Goals
+
+- Core does not start a web server, open sockets, or manage relay connections. Those belong to the relay foundation beneath this SDK.
+- Core does not implement retry logic, queue management, or delivery guarantees. Those are relay-layer concerns.
+- Core is not an orchestrator. It registers capabilities and dispatches events; it does not sequence multi-step workflows.
+- Core does not enforce action policy (→ `@relay-assistant/policy`).
+- Core does not know about cloud infrastructure. All interfaces must be implementable by a self-hosted consumer without any private service.
+
+---
+
+## 3. Interfaces and Contracts
+
+### 3.1 `AssistantDefinition`
+
+```typescript
+export interface AssistantDefinition {
+  /** Unique identifier for this assistant. Stable across restarts. */
+  id: string;
+
+  /** Human-readable display name. Used in surface headers and logs. */
+  name: string;
+
+  /**
+   * Optional description. Surfaced in admin UIs and capability registries.
+   * Not used at runtime.
+   */
+  description?: string;
+
+  /**
+   * Named capability handlers. Keys are capability names; values are handler
+   * functions. Core dispatches inbound messages to handlers by capability name.
+   */
+  capabilities: Record<string, CapabilityHandler>;
+
+  /**
+   * Lifecycle hooks. All optional. Called synchronously (handlers may return
+   * promises, but core does not await them unless noted).
+   */
+  hooks?: AssistantHooks;
+
+  /**
+   * Runtime constraints. Used by routing and scheduling layers; core
+   * validates structure but does not enforce values.
+   */
+  constraints?: RuntimeConstraints;
+}
+```
+
+### 3.2 `CapabilityHandler`
+
+```typescript
+export type CapabilityHandler = (
+  message: InboundMessage,
+  context: CapabilityContext,
+) => Promise<void> | void;
+```
+
+### 3.3 `InboundMessage`
+
+```typescript
+export interface InboundMessage {
+  /** Relay-assigned message ID. Globally unique. */
+  id: string;
+
+  /** Surface this message arrived on. Opaque string; not parsed by core. */
+  surfaceId: string;
+
+  /** Session this message belongs to. May be undefined for sessionless surfaces. */
+  sessionId?: string;
+
+  /** User who sent this message. Required. Extracted during surface normalization. */
+  userId: string;
+
+  /** Workspace scope. Optional. Used for scoped session affinity. */
+  workspaceId?: string;
+
+  /** Normalized text body. Core does not parse further. */
+  text: string;
+
+  /**
+   * Original relay payload. Core preserves this verbatim so capability
+   * handlers can access surface-specific fields without core needing to
+   * understand them.
+   */
+  raw: unknown;
+
+  /** ISO-8601 timestamp of message receipt at the relay layer. */
+  receivedAt: string;
+
+  /** Name of the capability this message was dispatched to. Set by core. */
+  capability: string;
+}
+```
+
+### 3.4 `CapabilityContext`
+
+```typescript
+export interface CapabilityContext {
+  /** The live AssistantRuntime. Handlers may call runtime.emit() to send responses. */
+  runtime: AssistantRuntime;
+
+  /**
+   * Logger bound to this invocation. Structured; always includes messageId,
+   * capability, and surfaceId.
+   */
+  log: ContextLogger;
+}
+```
+
+### 3.5 `AssistantHooks`
+
+```typescript
+export interface AssistantHooks {
+  /** Called once after createAssistant() completes subsystem registration. */
+  onStart?: (runtime: AssistantRuntime) => Promise<void> | void;
+
+  /** Called once when runtime.stop() is invoked. */
+  onStop?: (runtime: AssistantRuntime) => Promise<void> | void;
+
+  /**
+   * Called before dispatching any inbound message to a capability handler.
+   * Return false to drop the message without processing.
+   */
+  onMessage?: (message: InboundMessage) => boolean | Promise<boolean>;
+
+  /** Called when a capability handler throws. */
+  onError?: (error: Error, message: InboundMessage) => void;
+}
+```
+
+### 3.6 `RuntimeConstraints`
+
+```typescript
+export interface RuntimeConstraints {
+  /**
+   * Maximum time (ms) core will wait for a capability handler to resolve.
+   * Defaults to 30000. Core emits a timeout error and calls onError if exceeded.
+   */
+  handlerTimeoutMs?: number;
+
+  /**
+   * Maximum concurrent capability invocations. Defaults to 10.
+   * Core queues messages beyond this limit; does not drop them.
+   */
+  maxConcurrentHandlers?: number;
+}
+```
+
+### 3.7 `AssistantRuntime`
+
+```typescript
+export interface AssistantRuntime {
+  /** The definition this runtime was created from. Frozen after creation. */
+  readonly definition: Readonly<AssistantDefinition>;
+
+  /**
+   * Emit an outbound event. Routing rule:
+   * - **Targeted send:** When `event.surfaceId` is present, calls `RelayOutboundAdapter.send(event)`.
+   * - **Session fanout:** When `event.surfaceId` is absent and `event.sessionId` is present,
+   *   the runtime resolves the session's `attachedSurfaces` and calls
+   *   `outboundAdapter.fanout(event, attachedSurfaceIds)` (implemented by `SurfaceRegistry`).
+   * - **Invalid:** When both `surfaceId` and `sessionId` are absent, throws `OutboundEventError`.
+   */
+  emit(event: OutboundEvent): Promise<void>;
+
+  /**
+   * Dispatch a message directly (bypasses relay; useful for testing).
+   * Runs the full dispatch pipeline including hooks.
+   */
+  dispatch(message: InboundMessage): Promise<void>;
+
+  /**
+   * Register a subsystem at runtime. Called by other packages during their
+   * initialization. Returns the runtime for chaining.
+   */
+  register<T>(name: string, subsystem: T): AssistantRuntime;
+
+  /**
+   * Retrieve a registered subsystem. Throws if not found.
+   */
+  get<T>(name: string): T;
+
+  /**
+   * Structured health/readiness object. Suitable for a GET /health endpoint.
+   */
+  status(): RuntimeStatus;
+
+  /** Begin processing. Resolves after onStart hooks complete. */
+  start(): Promise<void>;
+
+  /** Drain in-flight handlers then call onStop hooks. */
+  stop(): Promise<void>;
+}
+```
+
+### 3.8 `OutboundEvent`
+
+```typescript
+export interface OutboundEvent {
+  /** Surface to deliver to. When present, targeted send. When absent, session fanout. */
+  surfaceId?: string;
+
+  /** Session context. When surfaceId is absent, used for fanout to all attached surfaces. */
+  sessionId?: string;
+
+  /** Normalized text response. */
+  text: string;
+
+  /**
+   * Surface-specific formatting hints. Core passes verbatim to the surface
+   * adapter; does not interpret.
+   */
+  format?: unknown;
+}
+```
+
+### 3.9 `RuntimeStatus`
+
+```typescript
+export interface RuntimeStatus {
+  ready: boolean;
+  startedAt: string | null;
+  registeredSubsystems: string[];
+  registeredCapabilities: string[];
+  inFlightHandlers: number;
+}
+```
+
+
+ succeeded in 0ms:
+# v1 Sessions Spec — `@relay-assistant/sessions`
+
+**Status:** IMPLEMENTATION_READY
+**Date:** 2026-04-11
+**Package:** `@relay-assistant/sessions`
+**Version target:** v0.1.0 (pre-1.0, provisional)
+
+---
+
+## 1. Responsibilities
+
+`@relay-assistant/sessions` manages the continuity unit that spans surfaces. A session is not a conversation turn; it is the persistent identity context within which turns happen.
+
+**Owns:**
+- `Session` entity — identity, metadata, lifecycle state, associated surfaces
+- `SessionStore` — CRUD + query interface for sessions; storage backend is injected via adapter
+- Session lifecycle — creation, activation, suspension, expiry, resumption
+- Surface attachment — binding/unbinding surfaces to sessions; enforcing one-session-per-surface-slot rules
+- Affinity — routing hint that prefers continuing an existing session over starting a new one when a returning user is detected
+- Session scoping — sessions belong to a user, a workspace, or a combination; scope is recorded but not enforced by this package (enforcement is memory's concern)
+- Stale-session detection — sessions that have not seen activity within a configurable TTL are marked `suspended`; explicit expiry marks them `expired`
+
+**Does NOT own:**
+- Memory content within a session (→ `@relay-assistant/memory`)
+- Message routing decisions (→ `@relay-assistant/routing`)
+- Surface protocol or formatting (→ `@relay-assistant/surfaces`)
+- Multi-assistant coordination (→ `@relay-assistant/coordination`)
+- Policy enforcement on session operations (→ `@relay-assistant/policy`)
+
+---
+
+## 2. Non-Goals
+
+- Sessions does not persist to any specific storage backend. It defines the `SessionStoreAdapter` interface; the caller provides an implementation (in-memory, Redis, Postgres, etc.).
+- Sessions does not manage HTTP cookies, JWT tokens, or authentication. It receives a `userId` string; it does not validate it.
+- Sessions does not start or stop relay connections. Surface attachment records which relay surface IDs are bound; it does not open those surfaces.
+- Sessions is not a presence system. It does not track whether a user is currently "online".
+- Sessions does not fanout messages across attached surfaces. That is surfaces' concern.
+
+---
+
+## 3. Session Lifecycle
+
+```
+created ──► active ──► suspended ──► active   (touch)
+                    └──► expired               (TTL exceeded while suspended, or explicit expiry)
+
+active ──► expired                             (explicit expiry while active)
+```
+
+| State | Meaning |
+|---|---|
+| `created` | Initialized but no message processed yet. |
+| `active` | At least one message processed; within activity TTL. |
+| `suspended` | No activity within TTL; transitions back to `active` via `touch()`. Memory is preserved. |
+| `expired` | Terminal state. Memory may be archived per policy. No further transitions. |
+
+State transitions are recorded with a timestamp. Sessions does not automatically expire sessions on a timer; it marks sessions stale when queried or when the caller explicitly invokes `sessionStore.expire()`.
+
+---
+
+## 4. Interfaces and Contracts
+
+### 4.1 `Session`
+
+```typescript
+export interface Session {
+  /** Relay-assigned or caller-assigned unique ID. Immutable after creation. */
+  id: string;
+
+  /** The user this session belongs to. Opaque string; not validated here. */
+  userId: string;
+
+  /**
+   * Optional workspace scope. When set, session is scoped to both user and
+   * workspace. Memory retrieval uses this to narrow scope.
+   */
+  workspaceId?: string;
+
+  /** Current lifecycle state. */
+  state: SessionState;
+
+  /** ISO-8601 timestamp of session creation. */
+  createdAt: string;
+
+  /** ISO-8601 timestamp of last inbound message. Updated by sessionStore.touch(). */
+  lastActivityAt: string;
+
+  /** ISO-8601 timestamp of state transition, if suspended or expired. */
+  stateChangedAt?: string;
+
+  /**
+   * Surface IDs currently attached to this session.
+   * A session may have multiple surfaces (e.g., web + Slack).
+   */
+  attachedSurfaces: string[];
+
+  /**
+   * Arbitrary key-value metadata. Products may store product-specific fields
+   * here without modifying the Session schema.
+   */
+  metadata: Record<string, unknown>;
+}
+
+export type SessionState = 'created' | 'active' | 'suspended' | 'expired';
+```
+
+### 4.2 `SessionStore`
+
+```typescript
+export interface SessionStore {
+  /**
+   * Create a new session. Throws SessionConflictError if a session with this
+   * id already exists.
+   */
+  create(input: CreateSessionInput): Promise<Session>;
+
+  /**
+   * Retrieve a session by ID. Returns null if not found.
+   */
+  get(sessionId: string): Promise<Session | null>;
+
+  /**
+   * Find sessions matching the given query. Returns empty array if none found.
+   */
+  find(query: SessionQuery): Promise<Session[]>;
+
+  /**
+   * Record inbound message activity; transitions state from 'created' or
+   * 'suspended' to 'active' if necessary. Updates lastActivityAt.
+   */
+  touch(sessionId: string): Promise<Session>;
+
+  /**
+   * Attach a surface to a session. Idempotent if already attached.
+   * Throws SessionNotFoundError if session does not exist.
+   */
+  attachSurface(sessionId: string, surfaceId: string): Promise<Session>;
+
+  /**
+   * Detach a surface from a session. Idempotent if not attached.
+   */
+  detachSurface(sessionId: string, surfaceId: string): Promise<Session>;
+
+  /**
+   * Mark a session as expired. Transitions from any state to 'expired'.
+   * Idempotent if already expired.
+   */
+  expire(sessionId: string): Promise<Session>;
+
+  /**
+   * Check sessions against the TTL and mark stale ones as 'suspended'.
+   * Callers should invoke this on a schedule (e.g., every 5 minutes).
+   * Returns the sessions that were transitioned.
+   */
+  sweepStale(ttlMs: number): Promise<Session[]>;
+
+  /**
+   * Update arbitrary metadata fields. Merges (does not replace) the metadata
+   * map. Throws SessionNotFoundError if session does not exist.
+   */
+  updateMetadata(
+    sessionId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<Session>;
+}
+```
+
+### 4.3 `CreateSessionInput`
+
+```typescript
+export interface CreateSessionInput {
+  /** Caller-provided ID. Must be globally unique. Use a UUID. */
+  id: string;
+
+  userId: string;
+  workspaceId?: string;
+
+  /** Initial surface to attach. Optional; surfaces may be attached later. */
+  initialSurfaceId?: string;
+
+  /** Seed metadata. Optional. */
+  metadata?: Record<string, unknown>;
+}
+```
+
+### 4.4 `SessionQuery`
+
+```typescript
+export interface SessionQuery {
+  userId?: string;
+  workspaceId?: string;
+  state?: SessionState | SessionState[];
+  surfaceId?: string;
+
+  /** Return sessions with lastActivityAt after this ISO-8601 timestamp. */
+  activeAfter?: string;
+
+  /** Maximum results. Defaults to 50. */
+  limit?: number;
+}
+```
+
+### 4.5 `SessionStoreAdapter`
+
+```typescript
+/**
+ * Storage backend interface. Implementations provide persistence.
+ * Core package does not depend on this; it is injected by the caller.
+ */
+export interface SessionStoreAdapter {
+  insert(session: Session): Promise<void>;
+  fetchById(sessionId: string): Promise<Session | null>;
+  fetchMany(query: SessionQuery): Promise<Session[]>;
+  update(sessionId: string, patch: Partial<Session>): Promise<Session>;
+  delete(sessionId: string): Promise<void>;
+}
+```
+
+### 4.6 `AffinityResolver`
+
+```typescript
+/**
+ * Optional hook for routing layer to prefer an existing session.
+ * Implemented by the caller; sessions package provides the interface
+ * and a default implementation.
+ */
+export interface AffinityResolver {
+  /**
+   * Given a userId and optional surfaceId, return the best session to
+   * continue, or null to start a new one.
+   */
+  resolve(userId: string, surfaceId?: string): Promise<Session | null>;
+}
+```
+
+Default implementation: find the most recently active `active` or `suspended` session for the user. Products may override to add workspace, surface-type, or time-window constraints.
+
+### 4.7 Error types
+
+```typescript
+export class SessionNotFoundError extends Error {
+  constructor(public readonly sessionId: string) {
+    super(`Session not found: ${sessionId}`);
+  }
+}
+
+export class SessionConflictError extends Error {
+  constructor(public readonly sessionId: string) {
+    super(`Session already exists: ${sessionId}`);
+  }
+}
+
+export class SessionStateError extends Error {
+  constructor(
+    public readonly sessionId: string,
+    public readonly currentState: SessionState,
+    public readonly attemptedTransition: string,
+  ) {
+    super(
+
+ succeeded in 0ms:
+# V1 Workflow Backlog
+
+Date: 2026-04-11
+Revised: 2026-04-11 (post spec-program-review-verdict and spec-reconciliation-rules — aligned to canonical spec vocabulary; fanout/targeting rules and cross-package ownership clarified)
+
+> **Canonical source of truth:** Package specs in `docs/specs/` override this document when there is drift. This backlog was updated to align with `docs/specs/v1-core-spec.md`, `docs/specs/v1-sessions-spec.md`, and `docs/specs/v1-surfaces-spec.md` after the spec program review and reconciliation rules pass on 2026-04-11.
+
+## Purpose
+
+This document is the canonical ordered backlog of implementation workflows for v1. Each workflow is a narrow, PR-sized vertical slice through one or more packages. Workflows produce working, testable code and are the unit of implementation work.
+
+Implement in order. Each workflow gates the next unless explicitly noted as parallelizable.
+
+---
+
+## Pre-Workflow: Reconciliation Phase (Required — block on this before WF-1)
+
+### Spec Phase
+
+Three spec documents are finalized and marked `IMPLEMENTATION_READY`. They are the authoritative implementation reference for all workflow code.
+
+| Spec | Path | Status |
+| --- | --- | --- |
+| core v1 | `docs/specs/v1-core-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1–3 resolution) |
+| sessions v1 | `docs/specs/v1-sessions-spec.md` | IMPLEMENTATION_READY |
+| surfaces v1 | `docs/specs/v1-surfaces-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1 resolution) |
+
+### Contradiction Resolutions (Pre-WF-1 gate)
+
+Three cross-package contradictions identified in `docs/architecture/spec-reconciliation-rules.md` must be resolved **in the specs** before any WF-1 code is committed. All eight checklist actions in the reconciliation rules document must be complete.
+
+| Action | Target | Contradiction | Status |
+| --- | --- | --- | --- |
+| 1 | `docs/specs/v1-core-spec.md`: remove "owns inbound normalization" from §1; update `RelayInboundAdapter` to accept `InboundMessage` (not `raw: unknown`) | 1 — inbound normalization ownership | Pending |
+| 2 | `docs/specs/v1-core-spec.md §3.3`: add `userId: string` (required) and `workspaceId?: string` (optional) to `InboundMessage` | 2 — missing identity fields | Pending |
+| 3 | `docs/specs/v1-core-spec.md §3.8`: make `OutboundEvent.surfaceId` optional (`surfaceId?`); add `OutboundEventError` | 3 — required surfaceId vs. fanout | Pending |
+| 4 | `docs/specs/v1-core-spec.md`: add normative outbound routing rule to `runtime.emit()` contract | 3 | Pending (depends on action 3) |
+| 5 | `docs/specs/v1-surfaces-spec.md`: confirm `SurfaceRegistry` implements `RelayInboundAdapter`; add `userId`/`workspaceId` to normalization table §4.10 | 1, 2 | Pending (depends on actions 1, 2) |
+| 6 | `docs/specs/v1-surfaces-spec.md`: add normative outbound routing rule reference | 3 | Pending (depends on action 3) |
+| 7 | Update adoption examples in `docs/workflows/weekend-delivery-plan.md` to match resolved contracts | all | Pending (depends on 1–6) |
+| 8 | Search all docs for stale terms (Rule 1 table); replace with current terms | all | Pending |
+
+### Key canonical terms (do not use old planning vocabulary)
+
+- `AssistantDefinition` (not `AssistantConfig`)
+- `AssistantRuntime` (not `Assistant`)
+- `runtime.dispatch()` (not `handleMessage`)
+- `InboundMessage` / `OutboundEvent` (not `AssistantMessage`)
+- `createSurfaceRegistry()` + `SurfaceConnection` (not `createSurfaceConnection()`)
+- `sessionStore.touch()` / `sessionStore.expire()` (not `resume` / `close`)
+- Session states: `created → active → suspended → expired` (not `resumed` or `closed`)
+- `surfaceRegistry` wired as both `inbound` and `outbound` relay adapter (not `assistant.attachSurface()`)
+
+---
+
+## WF-1: Define assistant and start runtime
+
+**Package:** `core`
+**Depends on:** `docs/specs/v1-core-spec.md` (after Contradiction 1–3 resolutions applied)
+**Produces:** `AssistantDefinition`, `AssistantRuntime`, `createAssistant`, lifecycle state machine, `runtime.status()`
+**PR scope:** `packages/core/src/types.ts`, `packages/core/src/core.ts`, `packages/core/src/core.test.ts`
+
+### Steps
+
+1. Define an `AssistantDefinition` with `id`, `name`, and a `capabilities` map (`Record<string, CapabilityHandler>`)
+2. Call `createAssistant(definition, { inbound: stubAdapter, outbound: stubAdapter })` — returns `AssistantRuntime`
+3. Call `runtime.start()` — verify `runtime.status().ready === true`
+4. Call `runtime.stop()` — verify runtime is no longer accepting dispatches
+5. Verify double-start is idempotent or throws expected error
+6. Verify double-stop is idempotent or throws expected error
+
+### Acceptance criteria
+
+- `AssistantDefinition` interface is defined and exported from `packages/core/src/index.ts`
+- `AssistantRuntime` interface is defined and exported
+- `createAssistant` factory is exported; it validates `definition` and throws `AssistantDefinitionError` on invalid input
+- `runtime.status()` returns `RuntimeStatus` reflecting `ready`, `startedAt`, `registeredCapabilities`, `registeredSubsystems`, `inFlightHandlers`
+- At least one test exercises the full start/stop cycle with a stub relay adapter
+- No network calls, no side effects outside in-memory state
+- `RelayInboundAdapter` and `RelayOutboundAdapter` interfaces are exported (with `RelayInboundAdapter.onMessage` accepting `InboundMessage` per Contradiction 1 resolution)
+
+### Open questions to resolve before coding
+
+- OQ-2: String keys vs typed tokens for `register()` / `get()` — default to string keys for v1
+- OQ-4: `handlerTimeoutMs` applies per-invocation for v1
+
+---
+
+## WF-2: Handle inbound message via capability dispatch
+
+**Package:** `core`
+**Depends on:** WF-1
+**Produces:** capability dispatch table, `runtime.dispatch()`, `AssistantHooks.onMessage` pre-filter, `runtime.emit()`, `InboundMessage` / `OutboundEvent` types
+**PR scope:** additions to `packages/core/src/types.ts`, additions to `packages/core/src/core.ts`, new test cases in `packages/core/src/core.test.ts`
+
+### Steps
+
+1. Create and start a runtime with a capability named `"chat"` mapped to a handler function
+2. Call `runtime.dispatch(inboundMessage)` where `inboundMessage.capability === "chat"`
+3. Verify the `"chat"` handler is called with the correct `InboundMessage` and `CapabilityContext`
+4. Handler calls `context.runtime.emit(outboundEvent)` — verify stub outbound adapter receives the event
+5. Register an `onMessage` hook that returns `false` — verify dispatch is dropped before handler is called
+6. Dispatch a message with an unregistered capability — verify expected error or no-op behavior
+7. Verify `runtime.status().inFlightHandlers` tracks concurrent handler invocations
+
+### Acceptance criteria
+
+- `InboundMessage` type is defined and exported with all fields:
+  `id`, `surfaceId`, `sessionId?`, `userId` (required — per Contradiction 2 resolution), `workspaceId?` (optional — per Contradiction 2 resolution), `text`, `raw`, `receivedAt`, `capability`
+- `OutboundEvent` type is defined and exported:
+  `surfaceId?` (optional — per Contradiction 3 resolution), `sessionId?`, `text`, `format?`
+- `OutboundEventError` is defined and exported; `runtime.emit()` throws it when both `surfaceId` and `sessionId` are absent
+- `CapabilityHandler` type signature matches spec: `(message: InboundMessage, context: CapabilityContext) => Promise<void> | void`
+- `CapabilityContext` includes `runtime` and `log`
+- `AssistantHooks.onMessage` returning `false` drops the message; `true` or `undefined` proceeds
+- `runtime.emit()` calls `RelayOutboundAdapter.send()` with the `OutboundEvent`
+- At least two tests: one happy path with handler invoked and emit called, one with `onMessage` returning false
+
+### Open questions to resolve before coding
+
+- OQ-1: `runtime.emit()` returns `Promise<void>`; no ack semantics in v1 — fire and forward
+
+---
+
+## WF-3: Create and manage sessions
+
+**Package:** `sessions`
+**Depends on:** `docs/specs/v1-sessions-spec.md` (independent of WF-1/WF-2 — parallelizable)
+**Produces:** `SessionStore`, `Session`, lifecycle transitions, in-memory `SessionStoreAdapter`, error types
+**PR scope:** `packages/sessions/src/types.ts`, `packages/sessions/src/sessions.ts`, `packages/sessions/src/sessions.test.ts`
+
+### Steps
+
+1. Create a session store: `createSessionStore({ adapter: new InMemorySessionStoreAdapter() })`
+2. Call `store.create({ id: uuid(), userId, workspaceId })` — returns `Session` with `state: 'created'`, timestamps
+3. Call `store.get(sessionId)` — returns the same session
+4. Call `store.touch(sessionId)` — state transitions to `'active'`, `lastActivityAt` updates
+5. Call `store.attachSurface(sessionId, surfaceId)` — `session.attachedSurfaces` includes the surface id
+6. Call `store.detachSurface(sessionId, surfaceId)` — `session.attachedSurfaces` no longer includes it (idempotent)
+7. Call `store.expire(sessionId)` — state transitions to `'expired'`
+8. Verify `store.get(unknownId)` returns `null`
+9. Verify `store.sweepStale(ttlMs)` transitions active sessions with stale `lastActivityAt` to `'suspended'`
+10. Verify illegal transitions throw `SessionStateError` (e.g., `expire` on already-expired session is idempotent per spec; `touch` after `expired` should throw)
+
+### Acceptance criteria
+
+- `Session` interface matches spec: `id`, `userId`, `workspaceId?`, `state`, `createdAt`, `lastActivityAt`, `stateChangedAt?`, `attachedSurfaces`, `metadata`
+- `SessionState` union type: `'created' | 'active' | 'suspended' | 'expired'`
+- `SessionStore` interface fully implemented with `create`, `get`, `find`, `touch`, `attachSurface`, `detachSurface`, `expire`, `sweepStale`, `updateMetadata`
+- `createSessionStore` factory exported from `packages/sessions/src/index.ts`
+- `InMemorySessionStoreAdapter` exported (or exported as `createInMemorySessionStoreAdapter()`)
+- `SessionNotFoundError`, `SessionConflictError`, `SessionStateError` exported
+- All lifecycle transitions are tested including stale sweep
+- `AffinityResolver` interface exported; default implementation finds most recently active session for a userId
+
+### Open questions to resolve before coding
+
+- OQ-1: `sweepStale()` is caller-driven in v1 (no internal timer)
+- OQ-4: `AffinityResolver` is passed at call-site to `resolveSession()` utility, not at store level
+
+---
+
+## WF-4: Wire session store into runtime
+
+**Package:** `core` + `sessions`
+**Depends on:** WF-2, WF-3
+**Produces:** `runtime.register('sessions', store)`, session resolution in capability handler context, `resolveSession()` utility integration
+**PR scope:** additions to `packages/core/src/core.ts` (register/get validation), new integration test `packages/core/src/core-sessions.test.ts`
+
+> **Cross-package note:** Sessions does not inject session middleware into core's dispatch pipeline. Products wire session lookups into capability handlers themselves using `context.runtime.get<SessionStore>('sessions')` and the `resolveSession()` utility exported by `@relay-assistant/sessions`. Core remains unaware of session semantics.
+
+### Steps
+
+1. Create an `AssistantRuntime` and a `SessionStore`
+2. Call `runtime.register('sessions', store)` — verify `runtime.status().registeredSubsystems` includes `'sessions'`
+3. In the capability handler, call `context.runtime.get<SessionStore>('sessions')` — verify it returns the store
+4. Use `resolveSession(message, store, defaultAffinityResolver)` inside the handler — verify it creates a new session for a new userId (reads `message.userId`)
+5. Dispatch a second message with the same userId — verify `resolveSession` returns the existing session
+6. Touch the session inside the handler — verify `session.state === 'active'`
+7. Verify `runtime.get('nonexistent')` throws with a clear error
+
+### Acceptance criteria
+
+- `runtime.register(name, subsystem)` returns `AssistantRuntime` for chaining
+- `runtime.get<T>(name)` is generic; throws if name is not registered
+- `resolveSession()` utility is exported from `packages/sessions/src/index.ts`
+- `resolveSession` reads `message.userId` (required field per Contradiction 2 resolution) for session lookup — no manual userId extraction from `message.raw`
+- Integration test does not import any surfaces package
+- Session auto-create and session reuse are both tested
+
+---
+
+## WF-5: Register surface registry and route messages
+
+**Package:** `core` + `surfaces`
+**Depends on:** `docs/specs/v1-surfaces-spec.md` (after Contradiction 1 resolution applied), WF-2 (for `InboundMessage` / `OutboundEvent` type shapes)
+**Produces:** `SurfaceRegistry`, `SurfaceConnection`, `SurfaceAdapter`, `SurfaceCapabilities`, inbound normalization, outbound targeted send, connection state management
+**PR scope:** `packages/surfaces/src/types.ts`, `packages/surfaces/src/surfaces.ts`, `packages/surfaces/src/surfaces.test.ts`, additions to `packages/core/src/core.ts` for adapter wiring
+
+> **Cross-package ownership note (Contradiction 1 resolution):** Surfaces owns inbound normalization. The flow is:
+> `relay foundation → surfaceRegistry.receiveRaw(surfaceId, raw) → normalization → InboundMessage → core.dispatch()`
+>
+> `SurfaceRegistry` implements core's `RelayInboundAdapter` interface. Normalization happens inside `SurfaceRegistry`; by the time `core.dispatch()` is called, the message is already a well-formed `InboundMessage`. Core does not normalize raw events; it receives only `InboundMessage`.
+>
+> Normalization must extract `userId` from the raw payload (per Contradiction 2 resolution). If the raw event does not contain a user identifier, normalization must reject the message or assign a system-generated anonymous ID.
+
+### Steps
+
+1. Create a surface registry: `createSurfaceRegistry()`
+2. Define a `SurfaceConnection` for type `"slack"` with a mock `SurfaceAdapter` and `SurfaceCapabilities`
+3. Define a `SurfaceConnection` for type `"web"` with different `SurfaceCapabilities` (e.g., markdown=true)
+4. Call `surfaceRegistry.register(slackConnection)` and `surfaceRegistry.register(webConnection)`
+5. Wire registry as the core relay adapter pair: `createAssistant(definition, { inbound: surfaceRegistry, outbound: surfaceRegistry })`
+6. Simulate an inbound raw event from the slack surface via `surfaceRegistry.receiveRaw('slack-1', rawPayload)`
+7. Verify normalization produces a well-formed `InboundMessage` (id, surfaceId='slack-1', userId extracted from raw, text, receivedAt, raw preserved)
+8. Runtime dispatches to the capability handler; handler calls `context.runtime.emit({ surfaceId: 'slack-1', text: 'response' })`
+9. Verify `surfaceRegistry.send()` is called; slack adapter receives a `SurfacePayload` with correct `formatted` content
+10. Attach a `formatHook` to the slack connection — verify hook output is used instead of raw text
+
+### Acceptance criteria
+
+- `SurfaceRegistry` interface fully implemented with `register`, `unregister`, `get`, `list`, `send`, `fanout`
+- `SurfaceConnection` type exported with `id`, `type`, `state`, `capabilities`, `adapter`, `formatHook?`
+- `SurfaceAdapter` interface exported with `send`, `onConnect`, `onDisconnect`
+- `SurfaceCapabilities` type exported: `markdown`, `richBlocks`, `attachments`, `streaming`, `maxResponseLength`
+- `SurfacePayload` type exported: `event`, `formatted`, `surfaceCapabilities`
+- `createSurfaceRegistry` factory exported from `packages/surfaces/src/index.ts`
+- Inbound normalization extracts `userId` from raw payload (required per Contradiction 2 resolution); rejects or assigns anonymous ID if missing
+- Inbound normalization handles missing optional fields with fallbacks for other fields (no throw)
+- Outbound targeted `send()` uses format hook when present
+- Connection state transitions (`registered → active → inactive`) via adapter callbacks are tested
+- `SurfaceNotFoundError`, `SurfaceConflictError`, `SurfaceDeliveryError` exported
+
+### Open questions to resolve before coding
+
+- OQ-1: Fanout is concurrent (Promise.all-equivalent) for v1
+- OQ-3: Normalization is permissive (warn + fallback) for optional fields; `userId` absence is an error (not optional per Contradiction 2 resolution)
+
+---
+
+## WF-6: Multi-surface session fanout
+
+**Package:** `core` + `sessions` + `surfaces`
+**Depends on:** WF-4, WF-5
+**Produces:** cross-surface session attachment, `surfaceRegistry.fanout()`, targeted-vs-fanout outbound rule validated in integration
+**PR scope:** new integration test `packages/core/src/core-sessions-surfaces.test.ts`
+
+> **Fanout ownership note:** The surfaces package owns fanout delivery. When `runtime.emit()` is called without a `surfaceId`, core resolves the session's `attachedSurfaces` and calls `surfaceRegistry.fanout(event, attachedSurfaceIds, policy?)`. The registry handles concurrent delivery and collects `FanoutResult`. Sessions owns the `attachedSurfaces` list; surfaces owns delivery.
+
+### Steps
+
+1. Create a runtime with sessions and a surface registry (slack + web connections)
+2. User sends a message via slack surface — `resolveSession()` creates a new session; `store.attachSurface(sessionId, 'slack-1')` is called
+3. Same userId sends a message via web surface — `resolveSession()` returns existing session; `store.attachSurface(sessionId, 'web-1')` is called
+4. Verify `session.attachedSurfaces` contains both `'slack-1'` and `'web-1'`
+5. Handler emits `OutboundEvent` with `surfaceId` set to originating surface — verify only that surface's adapter receives the event (targeted send via `surfaceRegistry.send()`)
+6. Handler emits `OutboundEvent` with `sessionId` but no `surfaceId` — verify `surfaceRegistry.fanout()` is called and both adapters receive the event (session fanout)
+7. Handler emits `OutboundEvent` with neither `surfaceId` nor `sessionId` — verify `runtime.emit()` throws `OutboundEventError`
+8. Call `store.detachSurface(sessionId, 'slack-1')` — verify fanout no longer includes slack
+9. Verify `FanoutResult` reports correct `total`, `delivered`, `outcomes` fields
+
+[stderr] codex
+I have the primary contracts loaded. I’m checking the remaining sections for reconciliation markers, stale terminology, and whether the workflow backlog still claims pending contradictions after the spec edits.
+[stderr] exec
+/bin/zsh -lc "sed -n '261,420p' docs/specs/v1-core-spec.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr]  succeeded in 0ms:
+### 3.10 `OutboundEventError`
+
+```typescript
+export class OutboundEventError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OutboundEventError';
+  }
+}
+```
+
+Thrown by `runtime.emit()` when an `OutboundEvent` has neither `surfaceId` nor `sessionId` set.
+
+---
+
+## 4. Package Boundaries
+
+### Depends on (external)
+- Standard TypeScript runtime; no framework dependencies.
+- Node.js `EventEmitter` (or equivalent) for internal event bus. No external event library.
+
+### Depends on (internal)
+- Nothing from this monorepo. Core is the dependency root.
+
+### Depended on by (internal)
+- All other `@relay-assistant/*` packages import types from core.
+
+### Relay foundation boundary
+- Core calls into the relay foundation through **adapters**, not directly. Two adapter interfaces are defined in core:
+
+```typescript
+/** Injected by the surfaces layer to push normalized inbound messages into core. */
+export interface RelayInboundAdapter {
+  onMessage(handler: (message: InboundMessage) => void): void;
+  offMessage(handler: (message: InboundMessage) => void): void;
+}
+
+/** Injected by the surfaces layer to deliver outbound events. */
+export interface RelayOutboundAdapter {
+  /** Targeted send to a single surface. */
+  send(event: OutboundEvent): Promise<void>;
+  /** Fanout to all attached surfaces of a session. */
+  fanout?(event: OutboundEvent, attachedSurfaceIds: string[]): Promise<void>;
+}
+```
+
+The surfaces layer implements these interfaces. Core never imports relay packages.
+
+Note: `fanout` is optional on the interface so that test stubs can implement just `send`. `SurfaceRegistry` implements both.
+
+---
+
+## 5. Dependency Rules
+
+| Direction | Rule |
+|---|---|
+| Other packages → core | Allowed. Import types and factory functions only. |
+| Core → other packages | Forbidden. Core has no runtime imports from this monorepo. |
+| Core → relay foundation | Through adapter interfaces only. Core never imports relay packages. |
+| Cloud layer → core | Allowed. Cloud layer may wrap or extend, but core must remain functional without it. |
+
+---
+
+## 6. `createAssistant` Factory
+
+```typescript
+export function createAssistant(
+  definition: AssistantDefinition,
+  adapters: {
+    inbound: RelayInboundAdapter;
+    outbound: RelayOutboundAdapter;
+  },
+): AssistantRuntime;
+```
+
+- Validates `definition` structure; throws `AssistantDefinitionError` on invalid input.
+- Builds the internal capability dispatch table.
+- Wires relay adapters to the internal event loop.
+- Does **not** call `onStart` or begin processing; caller must call `runtime.start()`.
+
+---
+
+## 7. OSS vs Cloud Boundary
+
+All types and factory functions in this spec are OSS. Nothing in core requires a hosted service.
+
+The relay foundation layer (inbound/outbound adapters) may be implemented in OSS or cloud variants; core does not know which.
+
+Cloud-only behavior (e.g., managed relay connections, centralized health dashboards) is implemented in a separate package that wraps core, never by modifying core.
+
+---
+
+## 8. Open Questions
+
+| # | Question | Owner | Resolution target |
+|---|---|---|---|
+| OQ-1 | Should `AssistantRuntime.emit()` be fire-and-forget or require an ack from the surface adapter? Current spec says `Promise<void>` but does not define ack semantics. | Core + Surfaces | Before WF-2 workflow implementation |
+| OQ-2 | Should `register()` / `get()` use typed tokens (à la NestJS) or plain string keys? String keys are simpler but lose type safety at call sites. | Core | Before package shell is written |
+| OQ-3 | Is `onMessage` hook the right place for pre-dispatch filtering, or should there be a separate `middleware` chain? | Core + Policy | Before WF-2 |
+| OQ-4 | Should `RuntimeConstraints.handlerTimeoutMs` apply per-invocation or per-capability? | Core | First implementation slice |
+
+---
+
+## 9. First Implementation Slice
+
+Implement in this order. Each step must pass its own unit tests before the next begins.
+
+**Step 1 — Type exports only**
+- Export all interfaces and types from this spec with no implementation.
+- Tests: TypeScript compiler accepts conforming objects; rejects non-conforming objects.
+
+**Step 2 — `createAssistant` validation**
+- Implement definition validation (required fields, no empty capabilities map).
+- Throws `AssistantDefinitionError` with a structured message.
+- Tests: unit tests for missing `id`, missing `name`, empty capabilities.
+
+**Step 3 — Capability dispatch table**
+- Build internal `Map<string, CapabilityHandler>` from definition.
+- Wire `RelayInboundAdapter.onMessage` to receive normalized `InboundMessage` and route to the correct handler by `message.capability`.
+- Tests: mock adapter pushes an `InboundMessage`; correct handler is called with correct message and `CapabilityContext`.
+
+**Step 4 — `runtime.dispatch()` (test path)**
+- Implement direct dispatch bypassing the relay adapter.
+- Tests: dispatch a synthetic message; handler is called; `onMessage` hook can drop it.
+
+**Step 5 — `runtime.emit()` integration**
+- Call `RelayOutboundAdapter.send()` with the `OutboundEvent`.
+- Tests: mock outbound adapter receives correct event structure.
+
+**Step 6 — Lifecycle hooks**
+- Implement `start()` / `stop()` with `onStart` / `onStop` hooks.
+- Tests: hook call order; stop drains in-flight handlers before calling `onStop`.
+
+**Step 7 — `runtime.status()`**
+- Implement structured health object.
+- Tests: status reflects subsystem registrations and in-flight count.
+
+**Definition of done:** WF-1 (Define assistant and start runtime) workflow can run against this package using a stub relay adapter and produce a running `AssistantRuntime`.
+
+SPEC_READY
+SPEC_RECONCILED
+
+[stderr] exec
+/bin/zsh -lc "sed -n '261,420p' docs/specs/v1-surfaces-spec.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "sed -n '261,420p' docs/specs/v1-sessions-spec.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+ succeeded in 0ms:
+  delivered: number;
+
+  /** Per-surface outcome. */
+  outcomes: FanoutOutcome[];
+}
+
+export interface FanoutOutcome {
+  surfaceId: string;
+  status: 'delivered' | 'skipped' | 'failed';
+  error?: Error;
+}
+```
+
+### 4.9 Inbound Adapter Contract
+
+`SurfaceRegistry` implements core's `RelayInboundAdapter` interface:
+
+```typescript
+// From @relay-assistant/core
+export interface RelayInboundAdapter {
+  onMessage(handler: (message: InboundMessage) => void): void;
+  offMessage(handler: (message: InboundMessage) => void): void;
+}
+```
+
+Internally, `SurfaceRegistry` also exposes a `receiveRaw()` method for the relay foundation to push raw events:
+
+```typescript
+/**
+ * Called by the relay foundation when a raw message arrives.
+ * SurfaceRegistry normalizes the raw event into an InboundMessage,
+ * then calls the handler registered via onMessage().
+ *
+ * Flow: relay foundation → receiveRaw(surfaceId, raw) → normalize → InboundMessage → handler
+ */
+receiveRaw(surfaceId: string, raw: unknown): void;
+```
+
+The `setInboundHandler()` method from earlier drafts is replaced by the standard `onMessage()` / `offMessage()` contract from `RelayInboundAdapter`. Products wire the registry during initialization:
+
+```typescript
+const runtime = createAssistant(definition, {
+  inbound: surfaceRegistry,   // SurfaceRegistry implements RelayInboundAdapter
+  outbound: surfaceRegistry,  // SurfaceRegistry implements RelayOutboundAdapter
+});
+```
+
+### 4.10 Normalization
+
+Inbound normalization extracts these fields from a raw relay event:
+
+| Target field | Source | Fallback |
+|---|---|---|
+| `id` | `raw.messageId` or `raw.id` | Generated UUID |
+| `surfaceId` | Provided by relay (first arg to `receiveRaw`) | Error if missing |
+| `sessionId` | `raw.sessionId` or `raw.session?.id` | undefined |
+| `userId` | `raw.userId` or `raw.user?.id` or `raw.user` (if string) | **Error:** reject message and log error. `userId` is required. |
+| `workspaceId` | `raw.workspaceId` or `raw.workspace?.id` | `undefined` (optional) |
+| `text` | `raw.text` or `raw.content` or `raw.body` | Empty string; logs warning |
+| `receivedAt` | `raw.timestamp` or `raw.receivedAt` | `new Date().toISOString()` |
+| `raw` | Verbatim | Required |
+
+Normalization does not fail on missing optional fields; it logs warnings and uses fallbacks.
+
+> **Required field:** `userId` is required on `InboundMessage` (per core spec). If normalization cannot extract a user identifier from the raw payload, it must reject the message and log an error. It must not silently assign an anonymous ID without the product opting into that behavior via a custom `normalizationHook`.
+
+### 4.11 Error types
+
+```typescript
+export class SurfaceNotFoundError extends Error {
+  constructor(public readonly surfaceId: string) {
+    super(`Surface not found: ${surfaceId}`);
+  }
+}
+
+export class SurfaceConflictError extends Error {
+  constructor(public readonly surfaceId: string) {
+    super(`Surface already registered: ${surfaceId}`);
+  }
+}
+
+export class SurfaceDeliveryError extends Error {
+  constructor(
+    public readonly surfaceId: string,
+    cause: Error,
+  ) {
+    super(`Delivery failed for surface ${surfaceId}: ${cause.message}`);
+    this.cause = cause;
+  }
+}
+```
+
+---
+
+## 5. `createSurfaceRegistry` Factory
+
+```typescript
+export function createSurfaceRegistry(
+  config?: SurfaceRegistryConfig,
+): SurfaceRegistry;
+
+export interface SurfaceRegistryConfig {
+  /** Default fanout policy applied when none is provided per-call. */
+  defaultFanoutPolicy?: FanoutPolicy;
+
+  /**
+   * Normalization override. When provided, replaces the default normalization
+   * logic. Useful for products with non-standard relay payloads.
+   */
+  normalizationHook?: (surfaceId: string, raw: unknown) => InboundMessage;
+}
+```
+
+---
+
+## 6. Package Boundaries
+
+### Depends on
+- `@relay-assistant/core` — imports `InboundMessage`, `OutboundEvent` types. The `SurfaceRegistry` acts as the inbound relay adapter for core.
+- `@relay-assistant/sessions` — imports `Session` type to read `attachedSurfaces` for fanout.
+
+### Depended on by
+- Product code that registers surface connections.
+- `@relay-assistant/proactive` — calls `surfaceRegistry.send()` or `fanout()` to deliver proactive messages.
+
+### Relay foundation boundary
+- Surfaces never opens sockets or calls relay APIs directly. The relay foundation calls `surfaceRegistry.receiveRaw()` (push model) and implements `SurfaceAdapter.send()` for each surface type.
+- The separation is explicit: relay handles transport; surfaces handles normalization, format, and fanout.
+
+---
+
+## 7. Dependency Rules
+
+| Direction | Rule |
+|---|---|
+| Surfaces → core | Allowed. Import types only (InboundMessage, OutboundEvent). |
+| Surfaces → sessions | Allowed. Import Session type for fanout. |
+| Surfaces → memory | Forbidden. |
+| Surfaces → routing | Forbidden. |
+| Surfaces → relay foundation | Forbidden. Relay foundation depends on surfaces, not vice versa. |
+| Other packages → surfaces | Allowed. Import SurfaceRegistry, SurfaceConnection types. |
+
+---
+
+## 8. Fanout Behavior Detail
+
+Fanout is triggered when a response should reach all surfaces in a session:
+
+1. Core emits an `OutboundEvent` with a `sessionId` but no specific `surfaceId`.
+2. The runtime's outbound adapter calls `surfaceRegistry.fanout(event, session.attachedSurfaces, policy)`.
+3. For each surface ID, registry looks up the connection.
+4. If connection is `active`, call `formatHook` (if present) then `adapter.send()`.
+5. If connection is `inactive` and `skipInactive=true`, add a 'skipped' outcome.
+6. Collect outcomes; return `FanoutResult`.
+
+When the event specifies a `surfaceId` (targeted delivery), `send()` is used instead of `fanout()`.
+
+**Ordering:** Fanout sends are concurrent (Promise.all-equivalent). There is no ordering guarantee across surfaces.
+
+### Outbound Routing Rule (normative — matches core spec)
+
+ succeeded in 0ms:
+      `Invalid transition '${attemptedTransition}' from state '${currentState}' for session ${sessionId}`,
+    );
+  }
+}
+```
+
+---
+
+## 5. `createSessionStore` Factory
+
+```typescript
+export function createSessionStore(config: SessionStoreConfig): SessionStore;
+
+export interface SessionStoreConfig {
+  adapter: SessionStoreAdapter;
+
+  /**
+   * Default TTL in milliseconds. Sessions with no activity for this period
+   * are marked 'suspended' by sweepStale(). Defaults to 3600000 (1 hour).
+   */
+  defaultTtlMs?: number;
+}
+```
+
+---
+
+## 6. Package Boundaries
+
+### Depends on
+- `@relay-assistant/core` — imports `InboundMessage` type to extract `sessionId` in middleware helper (optional utility; not a hard runtime dependency).
+
+### Depended on by
+- `@relay-assistant/surfaces` — reads attached surfaces from session to fanout messages.
+- `@relay-assistant/memory` — reads `userId`, `workspaceId`, `id` from session to scope memory queries.
+- `@relay-assistant/routing` — reads session metadata for affinity routing.
+- `@relay-assistant/coordination` — reads session context when delegating work to specialists.
+
+### Relay foundation boundary
+- Sessions has no direct dependency on the relay foundation. `surfaceId` strings are opaque identifiers passed from the relay layer through core; sessions stores them but does not call relay APIs.
+
+### Storage boundary
+- All persistence goes through `SessionStoreAdapter`. The adapter is provided by the caller or by a platform package (e.g., `@relay-assistant/platform-redis`). Sessions never imports a specific storage driver.
+
+---
+
+## 7. Dependency Rules
+
+| Direction | Rule |
+|---|---|
+| Sessions → core | Allowed. Import types only (InboundMessage for session middleware utility). |
+| Sessions → surfaces | Forbidden. |
+| Sessions → memory | Forbidden. |
+| Sessions → routing | Forbidden. |
+| Sessions → relay foundation | Forbidden. |
+| Other packages → sessions | Allowed. Import `Session`, `SessionStore`, `AffinityResolver` types. |
+
+---
+
+## 8. Integration with Core Runtime
+
+Sessions registers itself on the `AssistantRuntime` via:
+
+```typescript
+runtime.register('sessions', sessionStore);
+```
+
+Capability handlers retrieve the store via:
+
+```typescript
+const sessions = context.runtime.get<SessionStore>('sessions');
+```
+
+There is no automatic session middleware injected by this package into core's dispatch pipeline. Products wire session lookups into capability handlers themselves, or use a helper utility exported by this package:
+
+```typescript
+/**
+ * Convenience: given an InboundMessage, look up or create a session.
+ * Does not modify core dispatch behavior.
+ */
+export async function resolveSession(
+  message: InboundMessage,
+  store: SessionStore,
+  resolver: AffinityResolver,
+): Promise<Session>;
+```
+
+---
+
+## 9. OSS vs Cloud Boundary
+
+All types, factory functions, and the in-memory adapter are OSS.
+
+The `SessionStoreAdapter` interface is OSS; Redis/Postgres/DynamoDB implementations may be cloud-specific packages that are not part of this monorepo.
+
+No session behavior depends on a hosted service. A self-hosted consumer can provide an in-memory or SQLite-backed adapter.
+
+---
+
+## 10. Open Questions
+
+| # | Question | Owner | Resolution target |
+|---|---|---|---|
+| OQ-1 | Should `sweepStale()` be initiated by the sessions package on a timer, or remain caller-driven? Caller-driven is simpler but requires products to remember to call it. | Sessions | First implementation slice |
+| OQ-2 | Should surface attachment enforce a maximum number of surfaces per session? If so, what is the default? | Sessions + Surfaces | Before WF-4 workflow |
+| OQ-3 | When a session is `expired`, should the store delete the record or retain it with state=expired for audit? Current spec retains; need explicit call to delete. | Sessions | Before persistent adapter implementations |
+| OQ-4 | Should `AffinityResolver` be injectable at the store level or at the call-site level? Current spec puts it at call-site (passed to `resolveSession`). | Sessions + Routing | Before WF-3 workflow |
+| OQ-5 | How should session metadata versioning work if a product adds a field that is later removed? | Sessions | v1.1 (not blocking) |
+
+---
+
+## 11. First Implementation Slice
+
+**Step 1 — Type exports only**
+- Export all interfaces, types, and error classes.
+- Tests: TypeScript accepts conforming objects.
+
+**Step 2 — In-memory `SessionStoreAdapter`**
+- Implement `InMemorySessionStoreAdapter` backed by a `Map`.
+- Tests: insert, fetchById, fetchMany with filters, update patch merges correctly.
+
+**Step 3 — `createSessionStore` with lifecycle**
+- Implement `create`, `get`, `find`, `touch`, `expire`.
+- Validate state transitions; throw `SessionStateError` on invalid ones.
+- Tests: full lifecycle from created → active → suspended → expired.
+
+**Step 4 — Surface attachment**
+- Implement `attachSurface` and `detachSurface`.
+- Tests: idempotency; error on unknown session.
+
+**Step 5 — `sweepStale`**
+- Implement TTL check; transition `active` sessions with old `lastActivityAt` to `suspended`.
+- Tests: sessions at various ages; only stale ones transition.
+
+**Step 6 — `resolveSession` utility**
+- Implement default `AffinityResolver` and `resolveSession` helper.
+- Tests: returns existing active session; falls back to suspended; creates new when none.
+
+**Step 7 — `runtime.register` integration test**
+- Wire session store onto a mock `AssistantRuntime`; capability handler retrieves it and calls `touch()`.
+- Tests: integration test that exercises full path from dispatch to session update.
+
+**Definition of done:** WF-3 (Create and manage sessions) workflow can run against this package using the in-memory adapter.
+
+SPEC_READY
+
+[stderr] exec
+/bin/zsh -lc "sed -n '261,520p' docs/workflows/v1-workflow-backlog.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr]  succeeded in 0ms:
+[stderr] 
+### Acceptance criteria
+
+- Session correctly accumulates surface references across multiple surface interactions from the same userId
+- Targeted send (`surfaceId` present) routes only to the specified adapter via `surfaceRegistry.send()`
+- Fanout (`sessionId` present, no `surfaceId`) routes to all `session.attachedSurfaces` via `surfaceRegistry.fanout()`
+- Invalid emit (neither `surfaceId` nor `sessionId`) throws `OutboundEventError` (per Contradiction 3 resolution)
+- Detach behavior removes surface from fanout targets
+- No session duplication for same userId across surfaces
+- `FanoutResult` structure is correct per spec
+
+---
+
+## WF-7: End-to-end assembly
+
+**Package:** `core` + `sessions` + `surfaces`
+**Depends on:** WF-6
+**Produces:** integration test, validated assembly pattern, updated package READMEs, v1 release tag prepared
+**PR scope:** new file `packages/examples/src/v1-assembly.ts`, new test `packages/examples/src/v1-assembly.test.ts`, updated READMEs for core, sessions, surfaces
+
+### Steps
+
+1. Import only `@relay-assistant/core`, `@relay-assistant/sessions`, `@relay-assistant/surfaces` — no other packages
+2. Define `AssistantDefinition` with `id`, `name`, `capabilities: { chat: chatHandler }`
+3. Create `InMemorySessionStoreAdapter` and `createSessionStore({ adapter })`
+4. Create `createSurfaceRegistry()` with slack and web connections (stub adapters)
+5. Wire: `createAssistant(definition, { inbound: surfaceRegistry, outbound: surfaceRegistry })`
+6. `runtime.register('sessions', sessionStore)`
+7. In `chatHandler`: resolve session via `resolveSession(message, store, resolver)` (reads `message.userId`), touch it, emit a response
+8. Call `runtime.start()`
+9. Simulate inbound message from slack → session created → handler called → response emitted → slack adapter receives `SurfacePayload`
+10. Simulate second message from web surface → session reactivated via touch → fanout to both surfaces
+11. Call `runtime.stop()` — runtime drains in-flight handlers cleanly
+12. Verify `runtime.status()` after stop reflects correct state
+
+### Acceptance criteria
+
+- Full end-to-end cycle passes in a single test with no external dependencies
+- Assembly uses only `@relay-assistant/core`, `@relay-assistant/sessions`, `@relay-assistant/surfaces`
+- Assembly pattern matches the canonical pattern from `docs/architecture/spec-reconciliation-rules.md §3b`:
+  ```typescript
+  const definition: AssistantDefinition = { id, name, capabilities };
+  const sessionStore = createSessionStore({ adapter });
+  const surfaceRegistry = createSurfaceRegistry();
+  surfaceRegistry.register(connection);
+  const runtime = createAssistant(definition, { inbound: surfaceRegistry, outbound: surfaceRegistry });
+  runtime.register('sessions', sessionStore);
+  await runtime.start();
+  ```
+- The test passes without any cloud, network, or external dependency
+- Package READMEs for core, sessions, and surfaces are updated with real API docs replacing placeholder text
+- v1 release tag is prepared
+
+---
+
+## Dependency Graph
+
+```
+[v1-core-spec]    ──→ WF-1 ──→ WF-2 ──┐
+                                        ├──→ WF-4 ──┐
+[v1-sessions-spec] → WF-3 ─────────────┘            ├──→ WF-6 ──→ WF-7
+                                                     │
+[v1-surfaces-spec] ──────────────────── WF-5 ────────┘
+                                        ↑
+                                      (WF-2 for types)
+```
+
+Parallelizable once gated tasks are done:
+- WF-1 and WF-3 can be written simultaneously — they depend on different specs and different packages
+- WF-2 depends on WF-1 completing
+- WF-4 and WF-5 can be started in parallel once WF-2 and WF-3 are both done (WF-5 only needs WF-2 for `InboundMessage` / `OutboundEvent` type shapes, not WF-3/4)
+
+---
+
+## Execution Order
+
+| Step | Task | Depends on | Parallelizable with |
+| --- | --- | --- | --- |
+| 0 | Apply Contradiction 1–3 resolutions to specs (reconciliation-rules.md actions 1–6) | spec-reconciliation-rules | — |
+| 1 | Confirm `docs/specs/v1-core-spec.md` — DONE (pending action 0) | — | — |
+| 2 | Confirm `docs/specs/v1-sessions-spec.md` — DONE | — | — |
+| 3 | Confirm `docs/specs/v1-surfaces-spec.md` — DONE (pending action 0) | — | — |
+| 4 | Implement WF-1 | core spec | Step 5 (WF-3) |
+| 5 | Implement WF-3 | sessions spec | Step 4 (WF-1) |
+| 6 | Implement WF-2 | WF-1 | — |
+| 7 | Implement WF-4 | WF-2, WF-3 | Step 8 (WF-5) |
+| 8 | Implement WF-5 | surfaces spec, WF-2 (types) | Step 7 (WF-4) |
+| 9 | Implement WF-6 | WF-4, WF-5 | — |
+| 10 | Implement WF-7 | WF-6 | — |
+| 11 | Update package READMEs | WF-7 | — |
+| 12 | Tag v1 release | all above | — |
+
+---
+
+## First Implementation Workflow Documents to Write Next
+
+After this backlog document, the next artifacts to produce (as standalone implementation guides) are, in order:
+
+1. `docs/workflows/wf-1-define-assistant.md` — narrow implementation guide for WF-1 with exact type definitions, step-by-step instructions, and acceptance test assertions. An engineer executes this without additional context.
+2. `docs/workflows/wf-3-sessions.md` — parallel with wf-1; covers `InMemorySessionStoreAdapter`, full lifecycle including `sweepStale`, and `resolveSession` utility.
+3. `docs/workflows/wf-2-dispatch.md` — covers capability dispatch table, `dispatch()`, `emit()`, hook pre-filter; references WF-1 types; documents `OutboundEvent.surfaceId` as optional and `OutboundEventError` behavior.
+4. `docs/workflows/wf-4-sessions-wire.md` — covers `runtime.register`, `runtime.get`, integration test structure; references WF-2 and WF-3 types; notes that `resolveSession` reads `message.userId` directly.
+5. `docs/workflows/wf-5-surfaces.md` — covers `SurfaceRegistry` creation, adapter wiring as core relay adapters, normalization (including `userId` extraction), targeted send; cross-package ownership notes for inbound normalization included.
+
+Each workflow document must be a standalone implementation guide that an engineer can execute without additional context. It must include: exact type definitions, expected test file structure, and acceptance test assertions written as pseudocode or TypeScript.
+
+---
+
+## Package Structure Per Workflow
+
+Each v1 package ships with this structure. Workflows write into it:
+
+```
+packages/<name>/
+  package.json
+  tsconfig.json
+  src/
+    index.ts        # public exports only
+    types.ts        # all exported types and interfaces
+    <name>.ts       # factory function and implementation
+    <name>.test.ts  # unit tests per workflow
+  README.md         # updated from placeholder in WF-7
+```
+
+Integration tests that span packages live in `packages/core/src/` or `packages/examples/src/` as the workflow scopes dictate.
+
+---
+
+V1_WORKFLOW_BACKLOG_READY
+
+[stderr] exec
+/bin/zsh -lc "sed -n '261,520p' docs/architecture/spec-reconciliation-rules.md" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr]  succeeded in 0ms:
+- [ ] `surfaceRegistry` is wired as both `inbound` and `outbound` adapter to `createAssistant()`
+- [ ] Session resolution uses `resolveSession(message, store, resolver)`, not manual `userId` extraction
+- [ ] No references to `handleMessage`, `AssistantConfig`, `createSurfaceConnection`, `sessions.resume`, or `sessions.close`
+- [ ] Factory names match: `createAssistant`, `createSessionStore`, `createSurfaceRegistry`
+- [ ] If the example touches fanout, it demonstrates the targeted-vs-fanout rule from Contradiction 3 resolution
+
+---
+
+## Rule 4: Workflow Model Reconciliation
+
+The spec program plan states a four-stage pipeline: Doc -> Spec -> Workflow -> Code.
+
+The weekend delivery plan schedules code implementation before workflow documents are written. These are in conflict.
+
+**Resolution:**
+
+For v1, workflow documents in `docs/workflows/` are **parallel planning artifacts**, not sequential gates. The specs are the implementation gates. Code may be written directly against specs without a workflow document existing first.
+
+However:
+- Each workflow (WF-1 through WF-7) must still be implemented in the dependency order defined in `docs/workflows/v1-workflow-backlog.md`.
+- Each workflow's acceptance criteria (as stated in the backlog) must pass before the next dependent workflow begins.
+- Workflow documents may be written retroactively to capture implementation decisions, but they are not required to exist before coding starts during the v1 weekend push.
+
+This exception applies only to v1. For v1.1 and later, the full Doc -> Spec -> Workflow -> Code pipeline resumes.
+
+---
+
+## Rule 5: Release and Adoption Path Clarification
+
+The weekend delivery plan promises `npm install` by Sunday night but marks npm publishing configuration as out of scope.
+
+**Resolution:**
+
+For v1, "npm install" means **local monorepo consumption** via workspace references or `npm pack` tarballs. Packages are not published to the npm registry this weekend.
+
+The consumer readiness checklist item should read:
+
+```
+npm install @relay-assistant/core @relay-assistant/sessions @relay-assistant/surfaces
+```
+
+...where the install resolves via workspace protocol (e.g., `"@relay-assistant/core": "workspace:*"`) or local file references, not the public npm registry.
+
+Public npm publishing is a post-v1 task and should be tracked separately.
+
+---
+
+## Reconciliation Checklist — Actions Before Code Starts
+
+| # | Action | Owner | Blocked by |
+|---|---|---|---|
+| 1 | Update `docs/specs/v1-core-spec.md`: remove "owns inbound normalization" from section 1; update `RelayInboundAdapter` to receive `InboundMessage` | Spec author | Nothing |
+| 2 | Update `docs/specs/v1-core-spec.md`: add `userId` (required) and `workspaceId?` (optional) to `InboundMessage` | Spec author | Nothing |
+| 3 | Update `docs/specs/v1-core-spec.md`: make `OutboundEvent.surfaceId` optional; add `OutboundEventError` for missing both fields | Spec author | Nothing |
+| 4 | Update `docs/specs/v1-core-spec.md`: add normative outbound routing rule to `runtime.emit()` contract | Spec author | Action 3 |
+| 5 | Update `docs/specs/v1-surfaces-spec.md`: confirm `SurfaceRegistry` implements core's `RelayInboundAdapter`; add `userId`/`workspaceId` to normalization table | Spec author | Action 1, 2 |
+| 6 | Update `docs/specs/v1-surfaces-spec.md`: add normative outbound routing rule reference | Spec author | Action 3 |
+| 7 | Update all adoption examples in `docs/workflows/weekend-delivery-plan.md` to match resolved contracts | Delivery plan author | Actions 1-6 |
+| 8 | Search all docs for stale terms in Rule 1 table; replace with current terms | Any contributor | Nothing |
+
+All eight actions must be completed before WF-1 implementation begins. Actions 1-3 have no dependencies and can be done in parallel. Actions 4-6 depend on 1-3. Actions 7-8 can proceed once 1-6 are done.
+
+---
+
+SPEC_RECONCILIATION_RULES_READY
+
+[stderr] exec
+/bin/zsh -lc "rg -n \"resume|resumed|close\\(|closed|AssistantConfig|AssistantMessage|createSurfaceConnection|attachSurface\\(|pending Contradiction|Pending \\(|owns inbound normalization|setInboundHandler|RelayInboundSurfaceAdapter\" docs/specs docs/workflows docs/architecture" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr]  succeeded in 0ms:
+docs/specs/v1-surfaces-spec.md:299:The `setInboundHandler()` method from earlier drafts is replaced by the standard `onMessage()` / `offMessage()` contract from `RelayInboundAdapter`. Products wire the registry during initialization:
+docs/specs/v1-surfaces-spec.md:469:- Implement `receiveRaw` + `setInboundHandler` with field extraction logic.
+docs/specs/v1-connectivity-spec.md:56:| `expired` | The `expiresAtStep` has passed or the TTL window has closed. |
+docs/specs/v1-connectivity-spec.md:57:| `resolved` | The signaled condition is no longer relevant; explicitly closed. |
+docs/workflows/weekend-delivery-plan.md:39:| Read and confirm sessions spec | Mental model of `Session`, `SessionStore`, `InMemorySessionStoreAdapter` | Note: `touch`/`expire`, not `resume`/`close` |
+docs/workflows/weekend-delivery-plan.md:40:| Read and confirm surfaces spec | Mental model of `SurfaceRegistry`, `SurfaceConnection`, fanout vs targeted send | Note: `createSurfaceRegistry()`, not `createSurfaceConnection()` |
+docs/workflows/weekend-delivery-plan.md:237:      await store.attachSurface(session.id, message.surfaceId);
+docs/workflows/weekend-delivery-plan.md:321:      await store.attachSurface(session.id, message.surfaceId);
+docs/workflows/weekend-delivery-plan.md:389:| Sessions `touch`/`expire` vs `resume`/`close` confusion | Use only the spec-defined method names; `resume` does not exist as a method — `touch()` handles it |
+docs/workflows/weekend-delivery-plan.md:390:| `createSurfaceConnection` vs `SurfaceConnection` + `createSurfaceRegistry` confusion | Product code creates `SurfaceConnection` objects and registers them into `createSurfaceRegistry()` |
+docs/specs/v1-sessions-spec.md:138:  attachSurface(sessionId: string, surfaceId: string): Promise<Session>;
+docs/workflows/v1-workflow-backlog.md:24:| core v1 | `docs/specs/v1-core-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1–3 resolution) |
+docs/workflows/v1-workflow-backlog.md:26:| surfaces v1 | `docs/specs/v1-surfaces-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1 resolution) |
+docs/workflows/v1-workflow-backlog.md:34:| 1 | `docs/specs/v1-core-spec.md`: remove "owns inbound normalization" from §1; update `RelayInboundAdapter` to accept `InboundMessage` (not `raw: unknown`) | 1 — inbound normalization ownership | Pending |
+docs/workflows/v1-workflow-backlog.md:37:| 4 | `docs/specs/v1-core-spec.md`: add normative outbound routing rule to `runtime.emit()` contract | 3 | Pending (depends on action 3) |
+docs/workflows/v1-workflow-backlog.md:38:| 5 | `docs/specs/v1-surfaces-spec.md`: confirm `SurfaceRegistry` implements `RelayInboundAdapter`; add `userId`/`workspaceId` to normalization table §4.10 | 1, 2 | Pending (depends on actions 1, 2) |
+docs/workflows/v1-workflow-backlog.md:39:| 6 | `docs/specs/v1-surfaces-spec.md`: add normative outbound routing rule reference | 3 | Pending (depends on action 3) |
+docs/workflows/v1-workflow-backlog.md:40:| 7 | Update adoption examples in `docs/workflows/weekend-delivery-plan.md` to match resolved contracts | all | Pending (depends on 1–6) |
+docs/workflows/v1-workflow-backlog.md:45:- `AssistantDefinition` (not `AssistantConfig`)
+docs/workflows/v1-workflow-backlog.md:48:- `InboundMessage` / `OutboundEvent` (not `AssistantMessage`)
+docs/workflows/v1-workflow-backlog.md:49:- `createSurfaceRegistry()` + `SurfaceConnection` (not `createSurfaceConnection()`)
+docs/workflows/v1-workflow-backlog.md:50:- `sessionStore.touch()` / `sessionStore.expire()` (not `resume` / `close`)
+docs/workflows/v1-workflow-backlog.md:51:- Session states: `created → active → suspended → expired` (not `resumed` or `closed`)
+docs/workflows/v1-workflow-backlog.md:52:- `surfaceRegistry` wired as both `inbound` and `outbound` relay adapter (not `assistant.attachSurface()`)
+docs/workflows/v1-workflow-backlog.md:138:5. Call `store.attachSurface(sessionId, surfaceId)` — `session.attachedSurfaces` includes the surface id
+docs/workflows/v1-workflow-backlog.md:200:> **Cross-package ownership note (Contradiction 1 resolution):** Surfaces owns inbound normalization. The flow is:
+docs/workflows/v1-workflow-backlog.md:253:2. User sends a message via slack surface — `resolveSession()` creates a new session; `store.attachSurface(sessionId, 'slack-1')` is called
+docs/workflows/v1-workflow-backlog.md:254:3. Same userId sends a message via web surface — `resolveSession()` returns existing session; `store.attachSurface(sessionId, 'web-1')` is called
+docs/architecture/canonical-spec-fix-plan.md:17:### Edit 1.1 — Remove "owns inbound normalization" from section 1 (Contradiction 1)
+docs/architecture/canonical-spec-fix-plan.md:254:### Edit 2.3 — Reconcile `RelayInboundSurfaceAdapter` with core's `RelayInboundAdapter` (Contradiction 1)
+docs/architecture/canonical-spec-fix-plan.md:256:**Location:** Section 4.9 `RelayInboundSurfaceAdapter`, lines 268-292
+docs/architecture/canonical-spec-fix-plan.md:258:**Current:** Defines a separate `RelayInboundSurfaceAdapter` with `receiveRaw()` and `setInboundHandler()`.
+docs/architecture/canonical-spec-fix-plan.md:288:The `setInboundHandler()` method from earlier drafts is replaced by the standard `onMessage()` / `offMessage()` contract from `RelayInboundAdapter`. Products wire the registry during initialization:
+docs/architecture/canonical-spec-fix-plan.md:347:### Edit 3.1 — Sessions spec: remove legacy "resumed" / "closed" narrative wording
+docs/architecture/canonical-spec-fix-plan.md:353:| `suspended` | No activity within TTL; may be resumed. Memory is preserved. |
+docs/architecture/canonical-spec-fix-plan.md:354:| `expired` | Permanently closed. Memory may be archived per policy. |
+docs/architecture/canonical-spec-fix-plan.md:364:This removes the words "resumed" and "closed" which conflict with the canonical state vocabulary.
+docs/architecture/canonical-spec-fix-plan.md:366:### Edit 3.2 — Sessions spec lifecycle diagram: remove "resume" annotation
+docs/architecture/canonical-spec-fix-plan.md:372:created ──► active ──► suspended ──► active   (resume)
+docs/architecture/canonical-spec-fix-plan.md:381:### Edit 3.3 — Workflow backlog: remove "session resumed"
+docs/architecture/canonical-spec-fix-plan.md:387:10. Simulate second message from web surface → session resumed → fanout to both surfaces
+docs/architecture/spec-reconciliation-rules.md:43:| `AssistantConfig` | `AssistantDefinition` | `docs/specs/v1-core-spec.md` section 3.1 |
+docs/architecture/spec-reconciliation-rules.md:47:| `AssistantMessage` (single envelope) | `InboundMessage` (inbound) / `OutboundEvent` (outbound) | `docs/specs/v1-core-spec.md` sections 3.3, 3.8 |
+docs/architecture/spec-reconciliation-rules.md:48:| `createSurfaceConnection(config)` | `SurfaceConnection` registered via `createSurfaceRegistry()` | `docs/specs/v1-surfaces-spec.md` sections 4.1, 5 |
+docs/architecture/spec-reconciliation-rules.md:49:| `assistant.attachSurface(surface)` | `surfaceRegistry.register(connection)` | `docs/specs/v1-surfaces-spec.md` section 4.6 |
+docs/architecture/spec-reconciliation-rules.md:51:| `sessions.resume(id)` | `sessionStore.touch(id)` (transitions `suspended` -> `active`) | `docs/specs/v1-sessions-spec.md` section 4.2 |
+docs/architecture/spec-reconciliation-rules.md:52:| `sessions.close(id)` | `sessionStore.expire(id)` | `docs/specs/v1-sessions-spec.md` section 4.2 |
+docs/architecture/spec-reconciliation-rules.md:53:| Session state `resumed` | Session state `active` (reached via `touch()`) | `docs/specs/v1-sessions-spec.md` section 4.1 |
+docs/architecture/spec-reconciliation-rules.md:54:| Session state `closed` | Session state `expired` | `docs/specs/v1-sessions-spec.md` section 4.1 |
+docs/architecture/spec-reconciliation-rules.md:69:**Conflict:** Core spec says core owns inbound normalization and defines `RelayInboundAdapter` with `onMessage(handler) / offMessage(handler)` over raw events. Surfaces spec says surfaces owns normalization, defines `RelayInboundSurfaceAdapter` with `receiveRaw() / setInboundHandler()`, and the workflow docs wire `surfaceRegistry` directly as the inbound adapter.
+docs/architecture/spec-reconciliation-rules.md:73:Surfaces owns inbound normalization. The flow is:
+docs/architecture/spec-reconciliation-rules.md:80:- `docs/specs/v1-core-spec.md`: Remove the claim that core owns inbound normalization (section 1, "Owns" list). Core receives already-normalized `InboundMessage` via `runtime.dispatch()`. The `RelayInboundAdapter` interface in core must be updated to accept `InboundMessage` (not raw events), or core must accept that `surfaceRegistry` implements `RelayInboundAdapter` by normalizing before calling the registered handler.
+docs/architecture/spec-reconciliation-rules.md:81:- `docs/specs/v1-surfaces-spec.md`: Confirm that `SurfaceRegistry` implements `RelayInboundAdapter` from core. The `setInboundHandler` callback receives normalized `InboundMessage`, not raw payloads.
+docs/architecture/spec-reconciliation-rules.md:263:- [ ] No references to `handleMessage`, `AssistantConfig`, `createSurfaceConnection`, `sessions.resume`, or `sessions.close`
+docs/architecture/spec-reconciliation-rules.md:284:This exception applies only to v1. For v1.1 and later, the full Doc -> Spec -> Workflow -> Code pipeline resumes.
+docs/architecture/spec-reconciliation-rules.md:312:| 1 | Update `docs/specs/v1-core-spec.md`: remove "owns inbound normalization" from section 1; update `RelayInboundAdapter` to receive `InboundMessage` | Spec author | Nothing |
+docs/architecture/v1-sectioning-and-priorities.md:14:| `AssistantConfig` | `AssistantDefinition` | `docs/specs/v1-core-spec.md §3.1` |
+docs/architecture/v1-sectioning-and-priorities.md:18:| `AssistantMessage` (inbound+outbound) | `InboundMessage` / `OutboundEvent` | `docs/specs/v1-core-spec.md §3.3, 3.8` |
+docs/architecture/v1-sectioning-and-priorities.md:19:| `createSurfaceConnection(...)` | `SurfaceConnection` registered in `createSurfaceRegistry(...)` | `docs/specs/v1-surfaces-spec.md §5` |
+docs/architecture/v1-sectioning-and-priorities.md:20:| `assistant.attachSurface(...)` | `surfaceRegistry.register(connection)` wired via relay adapter | `docs/specs/v1-surfaces-spec.md §4.6` |
+docs/architecture/v1-sectioning-and-priorities.md:21:| `sessions.suspend` / `sessions.resume` / `sessions.close` | `sessionStore.touch()` / `sessionStore.expire()` / `sessionStore.sweepStale()` | `docs/specs/v1-sessions-spec.md §4.2` |
+docs/architecture/v1-sectioning-and-priorities.md:22:| Session state: `resumed` / `closed` | Session state: `active` (via `touch`) / `expired` | `docs/specs/v1-sessions-spec.md §4.1` |
+docs/architecture/v1-sectioning-and-priorities.md:43:| **1 — Inbound normalization ownership** | `v1-core-spec.md`: remove "owns inbound normalization" from §1; update `RelayInboundAdapter` to accept `InboundMessage` (not raw). `v1-surfaces-spec.md`: confirm `SurfaceRegistry` implements `RelayInboundAdapter`. | WF-5 cross-package note; WF-7 assembly pattern |
+docs/architecture/v1-sectioning-and-priorities.md:54:| `@relay-assistant/sessions` | `createSessionStore(config)`, `SessionStore` interface, `Session` type, `SessionStoreAdapter` interface, lifecycle transitions (`created → active → suspended → expired`), `touch()`, `attachSurface()`, `detachSurface()`, `expire()`, `sweepStale()`, `AffinityResolver` interface, `resolveSession()` utility, in-memory adapter, error types |
+docs/architecture/v1-sectioning-and-priorities.md:55:| `@relay-assistant/surfaces` | `createSurfaceRegistry(config?)`, `SurfaceRegistry` interface (implements both `RelayInboundAdapter` and `RelayOutboundAdapter`), `SurfaceConnection` type, `SurfaceAdapter` interface, `SurfaceCapabilities` type, `SurfaceFormatHook` type, `SurfacePayload` type, `FanoutPolicy` / `FanoutResult` / `FanoutOutcome` types, inbound normalization (`receiveRaw` / `setInboundHandler`), outbound targeted send and session fanout, connection state management, error types |
+docs/architecture/v1-sectioning-and-priorities.md:71:| core v1 | `docs/specs/v1-core-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1–3 resolution) |
+docs/architecture/v1-sectioning-and-priorities.md:73:| surfaces v1 | `docs/specs/v1-surfaces-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1 resolution) |
+docs/architecture/v1-sectioning-and-priorities.md:85:| WF-5: Register surface registry and route messages | `core` + `surfaces` | surfaces spec, WF-2 | **Surfaces owns inbound normalization** (Contradiction 1 resolution): `surfaceRegistry.receiveRaw()` normalizes raw → `InboundMessage`; `surfaceRegistry` implements both `RelayInboundAdapter` and `RelayOutboundAdapter` for core |
+docs/architecture/spec-reconciliation-review-verdict.md:38:  - `docs/workflows/v1-workflow-backlog.md:292` says "session resumed" even though the canonical state model is `created | active | suspended | expired`.
+docs/architecture/spec-reconciliation-review-verdict.md:40:  - `docs/specs/v1-sessions-spec.md:55-56` says "may be resumed" and "Permanently closed". Those are not API identifiers, but they reintroduce old vocabulary the reconciliation was meant to remove.
+docs/architecture/spec-reconciliation-review-verdict.md:68:- Surfaces still defines a separate `RelayInboundSurfaceAdapter` / `setInboundHandler()` shape instead of clearly adopting the core adapter contract:
+docs/architecture/spec-reconciliation-review-verdict.md:127:   - Reconcile `RelayInboundSurfaceAdapter` / `setInboundHandler()` with the core adapter shape, or remove the parallel contract.
+docs/architecture/spec-reconciliation-review-verdict.md:132:   - Remove "session resumed" from `docs/workflows/v1-workflow-backlog.md:292`.
+docs/architecture/spec-reconciliation-review-verdict.md:133:   - Replace legacy narrative wording in `docs/specs/v1-sessions-spec.md:55-56` so the prose no longer reintroduces "resumed" / "closed".
+docs/architecture/2026-04-11-relay-agent-assistant-architecture-draft.md:126:- resume/re-attach semantics
+docs/architecture/package-boundary-map.md:139:- resume, reattach, and affinity rules
+docs/architecture/spec-program-plan.md:36:> **v1 exception (Rule 4):** For v1, workflow documents in `docs/workflows/` are parallel planning artifacts, not sequential gates. The specs are the implementation gates. Code may be written directly against specs without a workflow document existing first. Workflow documents may be written retroactively. This exception applies only to v1; for v1.1 and later the full Doc → Spec → Workflow → Code pipeline resumes.
+docs/architecture/spec-program-plan.md:100:| core v1 | `docs/specs/v1-core-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1–3 resolution) |
+docs/architecture/spec-program-plan.md:102:| surfaces v1 | `docs/specs/v1-surfaces-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1 resolution) |
+docs/architecture/spec-program-plan.md:105:> - **Contradiction 1** (`docs/specs/v1-core-spec.md` + `docs/specs/v1-surfaces-spec.md`): Surfaces owns inbound normalization; `RelayInboundAdapter` must accept `InboundMessage` (not raw). Core must remove "owns inbound normalization" from its responsibilities.
+docs/architecture/spec-program-plan.md:118:- `InboundMessage` inbound envelope type (**pending Contradiction 2**: must add `userId` required, `workspaceId?` optional)
+docs/architecture/spec-program-plan.md:119:- `OutboundEvent` outbound envelope type (**pending Contradiction 3**: `surfaceId` must become optional; `OutboundEventError` must be added)
+docs/architecture/spec-program-plan.md:125:- `RelayInboundAdapter` / `RelayOutboundAdapter` interfaces (**pending Contradiction 1**: `RelayInboundAdapter.onMessage` must accept `InboundMessage`, not `raw: unknown`)
+docs/architecture/spec-program-plan.md:137:- Session lifecycle: `created → active → suspended → expired` (no `resumed` or `closed` states)
+docs/architecture/spec-program-plan.md:158:- Inbound normalization contract: surfaces owns normalization; `receiveRaw(surfaceId, raw)` + `setInboundHandler(handler)` (**Contradiction 1 resolution**: `SurfaceRegistry` implements `RelayInboundAdapter` by normalizing raw events before calling the registered handler)
+docs/architecture/spec-program-plan.md:217:4. Use `resolveSession(message, store, defaultAffinityResolver)` — creates or resumes session
+docs/architecture/spec-program-plan.md:244:2. User sends message via slack surface — `resolveSession()` creates new session; `store.attachSurface(sessionId, 'slack-1')` called
+docs/architecture/spec-program-plan.md:245:3. Same userId sends message via web surface — `resolveSession()` returns existing session; `store.attachSurface(sessionId, 'web-1')` called
+docs/architecture/spec-program-review-verdict.md:11:1. Core and surfaces disagree on who owns inbound normalization and which adapter interface is wired at runtime.
+docs/architecture/spec-program-review-verdict.md:12:   - `docs/specs/v1-core-spec.md` says core owns inbound normalization and expects `RelayInboundAdapter.onMessage/offMessage` over raw events.
+docs/architecture/spec-program-review-verdict.md:13:   - `docs/specs/v1-surfaces-spec.md` says surfaces owns normalization, defines `receiveRaw()/setInboundHandler()`, and the workflow docs wire `surfaceRegistry` directly into `createAssistant(...)`.
+docs/architecture/spec-program-review-verdict.md:18:   - `docs/specs/v1-sessions-spec.md` and the v1 workflows assume `resolveSession(message, store, resolver)` can create or resume sessions by `userId` and often `workspaceId`.
+docs/architecture/review-verdict.md:86:4. **Add a skeletal assembly example.** Even 25 illustrative lines in `how-to-build-an-assistant.md` showing how `createAssistant`, `createSessionStore`, `createSurfaceConnection`, and optionally `createMemoryStore` compose would dramatically reduce consumer onboarding friction.
+
+[stderr] codex
+The package specs are mostly reconciled. I’m verifying whether any remaining stale terms inside the specs or the included backlog are strong enough to block a full PASS.
+[stderr] exec
+/bin/zsh -lc "nl -ba docs/specs/v1-sessions-spec.md | sed -n '1,80p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "nl -ba docs/specs/v1-surfaces-spec.md | sed -n '430,490p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "nl -ba docs/specs/v1-core-spec.md | sed -n '160,320p'" in [stderr] /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "nl -ba docs/workflows/v1-workflow-backlog.md | sed -n '1,70p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "nl -ba docs/specs/v1-surfaces-spec.md | sed -n '290,360p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+exec
+/bin/zsh -lc "nl -ba docs/specs/v1-core-spec.md | sed -n '1,120p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+ succeeded in 0ms:
+   430	---
+   431	
+   432	## 9. OSS vs Cloud Boundary
+   433	
+   434	All types, factory functions, and the in-memory registry are OSS.
+   435	
+   436	Surface adapters for specific platforms (Slack, Teams, Intercom) may be cloud-specific packages or product code; this package defines only the `SurfaceAdapter` interface.
+   437	
+   438	No surface behavior requires a hosted service. A self-hosted consumer can implement `SurfaceAdapter` backed by a local WebSocket server or HTTP endpoint.
+   439	
+   440	---
+   441	
+   442	## 10. Open Questions
+   443	
+   444	| # | Question | Owner | Resolution target |
+   445	|---|---|---|---|
+   446	| OQ-1 | Should fanout be concurrent (current spec) or sequential? Concurrent is faster but makes error attribution harder. | Surfaces | Before WF-5 |
+   447	| OQ-2 | Should `SurfaceRegistry.send()` silently drop events for inactive surfaces, or throw? Current spec throws. | Surfaces + Core | Before WF-5 |
+   448	| OQ-3 | Should normalization be strict (throw on missing required fields) or permissive (warn + fallback)? Current spec is permissive. | Surfaces | First implementation slice |
+   449	| OQ-4 | Should surfaces expose a streaming API for progressive response delivery, or is that a v2 concern? | Surfaces | v1.1 (not blocking v1) |
+   450	| OQ-5 | When a session has surfaces of different types (e.g., web + Slack), should the same text be sent to both, or should there be a per-surface content override mechanism? | Surfaces | Before WF-6 (multi-surface stretch) |
+   451	
+   452	---
+   453	
+   454	## 11. First Implementation Slice
+   455	
+   456	**Step 1 — Type exports only**
+   457	- Export all interfaces, types, and error classes.
+   458	- Tests: TypeScript structural checks.
+   459	
+   460	**Step 2 — In-memory `SurfaceRegistry`**
+   461	- `register`, `unregister`, `get`, `list`.
+   462	- Tests: register; conflict error on duplicate; unregister is idempotent; list with state filter.
+   463	
+   464	**Step 3 — `send()` with format hook**
+   465	- Call format hook if present; pass result to adapter.
+   466	- Tests: mock adapter receives correct payload; format hook output is used.
+   467	
+   468	**Step 4 — Inbound normalization**
+   469	- Implement `receiveRaw` + `setInboundHandler` with field extraction logic.
+   470	- Tests: various raw payload shapes produce correct `InboundMessage`; missing optional fields use fallbacks.
+   471	
+   472	**Step 5 — Fanout**
+   473	- Implement `fanout()` with continue/abort policy.
+   474	- Tests: two active surfaces both receive event; inactive surface is skipped; one failure does not abort others when policy is 'continue'.
+   475	
+   476	**Step 6 — Connection state management**
+   477	- Implement `onConnect` / `onDisconnect` callbacks from adapter; update `SurfaceConnection.state`.
+   478	- Tests: state transitions from inactive → active on connect callback.
+   479	
+   480	**Step 7 — Integration with core runtime**
+   481	- Wire registry as the `RelayInboundAdapter` and `RelayOutboundAdapter` for core.
+   482	- Tests: core dispatches inbound message through surfaces normalization; core outbound event reaches adapter.
+   483	
+   484	**Definition of done:** WF-5 (Attach surface and route messages) workflow can run against this package with a stub relay foundation.
+   485	
+   486	SPEC_READY
+   487	SPEC_RECONCILED
+
+ succeeded in 0ms:
+     1	# v1 Sessions Spec — `@relay-assistant/sessions`
+     2	
+     3	**Status:** IMPLEMENTATION_READY
+     4	**Date:** 2026-04-11
+     5	**Package:** `@relay-assistant/sessions`
+     6	**Version target:** v0.1.0 (pre-1.0, provisional)
+     7	
+     8	---
+     9	
+    10	## 1. Responsibilities
+    11	
+    12	`@relay-assistant/sessions` manages the continuity unit that spans surfaces. A session is not a conversation turn; it is the persistent identity context within which turns happen.
+    13	
+    14	**Owns:**
+    15	- `Session` entity — identity, metadata, lifecycle state, associated surfaces
+    16	- `SessionStore` — CRUD + query interface for sessions; storage backend is injected via adapter
+    17	- Session lifecycle — creation, activation, suspension, expiry, resumption
+    18	- Surface attachment — binding/unbinding surfaces to sessions; enforcing one-session-per-surface-slot rules
+    19	- Affinity — routing hint that prefers continuing an existing session over starting a new one when a returning user is detected
+    20	- Session scoping — sessions belong to a user, a workspace, or a combination; scope is recorded but not enforced by this package (enforcement is memory's concern)
+    21	- Stale-session detection — sessions that have not seen activity within a configurable TTL are marked `suspended`; explicit expiry marks them `expired`
+    22	
+    23	**Does NOT own:**
+    24	- Memory content within a session (→ `@relay-assistant/memory`)
+    25	- Message routing decisions (→ `@relay-assistant/routing`)
+    26	- Surface protocol or formatting (→ `@relay-assistant/surfaces`)
+    27	- Multi-assistant coordination (→ `@relay-assistant/coordination`)
+    28	- Policy enforcement on session operations (→ `@relay-assistant/policy`)
+    29	
+    30	---
+    31	
+    32	## 2. Non-Goals
+    33	
+    34	- Sessions does not persist to any specific storage backend. It defines the `SessionStoreAdapter` interface; the caller provides an implementation (in-memory, Redis, Postgres, etc.).
+    35	- Sessions does not manage HTTP cookies, JWT tokens, or authentication. It receives a `userId` string; it does not validate it.
+    36	- Sessions does not start or stop relay connections. Surface attachment records which relay surface IDs are bound; it does not open those surfaces.
+    37	- Sessions is not a presence system. It does not track whether a user is currently "online".
+    38	- Sessions does not fanout messages across attached surfaces. That is surfaces' concern.
+    39	
+    40	---
+    41	
+    42	## 3. Session Lifecycle
+    43	
+    44	```
+    45	created ──► active ──► suspended ──► active   (touch)
+    46	                    └──► expired               (TTL exceeded while suspended, or explicit expiry)
+    47	
+    48	active ──► expired                             (explicit expiry while active)
+    49	```
+    50	
+    51	| State | Meaning |
+    52	|---|---|
+    53	| `created` | Initialized but no message processed yet. |
+    54	| `active` | At least one message processed; within activity TTL. |
+    55	| `suspended` | No activity within TTL; transitions back to `active` via `touch()`. Memory is preserved. |
+    56	| `expired` | Terminal state. Memory may be archived per policy. No further transitions. |
+    57	
+    58	State transitions are recorded with a timestamp. Sessions does not automatically expire sessions on a timer; it marks sessions stale when queried or when the caller explicitly invokes `sessionStore.expire()`.
+    59	
+    60	---
+    61	
+    62	## 4. Interfaces and Contracts
+    63	
+    64	### 4.1 `Session`
+    65	
+    66	```typescript
+    67	export interface Session {
+    68	  /** Relay-assigned or caller-assigned unique ID. Immutable after creation. */
+    69	  id: string;
+    70	
+    71	  /** The user this session belongs to. Opaque string; not validated here. */
+    72	  userId: string;
+    73	
+    74	  /**
+    75	   * Optional workspace scope. When set, session is scoped to both user and
+    76	   * workspace. Memory retrieval uses this to narrow scope.
+    77	   */
+    78	  workspaceId?: string;
+    79	
+    80	  /** Current lifecycle state. */
+
+ succeeded in 0ms:
+   160	}
+   161	```
+   162	
+   163	### 3.6 `RuntimeConstraints`
+   164	
+   165	```typescript
+   166	export interface RuntimeConstraints {
+   167	  /**
+   168	   * Maximum time (ms) core will wait for a capability handler to resolve.
+   169	   * Defaults to 30000. Core emits a timeout error and calls onError if exceeded.
+   170	   */
+   171	  handlerTimeoutMs?: number;
+   172	
+   173	  /**
+   174	   * Maximum concurrent capability invocations. Defaults to 10.
+   175	   * Core queues messages beyond this limit; does not drop them.
+   176	   */
+   177	  maxConcurrentHandlers?: number;
+   178	}
+   179	```
+   180	
+   181	### 3.7 `AssistantRuntime`
+   182	
+   183	```typescript
+   184	export interface AssistantRuntime {
+   185	  /** The definition this runtime was created from. Frozen after creation. */
+   186	  readonly definition: Readonly<AssistantDefinition>;
+   187	
+   188	  /**
+   189	   * Emit an outbound event. Routing rule:
+   190	   * - **Targeted send:** When `event.surfaceId` is present, calls `RelayOutboundAdapter.send(event)`.
+   191	   * - **Session fanout:** When `event.surfaceId` is absent and `event.sessionId` is present,
+   192	   *   the runtime resolves the session's `attachedSurfaces` and calls
+   193	   *   `outboundAdapter.fanout(event, attachedSurfaceIds)` (implemented by `SurfaceRegistry`).
+   194	   * - **Invalid:** When both `surfaceId` and `sessionId` are absent, throws `OutboundEventError`.
+   195	   */
+   196	  emit(event: OutboundEvent): Promise<void>;
+   197	
+   198	  /**
+   199	   * Dispatch a message directly (bypasses relay; useful for testing).
+   200	   * Runs the full dispatch pipeline including hooks.
+   201	   */
+   202	  dispatch(message: InboundMessage): Promise<void>;
+   203	
+   204	  /**
+   205	   * Register a subsystem at runtime. Called by other packages during their
+   206	   * initialization. Returns the runtime for chaining.
+   207	   */
+   208	  register<T>(name: string, subsystem: T): AssistantRuntime;
+   209	
+   210	  /**
+   211	   * Retrieve a registered subsystem. Throws if not found.
+   212	   */
+   213	  get<T>(name: string): T;
+   214	
+   215	  /**
+   216	   * Structured health/readiness object. Suitable for a GET /health endpoint.
+   217	   */
+   218	  status(): RuntimeStatus;
+   219	
+   220	  /** Begin processing. Resolves after onStart hooks complete. */
+   221	  start(): Promise<void>;
+   222	
+   223	  /** Drain in-flight handlers then call onStop hooks. */
+   224	  stop(): Promise<void>;
+   225	}
+   226	```
+   227	
+   228	### 3.8 `OutboundEvent`
+   229	
+   230	```typescript
+   231	export interface OutboundEvent {
+   232	  /** Surface to deliver to. When present, targeted send. When absent, session fanout. */
+   233	  surfaceId?: string;
+   234	
+   235	  /** Session context. When surfaceId is absent, used for fanout to all attached surfaces. */
+   236	  sessionId?: string;
+   237	
+   238	  /** Normalized text response. */
+   239	  text: string;
+   240	
+   241	  /**
+   242	   * Surface-specific formatting hints. Core passes verbatim to the surface
+   243	   * adapter; does not interpret.
+   244	   */
+   245	  format?: unknown;
+   246	}
+   247	```
+   248	
+   249	### 3.9 `RuntimeStatus`
+   250	
+   251	```typescript
+   252	export interface RuntimeStatus {
+   253	  ready: boolean;
+   254	  startedAt: string | null;
+   255	  registeredSubsystems: string[];
+   256	  registeredCapabilities: string[];
+   257	  inFlightHandlers: number;
+   258	}
+   259	```
+   260	
+   261	### 3.10 `OutboundEventError`
+   262	
+   263	```typescript
+   264	export class OutboundEventError extends Error {
+   265	  constructor(message: string) {
+   266	    super(message);
+   267	    this.name = 'OutboundEventError';
+   268	  }
+   269	}
+   270	```
+   271	
+   272	Thrown by `runtime.emit()` when an `OutboundEvent` has neither `surfaceId` nor `sessionId` set.
+   273	
+   274	---
+   275	
+   276	## 4. Package Boundaries
+   277	
+   278	### Depends on (external)
+   279	- Standard TypeScript runtime; no framework dependencies.
+   280	- Node.js `EventEmitter` (or equivalent) for internal event bus. No external event library.
+   281	
+   282	### Depends on (internal)
+   283	- Nothing from this monorepo. Core is the dependency root.
+   284	
+   285	### Depended on by (internal)
+   286	- All other `@relay-assistant/*` packages import types from core.
+   287	
+   288	### Relay foundation boundary
+   289	- Core calls into the relay foundation through **adapters**, not directly. Two adapter interfaces are defined in core:
+   290	
+   291	```typescript
+   292	/** Injected by the surfaces layer to push normalized inbound messages into core. */
+   293	export interface RelayInboundAdapter {
+   294	  onMessage(handler: (message: InboundMessage) => void): void;
+   295	  offMessage(handler: (message: InboundMessage) => void): void;
+   296	}
+   297	
+   298	/** Injected by the surfaces layer to deliver outbound events. */
+   299	export interface RelayOutboundAdapter {
+   300	  /** Targeted send to a single surface. */
+   301	  send(event: OutboundEvent): Promise<void>;
+   302	  /** Fanout to all attached surfaces of a session. */
+   303	  fanout?(event: OutboundEvent, attachedSurfaceIds: string[]): Promise<void>;
+   304	}
+   305	```
+   306	
+   307	The surfaces layer implements these interfaces. Core never imports relay packages.
+   308	
+   309	Note: `fanout` is optional on the interface so that test stubs can implement just `send`. `SurfaceRegistry` implements both.
+   310	
+   311	---
+   312	
+   313	## 5. Dependency Rules
+   314	
+   315	| Direction | Rule |
+   316	|---|---|
+   317	| Other packages → core | Allowed. Import types and factory functions only. |
+   318	| Core → other packages | Forbidden. Core has no runtime imports from this monorepo. |
+   319	| Core → relay foundation | Through adapter interfaces only. Core never imports relay packages. |
+   320	| Cloud layer → core | Allowed. Cloud layer may wrap or extend, but core must remain functional without it. |
+
+ succeeded in 0ms:
+   290	 * Called by the relay foundation when a raw message arrives.
+   291	 * SurfaceRegistry normalizes the raw event into an InboundMessage,
+   292	 * then calls the handler registered via onMessage().
+   293	 *
+   294	 * Flow: relay foundation → receiveRaw(surfaceId, raw) → normalize → InboundMessage → handler
+   295	 */
+   296	receiveRaw(surfaceId: string, raw: unknown): void;
+   297	```
+   298	
+   299	The `setInboundHandler()` method from earlier drafts is replaced by the standard `onMessage()` / `offMessage()` contract from `RelayInboundAdapter`. Products wire the registry during initialization:
+   300	
+   301	```typescript
+   302	const runtime = createAssistant(definition, {
+   303	  inbound: surfaceRegistry,   // SurfaceRegistry implements RelayInboundAdapter
+   304	  outbound: surfaceRegistry,  // SurfaceRegistry implements RelayOutboundAdapter
+   305	});
+   306	```
+   307	
+   308	### 4.10 Normalization
+   309	
+   310	Inbound normalization extracts these fields from a raw relay event:
+   311	
+   312	| Target field | Source | Fallback |
+   313	|---|---|---|
+   314	| `id` | `raw.messageId` or `raw.id` | Generated UUID |
+   315	| `surfaceId` | Provided by relay (first arg to `receiveRaw`) | Error if missing |
+   316	| `sessionId` | `raw.sessionId` or `raw.session?.id` | undefined |
+   317	| `userId` | `raw.userId` or `raw.user?.id` or `raw.user` (if string) | **Error:** reject message and log error. `userId` is required. |
+   318	| `workspaceId` | `raw.workspaceId` or `raw.workspace?.id` | `undefined` (optional) |
+   319	| `text` | `raw.text` or `raw.content` or `raw.body` | Empty string; logs warning |
+   320	| `receivedAt` | `raw.timestamp` or `raw.receivedAt` | `new Date().toISOString()` |
+   321	| `raw` | Verbatim | Required |
+   322	
+   323	Normalization does not fail on missing optional fields; it logs warnings and uses fallbacks.
+   324	
+   325	> **Required field:** `userId` is required on `InboundMessage` (per core spec). If normalization cannot extract a user identifier from the raw payload, it must reject the message and log an error. It must not silently assign an anonymous ID without the product opting into that behavior via a custom `normalizationHook`.
+   326	
+   327	### 4.11 Error types
+   328	
+   329	```typescript
+   330	export class SurfaceNotFoundError extends Error {
+   331	  constructor(public readonly surfaceId: string) {
+   332	    super(`Surface not found: ${surfaceId}`);
+   333	  }
+   334	}
+   335	
+   336	export class SurfaceConflictError extends Error {
+   337	  constructor(public readonly surfaceId: string) {
+   338	    super(`Surface already registered: ${surfaceId}`);
+   339	  }
+   340	}
+   341	
+   342	export class SurfaceDeliveryError extends Error {
+   343	  constructor(
+   344	    public readonly surfaceId: string,
+   345	    cause: Error,
+   346	  ) {
+   347	    super(`Delivery failed for surface ${surfaceId}: ${cause.message}`);
+   348	    this.cause = cause;
+   349	  }
+   350	}
+   351	```
+   352	
+   353	---
+   354	
+   355	## 5. `createSurfaceRegistry` Factory
+   356	
+   357	```typescript
+   358	export function createSurfaceRegistry(
+   359	  config?: SurfaceRegistryConfig,
+   360	): SurfaceRegistry;
+
+ succeeded in 0ms:
+[stderr]      1	# v1 Core Spec — `@relay-assistant/core`
+     2	
+     3	**Status:** IMPLEMENTATION_READY
+     4	**Date:** 2026-04-11
+     5	**Package:** `@relay-assistant/core`
+     6	**Version target:** v0.1.0 (pre-1.0, provisional)
+     7	
+     8	---
+     9	
+    10	## 1. Responsibilities
+    11	
+    12	`@relay-assistant/core` is the root composition layer. Every other package in this SDK depends on contracts exported from core; core depends on nothing else in this monorepo.
+    13	
+    14	**Owns:**
+    15	- `AssistantDefinition` — the declarative config struct describing an assistant's identity, capabilities, and runtime constraints
+    16	- `AssistantRuntime` — the live object returned by `createAssistant()`; holds registered subsystems and drives the main event loop
+    17	- Capability registration — typed registry mapping capability names to handler functions
+    18	- Lifecycle hooks — `onStart`, `onStop`, `onMessage`, `onError` (synchronous signatures; async adapters are the caller's responsibility)
+    19	- Health/readiness probe — `runtime.status()` returns a structured object suitable for a health endpoint
+    20	
+    21	> **Normalization boundary:** Core does not normalize raw relay events. It receives already-normalized `InboundMessage` objects from the surfaces layer. The `SurfaceRegistry` (from `@relay-assistant/surfaces`) implements core's `RelayInboundAdapter` interface and performs normalization before calling the registered handler. See Contradiction 1 resolution in `docs/architecture/spec-reconciliation-rules.md`.
+    22	
+    23	**Does NOT own:**
+    24	- Session state (→ `@relay-assistant/sessions`)
+    25	- Surface I/O (→ `@relay-assistant/surfaces`)
+    26	- Memory retrieval or storage (→ `@relay-assistant/memory`)
+    27	- Model selection or routing (→ `@relay-assistant/routing`)
+    28	- Multi-agent coordination (→ `@relay-assistant/coordination`)
+    29	- Any transport protocol, HTTP server, or relay socket management (→ relay foundation layer)
+    30	
+    31	---
+    32	
+    33	## 2. Non-Goals
+    34	
+    35	- Core does not start a web server, open sockets, or manage relay connections. Those belong to the relay foundation beneath this SDK.
+    36	- Core does not implement retry logic, queue management, or delivery guarantees. Those are relay-layer concerns.
+    37	- Core is not an orchestrator. It registers capabilities and dispatches events; it does not sequence multi-step workflows.
+    38	- Core does not enforce action policy (→ `@relay-assistant/policy`).
+    39	- Core does not know about cloud infrastructure. All interfaces must be implementable by a self-hosted consumer without any private service.
+    40	
+    41	---
+    42	
+    43	## 3. Interfaces and Contracts
+    44	
+    45	### 3.1 `AssistantDefinition`
+    46	
+    47	```typescript
+    48	export interface AssistantDefinition {
+    49	  /** Unique identifier for this assistant. Stable across restarts. */
+    50	  id: string;
+    51	
+    52	  /** Human-readable display name. Used in surface headers and logs. */
+    53	  name: string;
+    54	
+    55	  /**
+    56	   * Optional description. Surfaced in admin UIs and capability registries.
+    57	   * Not used at runtime.
+    58	   */
+    59	  description?: string;
+    60	
+    61	  /**
+    62	   * Named capability handlers. Keys are capability names; values are handler
+    63	   * functions. Core dispatches inbound messages to handlers by capability name.
+    64	   */
+    65	  capabilities: Record<string, CapabilityHandler>;
+    66	
+    67	  /**
+    68	   * Lifecycle hooks. All optional. Called synchronously (handlers may return
+    69	   * promises, but core does not await them unless noted).
+    70	   */
+    71	  hooks?: AssistantHooks;
+    72	
+    73	  /**
+    74	   * Runtime constraints. Used by routing and scheduling layers; core
+    75	   * validates structure but does not enforce values.
+    76	   */
+    77	  constraints?: RuntimeConstraints;
+    78	}
+    79	```
+    80	
+    81	### 3.2 `CapabilityHandler`
+    82	
+    83	```typescript
+    84	export type CapabilityHandler = (
+    85	  message: InboundMessage,
+    86	  context: CapabilityContext,
+    87	) => Promise<void> | void;
+    88	```
+    89	
+    90	### 3.3 `InboundMessage`
+    91	
+    92	```typescript
+    93	export interface InboundMessage {
+    94	  /** Relay-assigned message ID. Globally unique. */
+    95	  id: string;
+    96	
+    97	  /** Surface this message arrived on. Opaque string; not parsed by core. */
+    98	  surfaceId: string;
+    99	
+   100	  /** Session this message belongs to. May be undefined for sessionless surfaces. */
+   101	  sessionId?: string;
+   102	
+   103	  /** User who sent this message. Required. Extracted during surface normalization. */
+   104	  userId: string;
+   105	
+   106	  /** Workspace scope. Optional. Used for scoped session affinity. */
+   107	  workspaceId?: string;
+   108	
+   109	  /** Normalized text body. Core does not parse further. */
+   110	  text: string;
+   111	
+   112	  /**
+   113	   * Original relay payload. Core preserves this verbatim so capability
+   114	   * handlers can access surface-specific fields without core needing to
+   115	   * understand them.
+   116	   */
+   117	  raw: unknown;
+   118	
+   119	  /** ISO-8601 timestamp of message receipt at the relay layer. */
+   120	  receivedAt: string;
+
+ succeeded in 0ms:
+     1	# V1 Workflow Backlog
+     2	
+     3	Date: 2026-04-11
+     4	Revised: 2026-04-11 (post spec-program-review-verdict and spec-reconciliation-rules — aligned to canonical spec vocabulary; fanout/targeting rules and cross-package ownership clarified)
+     5	
+     6	> **Canonical source of truth:** Package specs in `docs/specs/` override this document when there is drift. This backlog was updated to align with `docs/specs/v1-core-spec.md`, `docs/specs/v1-sessions-spec.md`, and `docs/specs/v1-surfaces-spec.md` after the spec program review and reconciliation rules pass on 2026-04-11.
+     7	
+     8	## Purpose
+     9	
+    10	This document is the canonical ordered backlog of implementation workflows for v1. Each workflow is a narrow, PR-sized vertical slice through one or more packages. Workflows produce working, testable code and are the unit of implementation work.
+    11	
+    12	Implement in order. Each workflow gates the next unless explicitly noted as parallelizable.
+    13	
+    14	---
+    15	
+    16	## Pre-Workflow: Reconciliation Phase (Required — block on this before WF-1)
+    17	
+    18	### Spec Phase
+    19	
+    20	Three spec documents are finalized and marked `IMPLEMENTATION_READY`. They are the authoritative implementation reference for all workflow code.
+    21	
+    22	| Spec | Path | Status |
+    23	| --- | --- | --- |
+    24	| core v1 | `docs/specs/v1-core-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1–3 resolution) |
+    25	| sessions v1 | `docs/specs/v1-sessions-spec.md` | IMPLEMENTATION_READY |
+    26	| surfaces v1 | `docs/specs/v1-surfaces-spec.md` | IMPLEMENTATION_READY (pending Contradiction 1 resolution) |
+    27	
+    28	### Contradiction Resolutions (Pre-WF-1 gate)
+    29	
+    30	Three cross-package contradictions identified in `docs/architecture/spec-reconciliation-rules.md` must be resolved **in the specs** before any WF-1 code is committed. All eight checklist actions in the reconciliation rules document must be complete.
+    31	
+    32	| Action | Target | Contradiction | Status |
+    33	| --- | --- | --- | --- |
+    34	| 1 | `docs/specs/v1-core-spec.md`: remove "owns inbound normalization" from §1; update `RelayInboundAdapter` to accept `InboundMessage` (not `raw: unknown`) | 1 — inbound normalization ownership | Pending |
+    35	| 2 | `docs/specs/v1-core-spec.md §3.3`: add `userId: string` (required) and `workspaceId?: string` (optional) to `InboundMessage` | 2 — missing identity fields | Pending |
+    36	| 3 | `docs/specs/v1-core-spec.md §3.8`: make `OutboundEvent.surfaceId` optional (`surfaceId?`); add `OutboundEventError` | 3 — required surfaceId vs. fanout | Pending |
+    37	| 4 | `docs/specs/v1-core-spec.md`: add normative outbound routing rule to `runtime.emit()` contract | 3 | Pending (depends on action 3) |
+    38	| 5 | `docs/specs/v1-surfaces-spec.md`: confirm `SurfaceRegistry` implements `RelayInboundAdapter`; add `userId`/`workspaceId` to normalization table §4.10 | 1, 2 | Pending (depends on actions 1, 2) |
+    39	| 6 | `docs/specs/v1-surfaces-spec.md`: add normative outbound routing rule reference | 3 | Pending (depends on action 3) |
+    40	| 7 | Update adoption examples in `docs/workflows/weekend-delivery-plan.md` to match resolved contracts | all | Pending (depends on 1–6) |
+    41	| 8 | Search all docs for stale terms (Rule 1 table); replace with current terms | all | Pending |
+    42	
+    43	### Key canonical terms (do not use old planning vocabulary)
+    44	
+    45	- `AssistantDefinition` (not `AssistantConfig`)
+    46	- `AssistantRuntime` (not `Assistant`)
+    47	- `runtime.dispatch()` (not `handleMessage`)
+    48	- `InboundMessage` / `OutboundEvent` (not `AssistantMessage`)
+    49	- `createSurfaceRegistry()` + `SurfaceConnection` (not `createSurfaceConnection()`)
+    50	- `sessionStore.touch()` / `sessionStore.expire()` (not `resume` / `close`)
+    51	- Session states: `created → active → suspended → expired` (not `resumed` or `closed`)
+    52	- `surfaceRegistry` wired as both `inbound` and `outbound` relay adapter (not `assistant.attachSurface()`)
+    53	
+    54	---
+    55	
+    56	## WF-1: Define assistant and start runtime
+    57	
+    58	**Package:** `core`
+    59	**Depends on:** `docs/specs/v1-core-spec.md` (after Contradiction 1–3 resolutions applied)
+    60	**Produces:** `AssistantDefinition`, `AssistantRuntime`, `createAssistant`, lifecycle state machine, `runtime.status()`
+    61	**PR scope:** `packages/core/src/types.ts`, `packages/core/src/core.ts`, `packages/core/src/core.test.ts`
+    62	
+    63	### Steps
+    64	
+    65	1. Define an `AssistantDefinition` with `id`, `name`, and a `capabilities` map (`Record<string, CapabilityHandler>`)
+    66	2. Call `createAssistant(definition, { inbound: stubAdapter, outbound: stubAdapter })` — returns `AssistantRuntime`
+    67	3. Call `runtime.start()` — verify `runtime.status().ready === true`
+    68	4. Call `runtime.stop()` — verify runtime is no longer accepting dispatches
+    69	5. Verify double-start is idempotent or throws expected error
+    70	6. Verify double-stop is idempotent or throws expected error
+
+[stderr] codex
+I found two concrete residual drifts: the surfaces spec still uses `setInboundHandler` in its implementation slice, and the workflow backlog still reports the reconciliation actions as pending even though the specs are already updated. I’m writing the verdict with those as follow-ups rather than blockers.
+[stderr] exec
+/bin/zsh -lc "nl -ba docs/specs/v1-surfaces-spec.md | sed -n '360,430p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr]  succeeded in 0ms:
+   360	): SurfaceRegistry;
+   361	
+   362	export interface SurfaceRegistryConfig {
+   363	  /** Default fanout policy applied when none is provided per-call. */
+   364	  defaultFanoutPolicy?: FanoutPolicy;
+   365	
+   366	  /**
+   367	   * Normalization override. When provided, replaces the default normalization
+   368	   * logic. Useful for products with non-standard relay payloads.
+   369	   */
+   370	  normalizationHook?: (surfaceId: string, raw: unknown) => InboundMessage;
+   371	}
+   372	```
+   373	
+   374	---
+   375	
+   376	## 6. Package Boundaries
+   377	
+   378	### Depends on
+   379	- `@relay-assistant/core` — imports `InboundMessage`, `OutboundEvent` types. The `SurfaceRegistry` acts as the inbound relay adapter for core.
+   380	- `@relay-assistant/sessions` — imports `Session` type to read `attachedSurfaces` for fanout.
+   381	
+   382	### Depended on by
+   383	- Product code that registers surface connections.
+   384	- `@relay-assistant/proactive` — calls `surfaceRegistry.send()` or `fanout()` to deliver proactive messages.
+   385	
+   386	### Relay foundation boundary
+   387	- Surfaces never opens sockets or calls relay APIs directly. The relay foundation calls `surfaceRegistry.receiveRaw()` (push model) and implements `SurfaceAdapter.send()` for each surface type.
+   388	- The separation is explicit: relay handles transport; surfaces handles normalization, format, and fanout.
+   389	
+   390	---
+   391	
+   392	## 7. Dependency Rules
+   393	
+   394	| Direction | Rule |
+   395	|---|---|
+   396	| Surfaces → core | Allowed. Import types only (InboundMessage, OutboundEvent). |
+   397	| Surfaces → sessions | Allowed. Import Session type for fanout. |
+   398	| Surfaces → memory | Forbidden. |
+   399	| Surfaces → routing | Forbidden. |
+   400	| Surfaces → relay foundation | Forbidden. Relay foundation depends on surfaces, not vice versa. |
+   401	| Other packages → surfaces | Allowed. Import SurfaceRegistry, SurfaceConnection types. |
+   402	
+   403	---
+   404	
+   405	## 8. Fanout Behavior Detail
+   406	
+   407	Fanout is triggered when a response should reach all surfaces in a session:
+   408	
+   409	1. Core emits an `OutboundEvent` with a `sessionId` but no specific `surfaceId`.
+   410	2. The runtime's outbound adapter calls `surfaceRegistry.fanout(event, session.attachedSurfaces, policy)`.
+   411	3. For each surface ID, registry looks up the connection.
+   412	4. If connection is `active`, call `formatHook` (if present) then `adapter.send()`.
+   413	5. If connection is `inactive` and `skipInactive=true`, add a 'skipped' outcome.
+   414	6. Collect outcomes; return `FanoutResult`.
+   415	
+   416	When the event specifies a `surfaceId` (targeted delivery), `send()` is used instead of `fanout()`.
+   417	
+   418	**Ordering:** Fanout sends are concurrent (Promise.all-equivalent). There is no ordering guarantee across surfaces.
+   419	
+   420	### Outbound Routing Rule (normative — matches core spec)
+   421	
+   422	The outbound routing decision is made by core's `runtime.emit()` and delegated to the surfaces layer:
+   423	
+   424	- **Targeted send:** When `OutboundEvent.surfaceId` is present, `surfaceRegistry.send(event)` delivers to exactly one surface.
+   425	- **Session fanout:** When `OutboundEvent.surfaceId` is absent and `OutboundEvent.sessionId` is present, `surfaceRegistry.fanout(event, attachedSurfaceIds, policy?)` delivers to all session-attached surfaces.
+   426	- **Invalid:** When both `surfaceId` and `sessionId` are absent, core's `runtime.emit()` throws `OutboundEventError` before reaching the surfaces layer.
+   427	
+   428	This rule is defined once in `docs/specs/v1-core-spec.md` (section 3.7, `runtime.emit()` contract) and referenced here. Surfaces implements the delivery; core implements the routing decision.
+   429	
+   430	---
+
+[stderr] exec
+/bin/zsh -lc "nl -ba docs/workflows/v1-workflow-backlog.md | sed -n '280,340p'" in /Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant
+[stderr]  succeeded in 0ms:
+   280	
+   281	### Steps
+   282	
+   283	1. Import only `@relay-assistant/core`, `@relay-assistant/sessions`, `@relay-assistant/surfaces` — no other packages
+   284	2. Define `AssistantDefinition` with `id`, `name`, `capabilities: { chat: chatHandler }`
+   285	3. Create `InMemorySessionStoreAdapter` and `createSessionStore({ adapter })`
+   286	4. Create `createSurfaceRegistry()` with slack and web connections (stub adapters)
+   287	5. Wire: `createAssistant(definition, { inbound: surfaceRegistry, outbound: surfaceRegistry })`
+   288	6. `runtime.register('sessions', sessionStore)`
+   289	7. In `chatHandler`: resolve session via `resolveSession(message, store, resolver)` (reads `message.userId`), touch it, emit a response
+   290	8. Call `runtime.start()`
+   291	9. Simulate inbound message from slack → session created → handler called → response emitted → slack adapter receives `SurfacePayload`
+   292	10. Simulate second message from web surface → session reactivated via touch → fanout to both surfaces
+   293	11. Call `runtime.stop()` — runtime drains in-flight handlers cleanly
+   294	12. Verify `runtime.status()` after stop reflects correct state
+   295	
+   296	### Acceptance criteria
+   297	
+   298	- Full end-to-end cycle passes in a single test with no external dependencies
+   299	- Assembly uses only `@relay-assistant/core`, `@relay-assistant/sessions`, `@relay-assistant/surfaces`
+   300	- Assembly pattern matches the canonical pattern from `docs/architecture/spec-reconciliation-rules.md §3b`:
+   301	  ```typescript
+   302	  const definition: AssistantDefinition = { id, name, capabilities };
+   303	  const sessionStore = createSessionStore({ adapter });
+   304	  const surfaceRegistry = createSurfaceRegistry();
+   305	  surfaceRegistry.register(connection);
+   306	  const runtime = createAssistant(definition, { inbound: surfaceRegistry, outbound: surfaceRegistry });
+   307	  runtime.register('sessions', sessionStore);
+   308	  await runtime.start();
+   309	  ```
+   310	- The test passes without any cloud, network, or external dependency
+   311	- Package READMEs for core, sessions, and surfaces are updated with real API docs replacing placeholder text
+   312	- v1 release tag is prepared
+   313	
+   314	---
+   315	
+   316	## Dependency Graph
+   317	
+   318	```
+   319	[v1-core-spec]    ──→ WF-1 ──→ WF-2 ──┐
+   320	                                        ├──→ WF-4 ──┐
+   321	[v1-sessions-spec] → WF-3 ─────────────┘            ├──→ WF-6 ──→ WF-7
+   322	                                                     │
+   323	[v1-surfaces-spec] ──────────────────── WF-5 ────────┘
+   324	                                        ↑
+   325	                                      (WF-2 for types)
+   326	```
+   327	
+   328	Parallelizable once gated tasks are done:
+   329	- WF-1 and WF-3 can be written simultaneously — they depend on different specs and different packages
+   330	- WF-2 depends on WF-1 completing
+   331	- WF-4 and WF-5 can be started in parallel once WF-2 and WF-3 are both done (WF-5 only needs WF-2 for `InboundMessage` / `OutboundEvent` type shapes, not WF-3/4)
+   332	
+   333	---
+   334	
+   335	## Execution Order
+   336	
+   337	| Step | Task | Depends on | Parallelizable with |
+   338	| --- | --- | --- | --- |
+   339	| 0 | Apply Contradiction 1–3 resolutions to specs (reconciliation-rules.md actions 1–6) | spec-reconciliation-rules | — |
+   340	| 1 | Confirm `docs/specs/v1-core-spec.md` — DONE (pending action 0) | — | — |
+
+[stderr] codex
+Writing the review verdict now. It will mark the specs as reconciled enough to proceed, with a short follow-up list for the remaining documentation drift.
+[stderr] apply patch
+[stderr] patch: completed
+/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/canonical-spec-review-verdict.md
+diff --git a/docs/architecture/canonical-spec-review-verdict.md b/docs/architecture/canonical-spec-review-verdict.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..6c0e2daa12e1ac31e8d99b44bafae75615265d82
+--- /dev/null
++++ b/docs/architecture/canonical-spec-review-verdict.md
+@@ -0,0 +1,93 @@
++PASS_WITH_FOLLOWUPS
++
++# Canonical Spec Review Verdict
++
++Date: 2026-04-11
++Inputs reviewed:
++- `docs/architecture/canonical-spec-fix-plan.md`
++- `docs/specs/v1-core-spec.md`
++- `docs/specs/v1-surfaces-spec.md`
++- `docs/specs/v1-sessions-spec.md`
++- `docs/workflows/v1-workflow-backlog.md`
++- `docs/architecture/spec-reconciliation-rules.md`
++
++## Verdict
++
++The canonical package specs are now materially reconciled with the reconciliation rules, and the core cross-package contracts are coherent enough to proceed. A full `PASS` is not justified because a small amount of documentation drift remains in the surfaces spec implementation slice and in the workflow backlog's reconciliation-status bookkeeping.
++
++## Assessment
++
++### 1. Do the canonical specs now reflect the reconciliation rules?
++
++Mostly yes.
++
++Confirmed:
++- Core now explicitly states that it does not own inbound normalization and instead receives normalized `InboundMessage` objects from surfaces: `docs/specs/v1-core-spec.md:21`.
++- Core `RelayInboundAdapter` now accepts `InboundMessage`, matching Rule 2 / Contradiction 1: `docs/specs/v1-core-spec.md:292-295`.
++- Core `InboundMessage` now includes `userId` and `workspaceId?`, matching Rule 2 / Contradiction 2: `docs/specs/v1-core-spec.md:93-124`.
++- Core `OutboundEvent.surfaceId` is now optional, and `OutboundEventError` is defined, matching Rule 2 / Contradiction 3: `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
++- Core `runtime.emit()` now defines the targeted-send / session-fanout / invalid routing rule: `docs/specs/v1-core-spec.md:188-196`.
++- Surfaces now explicitly says `SurfaceRegistry` implements core's relay adapter contracts and documents normalization ownership: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:277-306`.
++- Surfaces normalization now includes `userId` and `workspaceId` extraction rules: `docs/specs/v1-surfaces-spec.md:312-325`.
++- Surfaces now includes the normative outbound routing rule reference consistent with core: `docs/specs/v1-surfaces-spec.md:420-428`.
++- Sessions lifecycle/state vocabulary is aligned to `created | active | suspended | expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
++
++Remaining drift:
++- The surfaces spec first implementation slice still says `receiveRaw + setInboundHandler` instead of the reconciled `onMessage` / `offMessage` adapter shape: `docs/specs/v1-surfaces-spec.md:468-470`.
++- The workflow backlog still marks reconciliation actions and spec statuses as "Pending" even though the canonical specs now include the reconciled contracts: `docs/workflows/v1-workflow-backlog.md:24-41`, `docs/workflows/v1-workflow-backlog.md:339-341`.
++
++### 2. Is inbound normalization ownership now clear and consistent?
++
++Yes, with one non-blocking leftover reference.
++
++The canonical ownership model is now clear:
++- Core says it does not normalize raw relay events and receives normalized `InboundMessage`: `docs/specs/v1-core-spec.md:21`.
++- Core's inbound adapter now accepts normalized messages: `docs/specs/v1-core-spec.md:292-295`.
++- Surfaces says it owns inbound normalization and that `SurfaceRegistry` bridges raw relay input to normalized messages: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:290-299`.
++
++The only inconsistency left is procedural, not architectural: the surfaces spec's implementation-slice Step 4 still mentions `setInboundHandler`, which reintroduces the superseded earlier-draft interface name: `docs/specs/v1-surfaces-spec.md:468-470`.
++
++### 3. Are `InboundMessage` identity fields and outbound targeting/fanout rules now coherent?
++
++Yes.
++
++Identity fields:
++- `InboundMessage.userId` is required and `workspaceId?` is optional in core: `docs/specs/v1-core-spec.md:103-107`.
++- Surfaces normalization specifies how those fields are derived and what happens when `userId` is missing: `docs/specs/v1-surfaces-spec.md:317-325`.
++- Sessions can now coherently rely on those fields for `resolveSession(...)`: `docs/specs/v1-sessions-spec.md:215-223`.
++
++Outbound targeting/fanout:
++- Core defines `surfaceId?` and `sessionId?` with the correct routing rule and invalid case: `docs/specs/v1-core-spec.md:188-196`, `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
++- Surfaces mirrors that contract and correctly frames fanout as a surfaces-owned delivery concern: `docs/specs/v1-surfaces-spec.md:405-428`.
++- The workflow backlog also uses the targeted-send vs session-fanout model consistently in WF-6 and WF-7: `docs/workflows/v1-workflow-backlog.md:253-261`, `docs/workflows/v1-workflow-backlog.md:283-312`.
++
++### 4. Are stale session lifecycle terms cleaned up sufficiently?
++
++Sufficiently for implementation guidance, but not perfectly.
++
++Cleaned up:
++- The state machine and state union now use only `created`, `active`, `suspended`, and `expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
++- The backlog no longer uses "session resumed" in WF-7 and instead says "reactivated via touch": `docs/workflows/v1-workflow-backlog.md:292`.
++
++Residual wording to consider tightening:
++- Sessions responsibilities still use the narrative noun `resumption`: `docs/specs/v1-sessions-spec.md:17`.
++
++That wording does not create an API contradiction, but if the goal is full cleanup of pre-reconciliation vocabulary, it should be normalized to `touch` / reactivation wording as well.
++
++## Follow-Ups
++
++1. Update `docs/specs/v1-surfaces-spec.md` implementation-slice Step 4 to replace `setInboundHandler` with the reconciled `onMessage` / `offMessage` contract.
++2. Update `docs/workflows/v1-workflow-backlog.md` reconciliation tables and execution-order notes so they no longer claim the already-applied spec fixes are pending.
++3. Optionally tighten `docs/specs/v1-sessions-spec.md:17` by replacing the narrative term `resumption` with wording aligned to `touch()` / transition back to `active`.
++
++## Summary
++
++What was accomplished:
++- Reviewed the canonical fix plan, reconciliation rules, three package specs, and the workflow backlog.
++- Verified that the major reconciliation items are now implemented in the canonical specs.
++- Identified the remaining non-blocking follow-ups that prevent a clean full `PASS`.
++
++Artifact produced:
++- `docs/architecture/canonical-spec-review-verdict.md`
++
++CANONICAL_SPEC_REVIEW_COMPLETE
+
+[stderr] diff --git a/docs/architecture/canonical-spec-review-verdict.md b/docs/architecture/canonical-spec-review-verdict.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..6c0e2daa12e1ac31e8d99b44bafae75615265d82
+--- /dev/null
++++ b/docs/architecture/canonical-spec-review-verdict.md
+@@ -0,0 +1,93 @@
++PASS_WITH_FOLLOWUPS
++
++# Canonical Spec Review Verdict
++
++Date: 2026-04-11
++Inputs reviewed:
++- `docs/architecture/canonical-spec-fix-plan.md`
++- `docs/specs/v1-core-spec.md`
++- `docs/specs/v1-surfaces-spec.md`
++- `docs/specs/v1-sessions-spec.md`
++- `docs/workflows/v1-workflow-backlog.md`
++- `docs/architecture/spec-reconciliation-rules.md`
++
++## Verdict
++
++The canonical package specs are now materially reconciled with the reconciliation rules, and the core cross-package contracts are coherent enough to proceed. A full `PASS` is not justified because a small amount of documentation drift remains in the surfaces spec implementation slice and in the workflow backlog's reconciliation-status bookkeeping.
++
++## Assessment
++
++### 1. Do the canonical specs now reflect the reconciliation rules?
++
++Mostly yes.
++
++Confirmed:
++- Core now explicitly states that it does not own inbound normalization and instead receives normalized `InboundMessage` objects from surfaces: `docs/specs/v1-core-spec.md:21`.
++- Core `RelayInboundAdapter` now accepts `InboundMessage`, matching Rule 2 / Contradiction 1: `docs/specs/v1-core-spec.md:292-295`.
++- Core `InboundMessage` now includes `userId` and `workspaceId?`, matching Rule 2 / Contradiction 2: `docs/specs/v1-core-spec.md:93-124`.
++- Core `OutboundEvent.surfaceId` is now optional, and `OutboundEventError` is defined, matching Rule 2 / Contradiction 3: `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
++- Core `runtime.emit()` now defines the targeted-send / session-fanout / invalid routing rule: `docs/specs/v1-core-spec.md:188-196`.
++- Surfaces now explicitly says `SurfaceRegistry` implements core's relay adapter contracts and documents normalization ownership: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:277-306`.
++- Surfaces normalization now includes `userId` and `workspaceId` extraction rules: `docs/specs/v1-surfaces-spec.md:312-325`.
++- Surfaces now includes the normative outbound routing rule reference consistent with core: `docs/specs/v1-surfaces-spec.md:420-428`.
++- Sessions lifecycle/state vocabulary is aligned to `created | active | suspended | expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
++
++Remaining drift:
++- The surfaces spec first implementation slice still says `receiveRaw + setInboundHandler` instead of the reconciled `onMessage` / `offMessage` adapter shape: `docs/specs/v1-surfaces-spec.md:468-470`.
++- The workflow backlog still marks reconciliation actions and spec statuses as "Pending" even though the canonical specs now include the reconciled contracts: `docs/workflows/v1-workflow-backlog.md:24-41`, `docs/workflows/v1-workflow-backlog.md:339-341`.
++
++### 2. Is inbound normalization ownership now clear and consistent?
++
++Yes, with one non-blocking leftover reference.
++
++The canonical ownership model is now clear:
++- Core says it does not normalize raw relay events and receives normalized `InboundMessage`: `docs/specs/v1-core-spec.md:21`.
++- Core's inbound adapter now accepts normalized messages: `docs/specs/v1-core-spec.md:292-295`.
++- Surfaces says it owns inbound normalization and that `SurfaceRegistry` bridges raw relay input to normalized messages: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:290-299`.
++
++The only inconsistency left is procedural, not architectural: the surfaces spec's implementation-slice Step 4 still mentions `setInboundHandler`, which reintroduces the superseded earlier-draft interface name: `docs/specs/v1-surfaces-spec.md:468-470`.
++
++### 3. Are `InboundMessage` identity fields and outbound targeting/fanout rules now coherent?
++
++Yes.
++
++Identity fields:
++- `InboundMessage.userId` is required and `workspaceId?` is optional in core: `docs/specs/v1-core-spec.md:103-107`.
++- Surfaces normalization specifies how those fields are derived and what happens when `userId` is missing: `docs/specs/v1-surfaces-spec.md:317-325`.
++- Sessions can now coherently rely on those fields for `resolveSession(...)`: `docs/specs/v1-sessions-spec.md:215-223`.
++
++Outbound targeting/fanout:
++- Core defines `surfaceId?` and `sessionId?` with the correct routing rule and invalid case: `docs/specs/v1-core-spec.md:188-196`, `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
++- Surfaces mirrors that contract and correctly frames fanout as a surfaces-owned delivery concern: `docs/specs/v1-surfaces-spec.md:405-428`.
++- The workflow backlog also uses the targeted-send vs session-fanout model consistently in WF-6 and WF-7: `docs/workflows/v1-workflow-backlog.md:253-261`, `docs/workflows/v1-workflow-backlog.md:283-312`.
++
++### 4. Are stale session lifecycle terms cleaned up sufficiently?
++
++Sufficiently for implementation guidance, but not perfectly.
++
++Cleaned up:
++- The state machine and state union now use only `created`, `active`, `suspended`, and `expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
++- The backlog no longer uses "session resumed" in WF-7 and instead says "reactivated via touch": `docs/workflows/v1-workflow-backlog.md:292`.
++
++Residual wording to consider tightening:
++- Sessions responsibilities still use the narrative noun `resumption`: `docs/specs/v1-sessions-spec.md:17`.
++
++That wording does not create an API contradiction, but if the goal is full cleanup of pre-reconciliation vocabulary, it should be normalized to `touch` / reactivation wording as well.
++
++## Follow-Ups
++
++1. Update `docs/specs/v1-surfaces-spec.md` implementation-slice Step 4 to replace `setInboundHandler` with the reconciled `onMessage` / `offMessage` contract.
++2. Update `docs/workflows/v1-workflow-backlog.md` reconciliation tables and execution-order notes so they no longer claim the already-applied spec fixes are pending.
++3. Optionally tighten `docs/specs/v1-sessions-spec.md:17` by replacing the narrative term `resumption` with wording aligned to `touch()` / transition back to `active`.
++
++## Summary
++
++What was accomplished:
++- Reviewed the canonical fix plan, reconciliation rules, three package specs, and the workflow backlog.
++- Verified that the major reconciliation items are now implemented in the canonical specs.
++- Identified the remaining non-blocking follow-ups that prevent a clean full `PASS`.
++
++Artifact produced:
++- `docs/architecture/canonical-spec-review-verdict.md`
++
++CANONICAL_SPEC_REVIEW_COMPLETE
+
+[stderr] codex
+PASS_WITH_FOLLOWUPS
+
+# Canonical Spec Review Verdict
+
+Date: 2026-04-11
+Inputs reviewed:
+- `docs/architecture/canonical-spec-fix-plan.md`
+- `docs/specs/v1-core-spec.md`
+- `docs/specs/v1-surfaces-spec.md`
+- `docs/specs/v1-sessions-spec.md`
+- `docs/workflows/v1-workflow-backlog.md`
+- `docs/architecture/spec-reconciliation-rules.md`
+
+## Verdict
+
+The canonical package specs are now materially reconciled with the reconciliation rules, and the core cross-package contracts are coherent enough to proceed. A full `PASS` is not justified because a small amount of documentation drift remains in the surfaces spec implementation slice and in the workflow backlog's reconciliation-status bookkeeping.
+
+## Assessment
+
+### 1. Do the canonical specs now reflect the reconciliation rules?
+
+Mostly yes.
+
+Confirmed:
+- Core now explicitly states that it does not own inbound normalization and instead receives normalized `InboundMessage` objects from surfaces: `docs/specs/v1-core-spec.md:21`.
+- Core `RelayInboundAdapter` now accepts `InboundMessage`, matching Rule 2 / Contradiction 1: `docs/specs/v1-core-spec.md:292-295`.
+- Core `InboundMessage` now includes `userId` and `workspaceId?`, matching Rule 2 / Contradiction 2: `docs/specs/v1-core-spec.md:93-124`.
+- Core `OutboundEvent.surfaceId` is now optional, and `OutboundEventError` is defined, matching Rule 2 / Contradiction 3: `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
+- Core `runtime.emit()` now defines the targeted-send / session-fanout / invalid routing rule: `docs/specs/v1-core-spec.md:188-196`.
+- Surfaces now explicitly says `SurfaceRegistry` implements core's relay adapter contracts and documents normalization ownership: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:277-306`.
+- Surfaces normalization now includes `userId` and `workspaceId` extraction rules: `docs/specs/v1-surfaces-spec.md:312-325`.
+- Surfaces now includes the normative outbound routing rule reference consistent with core: `docs/specs/v1-surfaces-spec.md:420-428`.
+- Sessions lifecycle/state vocabulary is aligned to `created | active | suspended | expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
+
+Remaining drift:
+- The surfaces spec first implementation slice still says `receiveRaw + setInboundHandler` instead of the reconciled `onMessage` / `offMessage` adapter shape: `docs/specs/v1-surfaces-spec.md:468-470`.
+- The workflow backlog still marks reconciliation actions and spec statuses as "Pending" even though the canonical specs now include the reconciled contracts: `docs/workflows/v1-workflow-backlog.md:24-41`, `docs/workflows/v1-workflow-backlog.md:339-341`.
+
+### 2. Is inbound normalization ownership now clear and consistent?
+
+Yes, with one non-blocking leftover reference.
+
+The canonical ownership model is now clear:
+- Core says it does not normalize raw relay events and receives normalized `InboundMessage`: `docs/specs/v1-core-spec.md:21`.
+- Core's inbound adapter now accepts normalized messages: `docs/specs/v1-core-spec.md:292-295`.
+- Surfaces says it owns inbound normalization and that `SurfaceRegistry` bridges raw relay input to normalized messages: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:290-299`.
+
+The only inconsistency left is procedural, not architectural: the surfaces spec's implementation-slice Step 4 still mentions `setInboundHandler`, which reintroduces the superseded earlier-draft interface name: `docs/specs/v1-surfaces-spec.md:468-470`.
+
+### 3. Are `InboundMessage` identity fields and outbound targeting/fanout rules now coherent?
+
+Yes.
+
+Identity fields:
+- `InboundMessage.userId` is required and `workspaceId?` is optional in core: `docs/specs/v1-core-spec.md:103-107`.
+- Surfaces normalization specifies how those fields are derived and what happens when `userId` is missing: `docs/specs/v1-surfaces-spec.md:317-325`.
+- Sessions can now coherently rely on those fields for `resolveSession(...)`: `docs/specs/v1-sessions-spec.md:215-223`.
+
+Outbound targeting/fanout:
+- Core defines `surfaceId?` and `sessionId?` with the correct routing rule and invalid case: `docs/specs/v1-core-spec.md:188-196`, `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
+- Surfaces mirrors that contract and correctly frames fanout as a surfaces-owned delivery concern: `docs/specs/v1-surfaces-spec.md:405-428`.
+- The workflow backlog also uses the targeted-send vs session-fanout model consistently in WF-6 and WF-7: `docs/workflows/v1-workflow-backlog.md:253-261`, `docs/workflows/v1-workflow-backlog.md:283-312`.
+
+### 4. Are stale session lifecycle terms cleaned up sufficiently?
+
+Sufficiently for implementation guidance, but not perfectly.
+
+Cleaned up:
+- The state machine and state union now use only `created`, `active`, `suspended`, and `expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
+- The backlog no longer uses "session resumed" in WF-7 and instead says "reactivated via touch": `docs/workflows/v1-workflow-backlog.md:292`.
+
+Residual wording to consider tightening:
+- Sessions responsibilities still use the narrative noun `resumption`: `docs/specs/v1-sessions-spec.md:17`.
+
+That wording does not create an API contradiction, but if the goal is full cleanup of pre-reconciliation vocabulary, it should be normalized to `touch` / reactivation wording as well.
+
+## Follow-Ups
+
+1. Update `docs/specs/v1-surfaces-spec.md` implementation-slice Step 4 to replace `setInboundHandler` with the reconciled `onMessage` / `offMessage` contract.
+2. Update `docs/workflows/v1-workflow-backlog.md` reconciliation tables and execution-order notes so they no longer claim the already-applied spec fixes are pending.
+3. Optionally tighten `docs/specs/v1-sessions-spec.md:17` by replacing the narrative term `resumption` with wording aligned to `touch()` / transition back to `active`.
+
+## Summary
+
+What was accomplished:
+- Reviewed the canonical fix plan, reconciliation rules, three package specs, and the workflow backlog.
+- Verified that the major reconciliation items are now implemented in the canonical specs.
+- Identified the remaining non-blocking follow-ups that prevent a clean full `PASS`.
+
+Artifact produced:
+- `docs/architecture/canonical-spec-review-verdict.md`
+
+CANONICAL_SPEC_REVIEW_COMPLETE
+[stderr] diff --git a/docs/architecture/canonical-spec-review-verdict.md b/docs/architecture/canonical-spec-review-verdict.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..6c0e2daa12e1ac31e8d99b44bafae75615265d82
+--- /dev/null
++++ b/docs/architecture/canonical-spec-review-verdict.md
+@@ -0,0 +1,93 @@
++PASS_WITH_FOLLOWUPS
++
++# Canonical Spec Review Verdict
++
++Date: 2026-04-11
++Inputs reviewed:
++- `docs/architecture/canonical-spec-fix-plan.md`
++- `docs/specs/v1-core-spec.md`
++- `docs/specs/v1-surfaces-spec.md`
++- `docs/specs/v1-sessions-spec.md`
++- `docs/workflows/v1-workflow-backlog.md`
++- `docs/architecture/spec-reconciliation-rules.md`
++
++## Verdict
++
++The canonical package specs are now materially reconciled with the reconciliation rules, and the core cross-package contracts are coherent enough to proceed. A full `PASS` is not justified because a small amount of documentation drift remains in the surfaces spec implementation slice and in the workflow backlog's reconciliation-status bookkeeping.
++
++## Assessment
++
++### 1. Do the canonical specs now reflect the reconciliation rules?
++
++Mostly yes.
++
++Confirmed:
++- Core now explicitly states that it does not own inbound normalization and instead receives normalized `InboundMessage` objects from surfaces: `docs/specs/v1-core-spec.md:21`.
++- Core `RelayInboundAdapter` now accepts `InboundMessage`, matching Rule 2 / Contradiction 1: `docs/specs/v1-core-spec.md:292-295`.
++- Core `InboundMessage` now includes `userId` and `workspaceId?`, matching Rule 2 / Contradiction 2: `docs/specs/v1-core-spec.md:93-124`.
++- Core `OutboundEvent.surfaceId` is now optional, and `OutboundEventError` is defined, matching Rule 2 / Contradiction 3: `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
++- Core `runtime.emit()` now defines the targeted-send / session-fanout / invalid routing rule: `docs/specs/v1-core-spec.md:188-196`.
++- Surfaces now explicitly says `SurfaceRegistry` implements core's relay adapter contracts and documents normalization ownership: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:277-306`.
++- Surfaces normalization now includes `userId` and `workspaceId` extraction rules: `docs/specs/v1-surfaces-spec.md:312-325`.
++- Surfaces now includes the normative outbound routing rule reference consistent with core: `docs/specs/v1-surfaces-spec.md:420-428`.
++- Sessions lifecycle/state vocabulary is aligned to `created | active | suspended | expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
++
++Remaining drift:
++- The surfaces spec first implementation slice still says `receiveRaw + setInboundHandler` instead of the reconciled `onMessage` / `offMessage` adapter shape: `docs/specs/v1-surfaces-spec.md:468-470`.
++- The workflow backlog still marks reconciliation actions and spec statuses as "Pending" even though the canonical specs now include the reconciled contracts: `docs/workflows/v1-workflow-backlog.md:24-41`, `docs/workflows/v1-workflow-backlog.md:339-341`.
++
++### 2. Is inbound normalization ownership now clear and consistent?
++
++Yes, with one non-blocking leftover reference.
++
++The canonical ownership model is now clear:
++- Core says it does not normalize raw relay events and receives normalized `InboundMessage`: `docs/specs/v1-core-spec.md:21`.
++- Core's inbound adapter now accepts normalized messages: `docs/specs/v1-core-spec.md:292-295`.
++- Surfaces says it owns inbound normalization and that `SurfaceRegistry` bridges raw relay input to normalized messages: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:290-299`.
++
++The only inconsistency left is procedural, not architectural: the surfaces spec's implementation-slice Step 4 still mentions `setInboundHandler`, which reintroduces the superseded earlier-draft interface name: `docs/specs/v1-surfaces-spec.md:468-470`.
++
++### 3. Are `InboundMessage` identity fields and outbound targeting/fanout rules now coherent?
++
++Yes.
++
++Identity fields:
++- `InboundMessage.userId` is required and `workspaceId?` is optional in core: `docs/specs/v1-core-spec.md:103-107`.
++- Surfaces normalization specifies how those fields are derived and what happens when `userId` is missing: `docs/specs/v1-surfaces-spec.md:317-325`.
++- Sessions can now coherently rely on those fields for `resolveSession(...)`: `docs/specs/v1-sessions-spec.md:215-223`.
++
++Outbound targeting/fanout:
++- Core defines `surfaceId?` and `sessionId?` with the correct routing rule and invalid case: `docs/specs/v1-core-spec.md:188-196`, `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
++- Surfaces mirrors that contract and correctly frames fanout as a surfaces-owned delivery concern: `docs/specs/v1-surfaces-spec.md:405-428`.
++- The workflow backlog also uses the targeted-send vs session-fanout model consistently in WF-6 and WF-7: `docs/workflows/v1-workflow-backlog.md:253-261`, `docs/workflows/v1-workflow-backlog.md:283-312`.
++
++### 4. Are stale session lifecycle terms cleaned up sufficiently?
++
++Sufficiently for implementation guidance, but not perfectly.
++
++Cleaned up:
++- The state machine and state union now use only `created`, `active`, `suspended`, and `expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
++- The backlog no longer uses "session resumed" in WF-7 and instead says "reactivated via touch": `docs/workflows/v1-workflow-backlog.md:292`.
++
++Residual wording to consider tightening:
++- Sessions responsibilities still use the narrative noun `resumption`: `docs/specs/v1-sessions-spec.md:17`.
++
++That wording does not create an API contradiction, but if the goal is full cleanup of pre-reconciliation vocabulary, it should be normalized to `touch` / reactivation wording as well.
++
++## Follow-Ups
++
++1. Update `docs/specs/v1-surfaces-spec.md` implementation-slice Step 4 to replace `setInboundHandler` with the reconciled `onMessage` / `offMessage` contract.
++2. Update `docs/workflows/v1-workflow-backlog.md` reconciliation tables and execution-order notes so they no longer claim the already-applied spec fixes are pending.
++3. Optionally tighten `docs/specs/v1-sessions-spec.md:17` by replacing the narrative term `resumption` with wording aligned to `touch()` / transition back to `active`.
++
++## Summary
++
++What was accomplished:
++- Reviewed the canonical fix plan, reconciliation rules, three package specs, and the workflow backlog.
++- Verified that the major reconciliation items are now implemented in the canonical specs.
++- Identified the remaining non-blocking follow-ups that prevent a clean full `PASS`.
++
++Artifact produced:
++- `docs/architecture/canonical-spec-review-verdict.md`
++
++CANONICAL_SPEC_REVIEW_COMPLETE
+
+[stderr] tokens used
+55,546
+PASS_WITH_FOLLOWUPS
+
+# Canonical Spec Review Verdict
+
+Date: 2026-04-11
+Inputs reviewed:
+- `docs/architecture/canonical-spec-fix-plan.md`
+- `docs/specs/v1-core-spec.md`
+- `docs/specs/v1-surfaces-spec.md`
+- `docs/specs/v1-sessions-spec.md`
+- `docs/workflows/v1-workflow-backlog.md`
+- `docs/architecture/spec-reconciliation-rules.md`
+
+## Verdict
+
+The canonical package specs are now materially reconciled with the reconciliation rules, and the core cross-package contracts are coherent enough to proceed. A full `PASS` is not justified because a small amount of documentation drift remains in the surfaces spec implementation slice and in the workflow backlog's reconciliation-status bookkeeping.
+
+## Assessment
+
+### 1. Do the canonical specs now reflect the reconciliation rules?
+
+Mostly yes.
+
+Confirmed:
+- Core now explicitly states that it does not own inbound normalization and instead receives normalized `InboundMessage` objects from surfaces: `docs/specs/v1-core-spec.md:21`.
+- Core `RelayInboundAdapter` now accepts `InboundMessage`, matching Rule 2 / Contradiction 1: `docs/specs/v1-core-spec.md:292-295`.
+- Core `InboundMessage` now includes `userId` and `workspaceId?`, matching Rule 2 / Contradiction 2: `docs/specs/v1-core-spec.md:93-124`.
+- Core `OutboundEvent.surfaceId` is now optional, and `OutboundEventError` is defined, matching Rule 2 / Contradiction 3: `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
+- Core `runtime.emit()` now defines the targeted-send / session-fanout / invalid routing rule: `docs/specs/v1-core-spec.md:188-196`.
+- Surfaces now explicitly says `SurfaceRegistry` implements core's relay adapter contracts and documents normalization ownership: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:277-306`.
+- Surfaces normalization now includes `userId` and `workspaceId` extraction rules: `docs/specs/v1-surfaces-spec.md:312-325`.
+- Surfaces now includes the normative outbound routing rule reference consistent with core: `docs/specs/v1-surfaces-spec.md:420-428`.
+- Sessions lifecycle/state vocabulary is aligned to `created | active | suspended | expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
+
+Remaining drift:
+- The surfaces spec first implementation slice still says `receiveRaw + setInboundHandler` instead of the reconciled `onMessage` / `offMessage` adapter shape: `docs/specs/v1-surfaces-spec.md:468-470`.
+- The workflow backlog still marks reconciliation actions and spec statuses as "Pending" even though the canonical specs now include the reconciled contracts: `docs/workflows/v1-workflow-backlog.md:24-41`, `docs/workflows/v1-workflow-backlog.md:339-341`.
+
+### 2. Is inbound normalization ownership now clear and consistent?
+
+Yes, with one non-blocking leftover reference.
+
+The canonical ownership model is now clear:
+- Core says it does not normalize raw relay events and receives normalized `InboundMessage`: `docs/specs/v1-core-spec.md:21`.
+- Core's inbound adapter now accepts normalized messages: `docs/specs/v1-core-spec.md:292-295`.
+- Surfaces says it owns inbound normalization and that `SurfaceRegistry` bridges raw relay input to normalized messages: `docs/specs/v1-surfaces-spec.md:15-18`, `docs/specs/v1-surfaces-spec.md:290-299`.
+
+The only inconsistency left is procedural, not architectural: the surfaces spec's implementation-slice Step 4 still mentions `setInboundHandler`, which reintroduces the superseded earlier-draft interface name: `docs/specs/v1-surfaces-spec.md:468-470`.
+
+### 3. Are `InboundMessage` identity fields and outbound targeting/fanout rules now coherent?
+
+Yes.
+
+Identity fields:
+- `InboundMessage.userId` is required and `workspaceId?` is optional in core: `docs/specs/v1-core-spec.md:103-107`.
+- Surfaces normalization specifies how those fields are derived and what happens when `userId` is missing: `docs/specs/v1-surfaces-spec.md:317-325`.
+- Sessions can now coherently rely on those fields for `resolveSession(...)`: `docs/specs/v1-sessions-spec.md:215-223`.
+
+Outbound targeting/fanout:
+- Core defines `surfaceId?` and `sessionId?` with the correct routing rule and invalid case: `docs/specs/v1-core-spec.md:188-196`, `docs/specs/v1-core-spec.md:231-246`, `docs/specs/v1-core-spec.md:261-272`.
+- Surfaces mirrors that contract and correctly frames fanout as a surfaces-owned delivery concern: `docs/specs/v1-surfaces-spec.md:405-428`.
+- The workflow backlog also uses the targeted-send vs session-fanout model consistently in WF-6 and WF-7: `docs/workflows/v1-workflow-backlog.md:253-261`, `docs/workflows/v1-workflow-backlog.md:283-312`.
+
+### 4. Are stale session lifecycle terms cleaned up sufficiently?
+
+Sufficiently for implementation guidance, but not perfectly.
+
+Cleaned up:
+- The state machine and state union now use only `created`, `active`, `suspended`, and `expired`: `docs/specs/v1-sessions-spec.md:42-58`, `docs/specs/v1-sessions-spec.md:99`.
+- The backlog no longer uses "session resumed" in WF-7 and instead says "reactivated via touch": `docs/workflows/v1-workflow-backlog.md:292`.
+
+Residual wording to consider tightening:
+- Sessions responsibilities still use the narrative noun `resumption`: `docs/specs/v1-sessions-spec.md:17`.
+
+That wording does not create an API contradiction, but if the goal is full cleanup of pre-reconciliation vocabulary, it should be normalized to `touch` / reactivation wording as well.
+
+## Follow-Ups
+
+1. Update `docs/specs/v1-surfaces-spec.md` implementation-slice Step 4 to replace `setInboundHandler` with the reconciled `onMessage` / `offMessage` contract.
+2. Update `docs/workflows/v1-workflow-backlog.md` reconciliation tables and execution-order notes so they no longer claim the already-applied spec fixes are pending.
+3. Optionally tighten `docs/specs/v1-sessions-spec.md:17` by replacing the narrative term `resumption` with wording aligned to `touch()` / transition back to `active`.
+
+## Summary
+
+What was accomplished:
+- Reviewed the canonical fix plan, reconciliation rules, three package specs, and the workflow backlog.
+- Verified that the major reconciliation items are now implemented in the canonical specs.
+- Identified the remaining non-blocking follow-ups that prevent a clean full `PASS`.
+
+Artifact produced:
+- `docs/architecture/canonical-spec-review-verdict.md`
+
+CANONICAL_SPEC_REVIEW_COMPLETE
