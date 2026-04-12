@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/core",
+  "name": "@relay-assistant/proactive",
   "version": "0.1.0",
-  "description": "Assistant definition, lifecycle, and runtime composition for Relay Agent Assistant SDK",
+  "description": "Proactive decision engine for Relay Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,14 +17,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "peerDependencies": {
-    "@relay-assistant/traits": ">=0.1.0"
+  "dependencies": {
+    "nanoid": "^5.0.7"
   },
   "devDependencies": {
-    "@relay-assistant/traits": "file:../traits",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "license": "MIT"
 }

@@ -56,12 +56,14 @@ function freezeDefinition(definition: AssistantDefinition): Readonly<AssistantDe
   const frozenConstraints = definition.constraints
     ? Object.freeze({ ...definition.constraints })
     : undefined;
+  const frozenTraits = definition.traits ? Object.freeze(definition.traits) : undefined;
 
   return Object.freeze({
     ...definition,
     capabilities: frozenCapabilities,
     hooks: frozenHooks,
     constraints: frozenConstraints,
+    traits: frozenTraits,
   });
 }
 

@@ -1,6 +1,6 @@
 # `@relay-assistant/policy`
 
-**Status:** IMPLEMENTATION_READY
+**Status:** IMPLEMENTED
 **Version:** 0.1.0 (pre-1.0, provisional)
 **Spec:** `docs/specs/v1-policy-spec.md`
 **Implementation plan:** `docs/architecture/v1-policy-implementation-plan.md`
@@ -20,7 +20,7 @@ It provides:
 - **Audit hooks** — `AuditSink` interface called on every `evaluate()` call; every decision is recorded regardless of outcome
 - **InMemoryAuditSink** — test adapter with an accessible `events` array; no external infrastructure required
 - **Proactive action flag** — `Action.proactive` is a required field; rules may apply stricter gating to proactive actions
-- **Fallback decision** — configurable per engine instance; defaults to `require_approval`
+- **Fallback decision** — configurable per engine instance; defaults to `require_approval` (default-block posture: unclassified/unmatched actions are gated behind approval rather than silently allowed or denied)
 
 This package does **not** own approval UX, approval workflows, scheduling, notification flows, session lifecycle, message delivery, persistent rule storage, or product-specific action catalogs. All of that stays in product code or other packages.
 
@@ -107,12 +107,14 @@ const action = {
   proactive: false,
 };
 
-const decision = await policyEngine.evaluate(action);
+// evaluate() returns EvaluationResult: { decision, auditEventId }
+const { decision, auditEventId } = await policyEngine.evaluate(action);
 
 if (decision.action === 'allow') {
   // execute the action
 } else if (decision.action === 'require_approval') {
-  // enter approval flow using decision.approvalHint
+  // enter approval flow using decision.approvalHint, then record resolution:
+  // await policyEngine.recordApproval(auditEventId, { approved: true, resolvedAt: ... });
 } else if (decision.action === 'deny') {
   // surface denial to user
 } else if (decision.action === 'escalate') {
@@ -175,7 +177,7 @@ interface PolicyRule {
 **Rule management:**
 
 ```ts
-policyEngine.registerRule(rule);      // register; throws if id already exists
+policyEngine.registerRule(rule);      // register; throws PolicyError if id already exists
 policyEngine.removeRule('rule-id');   // remove; throws RuleNotFoundError if not found
 policyEngine.listRules();             // returns rules sorted by priority, then registration order
 ```
@@ -215,7 +217,7 @@ interface ApprovalHint {
 }
 ```
 
-After the product resolves the approval flow, record the outcome using `ApprovalResolution`:
+After the product resolves the approval flow, record the outcome using `engine.recordApproval()`:
 
 ```ts
 interface ApprovalResolution {
@@ -224,9 +226,17 @@ interface ApprovalResolution {
   resolvedAt: string; // ISO-8601
   comment?: string;
 }
+
+// auditEventId comes from the EvaluationResult returned by evaluate()
+await policyEngine.recordApproval(auditEventId, {
+  approved: true,
+  approvedBy: 'user-xyz',
+  resolvedAt: new Date().toISOString(),
+  comment: 'Approved after review.',
+});
 ```
 
-Products write the resolution to the audit sink themselves — the engine does not own the approval workflow state.
+`recordApproval()` emits a new `AuditEvent` to the configured sink with the original action, decision, and the `ApprovalResolution` populated in the `approval` field. Throws `PolicyError` if the `auditEventId` is unknown (evicted from the bounded in-memory map after 1000 evaluations).
 
 ---
 
@@ -245,7 +255,7 @@ const action: Action = {
   proactive: true, // required
 };
 
-const decision = await policyEngine.evaluate(action);
+const { decision, auditEventId } = await policyEngine.evaluate(action);
 ```
 
 Policy rules receive `context.proactive` and can apply stricter gating:
@@ -390,11 +400,12 @@ packages/policy/
   tsconfig.json
   src/
     types.ts          — Action, RiskLevel, RiskClassifier, PolicyRule, PolicyDecision,
-                        PolicyEvaluationContext, ApprovalHint, ApprovalResolution,
-                        AuditEvent, AuditSink, InMemoryAuditSink, error classes
+                        EvaluationResult, PolicyEvaluationContext, ApprovalHint,
+                        ApprovalResolution, AuditEvent, AuditSink, InMemoryAuditSink,
+                        error classes
     policy.ts         — createActionPolicy factory and PolicyEngine implementation
     index.ts          — public re-exports
-    policy.test.ts    — 45 tests
+    policy.test.ts    — 64 tests
   README.md
 ```
 

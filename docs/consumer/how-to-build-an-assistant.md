@@ -251,19 +251,113 @@ Do not:
 | Session state `resumed` | Session state `active` (reached via `touch()`) |
 | Session state `closed` | Session state `expired` |
 
+## Canonical Assembly Path (v1 Implemented Packages)
+
+Four packages are now implemented with passing test suites and can be composed today:
+
+- `@relay-assistant/core` — runtime, lifecycle, dispatch (31+ tests, SPEC_RECONCILED)
+- `@relay-assistant/traits` — personality and formatting traits (32 tests, IMPLEMENTATION_READY)
+- `@relay-assistant/policy` — action classification, gating, audit (64 tests, implemented)
+- `@relay-assistant/proactive` — follow-up rules, watch rules, scheduler binding (45 tests, implemented)
+
+These replace the "future packages" placeholders from earlier in this document for v1 assembly.
+
+### Full four-package assembly sketch
+
+```ts
+import { createAssistant } from '@relay-assistant/core';
+import type { InboundMessage, AssistantRuntime } from '@relay-assistant/core';
+import { createTraitsProvider } from '@relay-assistant/traits';
+import { createActionPolicy, InMemoryAuditSink, type Action } from '@relay-assistant/policy';
+import { createProactiveEngine, InMemorySchedulerBinding } from '@relay-assistant/proactive';
+
+// 1. Traits — declarative personality and formatting preferences
+const traits = createTraitsProvider(
+  { voice: 'concise', formality: 'professional', proactivity: 'medium', riskPosture: 'moderate' },
+  { preferMarkdown: true, preferredResponseLength: 600 },
+);
+
+// 2. Policy engine — product supplies rules
+const auditSink = new InMemoryAuditSink();
+const policyEngine = createActionPolicy({ auditSink, fallbackDecision: 'allow' });
+// Register product-specific rules here
+
+// 3. Proactive engine — product supplies rules
+const proactiveEngine = createProactiveEngine({
+  schedulerBinding: new InMemorySchedulerBinding(), // replace with real scheduler in production
+});
+// Register product-specific follow-up and watch rules here
+
+// 4. Assemble the runtime
+const runtime = createAssistant(
+  {
+    id: 'my-assistant',
+    name: 'My Assistant',
+    traits,
+    capabilities: {
+      reply: async (message: InboundMessage, context) => {
+        // Gate every reply through policy
+        const action: Action = {
+          id: `action-${message.id}`,
+          type: 'assistant_reply',
+          description: `Reply to: ${message.text}`,
+          sessionId: message.sessionId ?? 'default-session',
+          userId: message.userId,
+          proactive: false,
+        };
+        const { decision } = await policyEngine.evaluate(action);
+
+        if (decision.action !== 'allow') {
+          await context.runtime.emit({ surfaceId: message.surfaceId, text: 'Request blocked.' });
+          return;
+        }
+
+        // Apply traits-aware formatting (product logic)
+        const md = context.runtime.definition.traits?.surfaceFormatting?.preferMarkdown;
+        const text = md ? `**Assistant:** ${message.text}` : message.text;
+        await context.runtime.emit({ surfaceId: message.surfaceId, text });
+      },
+    },
+    hooks: {
+      async onStart(rt) {
+        rt.register('policy', policyEngine);
+        rt.register('proactive', proactiveEngine);
+      },
+    },
+  },
+  {
+    inbound: { onMessage(h) { /* connect to transport */ void h; }, offMessage() {} },
+    outbound: { async send(event) { /* deliver to surface */ void event; } },
+  },
+);
+
+await runtime.start();
+```
+
+See `packages/examples/` for five complete, runnable-shape examples that cover every composition pattern:
+- `src/01-minimal-assistant.ts` — core only (universal starting point)
+- `src/02-traits-assistant.ts` — core + traits
+- `src/03-policy-gated-assistant.ts` — core + policy
+- `src/04-proactive-assistant.ts` — core + proactive
+- `src/05-full-assembly.ts` — all four packages (canonical reference)
+
+---
+
 ## Product Examples
 
 > **Spec conformance:** All assembly code in this section and in `docs/workflows/weekend-delivery-plan.md` conforms to the reconciled v1 specs. If these examples ever drift from the specs in `docs/specs/`, **trust the specs**. The replacement table in `docs/architecture/spec-reconciliation-rules.md` Rule 1 is the primary stale-term reference.
 
 ### Sage-style assistant
 
-Use:
+Use today (v1 packages):
 
-- `core`
-- `sessions`
-- `surfaces`
+- `core` + `traits` + `proactive`
+
+Use when available:
+
+- `sessions`, `surfaces` (v1 baseline)
 - `memory` (v1.1)
-- `proactive` (v1.2)
+- `policy` (when gating proactive actions)
 
 Keep in Sage:
 
@@ -271,19 +365,21 @@ Keep in Sage:
 - product-specific follow-up heuristics
 - memory retrieval logic (until `@relay-assistant/memory` ships in v1.1)
 
-See `docs/workflows/weekend-delivery-plan.md` for the Sage v1 minimum viable assembly.
+Starting example: `packages/examples/src/04-proactive-assistant.ts`
 
 ### MSD-style assistant
 
-Use:
+Use today (v1 packages):
 
-- `core`
-- `sessions`
-- `surfaces`
+- `core` + `traits` + `policy`
+
+Use when available:
+
+- `sessions`, `surfaces` (v1 baseline)
 - `memory` (v1.1)
 - `coordination` (v1.2)
 - `connectivity` (v1.1)
-- `policy` (v2)
+- `proactive` (v1.2)
 
 Keep in MSD:
 
@@ -291,20 +387,19 @@ Keep in MSD:
 - PR and code-review heuristics
 - coordinator delegation (until `@relay-assistant/coordination` ships in v1.2)
 
-See `docs/workflows/weekend-delivery-plan.md` for the MSD v1 minimum viable assembly.
+Starting example: `packages/examples/src/03-policy-gated-assistant.ts`
 
 ### NightCTO-style assistant
 
-Use:
+Use today (v1 packages):
 
-- `core`
-- `sessions`
-- `surfaces`
+- `core` + `traits` + `policy` + `proactive` (all four)
+
+Use when available:
+
+- `sessions`, `surfaces` (v1 baseline)
 - `memory` (v1.1)
-- `proactive` (v1.2)
-- `coordination` (v1.2)
-- `connectivity` (v1.1)
-- `policy` (v2)
+- `coordination`, `connectivity` (v1.2)
 
 Keep in NightCTO:
 
@@ -312,6 +407,5 @@ Keep in NightCTO:
 - specialist lineup choices
 - business escalation and client-tier rules
 - per-client memory (until `@relay-assistant/memory` ships in v1.1)
-- proactive monitoring (until `@relay-assistant/proactive` ships in v1.2)
 
-See `docs/workflows/weekend-delivery-plan.md` for the NightCTO v1 minimum viable assembly.
+Starting example: `packages/examples/src/05-full-assembly.ts`

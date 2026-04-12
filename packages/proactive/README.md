@@ -116,7 +116,7 @@ const definition = {
 
 ## Follow-Up Rules
 
-Rules are product-supplied. The engine handles scheduling, suppression, and reminder state.
+Rules are product-supplied. The engine handles watch-rule re-scheduling via `SchedulerBinding` and reminder state. Follow-up scheduling is product-owned.
 
 ```ts
 interface FollowUpRule {
@@ -217,7 +217,7 @@ const evidenceSource = {
 const engine = createProactiveEngine({ schedulerBinding, evidenceSource });
 ```
 
-If configured, the engine calls `getRecentEntries` before each `evaluateFollowUp` call (unless evidence is pre-fetched and provided in `context.evidence`).
+If configured, the engine calls `getRecentEntries` once per `evaluateFollowUp` call (shared across all rules in that call). If `context.evidence` is pre-fetched and provided, the source is not called at all.
 
 If not configured, condition functions receive an empty evidence array.
 

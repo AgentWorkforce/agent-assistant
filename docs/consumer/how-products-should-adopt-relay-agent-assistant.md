@@ -148,3 +148,40 @@ Important example:
 - for memory, start by evaluating and reusing `@agent-relay/memory`
 - do not assume `@relay-assistant/memory` must be a greenfield package
 - prefer wrapping, composing, or adapting Relay memory where it already satisfies the needed assistant contract
+
+---
+
+## v1 Package Status and Adoption Readiness
+
+As of 2026-04-12, these packages are implemented with passing test suites and are ready for product adoption:
+
+| Package | Status | Tests | Adopt now? |
+|---|---|---|---|
+| `@relay-assistant/core` | SPEC_RECONCILED | 40 passing | Yes — universal starting point |
+| `@relay-assistant/traits` | IMPLEMENTATION_READY | 32 passing | Yes — lightweight, no downstream deps |
+| `@relay-assistant/policy` | implemented | 64 passing | Yes — MSD and NightCTO priority |
+| `@relay-assistant/proactive` | implemented | 45 passing | Yes — Sage and NightCTO priority |
+| `@relay-assistant/sessions` | v1 baseline | — | Yes — for session continuity |
+| `@relay-assistant/surfaces` | v1 baseline | — | Yes — for multi-surface fanout |
+| `@relay-assistant/memory` | placeholder | — | No — evaluate `@agent-relay/memory` first |
+| `@relay-assistant/routing` | DoD gap | 12/40+ | No — do not adopt until resolved |
+| `@relay-assistant/coordination` | tests blocked | — | No — dependency gap |
+| `@relay-assistant/connectivity` | tests blocked | — | No — dependency gap |
+
+Products should adopt packages in the "Yes" rows now. Do not block on packages in the "No" rows.
+
+---
+
+## Assembly Examples
+
+`packages/examples/` contains five reference assembly files showing the exact composition patterns products should use:
+
+| Example | What to adopt from it |
+|---|---|
+| `01-minimal-assistant.ts` | Adapter wiring, lifecycle, `onError` hook — all products |
+| `02-traits-assistant.ts` | Trait value choices, handler-level formatting — all products |
+| `03-policy-gated-assistant.ts` | Policy rule shape, action construction, decision branching — MSD, NightCTO |
+| `04-proactive-assistant.ts` | Follow-up rule conditions, watch rules, scheduler binding — Sage, NightCTO |
+| `05-full-assembly.ts` | Full four-package composition, proactive→policy bridge — NightCTO and eventual convergence |
+
+See `packages/examples/README.md` for the product adoption mapping table and build order.

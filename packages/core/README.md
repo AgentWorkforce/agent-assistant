@@ -6,11 +6,12 @@ The package is TypeScript-first, has no cloud assumptions, and does not implemen
 
 ## What It Owns
 
-- `AssistantDefinition` for assistant identity, capabilities, hooks, and runtime constraints
+- `AssistantDefinition` for assistant identity, capabilities, hooks, runtime constraints, and traits
 - `createAssistant()` for constructing the runtime with injected inbound and outbound adapters
 - `AssistantRuntime` lifecycle methods: `start()`, `stop()`, `dispatch()`, `emit()`, `register()`, `get()`, and `status()`
 - capability dispatch with hook support, timeout handling, and concurrency limiting
 - outbound targeting by `surfaceId` or session fanout through an abstract sessions subsystem
+- storing, freezing, and exposing `TraitsProvider` on the runtime definition (store and expose — never interpret)
 
 ## What It Does Not Own
 
@@ -144,9 +145,43 @@ const runtime = createAssistant(
 await runtime.start();
 ```
 
+## Traits
+
+`AssistantDefinition` accepts an optional `traits` field of type `TraitsProvider` from `@relay-assistant/traits`. Core stores and freezes the provider during assembly. It does not read, branch on, or interpret any trait values.
+
+```ts
+import { createTraitsProvider } from "@relay-assistant/traits";
+import { createAssistant } from "@relay-assistant/core";
+
+const runtime = createAssistant(
+  {
+    id: "sage-assistant",
+    name: "Sage",
+    traits: createTraitsProvider(
+      { voice: "concise", formality: "professional", proactivity: "medium", riskPosture: "moderate" },
+      { preferMarkdown: true, preferredResponseLength: 800 },
+    ),
+    capabilities: {
+      reply: async (message, context) => {
+        // Capability handlers access traits as read-only data
+        const voice = context.runtime.definition.traits?.traits.voice;
+        const preferMarkdown = context.runtime.definition.traits?.surfaceFormatting?.preferMarkdown;
+        // Surface formatting decisions live here — not in core
+        void voice; void preferMarkdown;
+      },
+    },
+  },
+  adapters,
+);
+```
+
+`traits` is optional. Existing definitions without traits work without modification.
+
+`@relay-assistant/traits` is a peer dependency. Consumers that do not use traits do not need to install it.
+
 ## Development
 
-- `npm test` runs the isolated Vitest suite for WF-1 and WF-2 core workflows
+- `npm test` runs the isolated Vitest suite for WF-1, WF-2, WF-4, and WF-5 core workflows
 - `npm run build` emits `dist/` declarations and JavaScript via `tsc`
 
 CORE_PACKAGE_IMPLEMENTED
