@@ -3,7 +3,7 @@ import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
   const result = await workflow('relay-assistant-specify-publish-infrastructure')
-    .description('Define the RelayAssistant publish/release infrastructure using the established Relay-family publish patterns and, where possible, the canonical exported npm-provenance-publisher Workforce profile rather than copied local persona data.')
+    .description('Define the RelayAssistant publish/release infrastructure using the established Relay-family publish patterns and requiring direct canonical consumption of the exported Workforce npm-provenance-publisher profile/package, not copied local persona data.')
     .pattern('supervisor')
     .channel('wf-relay-assistant-publish-infra')
     .maxConcurrency(4)
@@ -62,13 +62,15 @@ Write docs/architecture/publish-infrastructure-contract.md.
 The contract must define:
 1. which RelayAssistant packages are publishable now vs not yet
 2. how the publish workflow should mirror relayfile/relayauth patterns
-3. how to consume the npm-provenance-publisher profile canonically (prefer exported package/profile use over copied local JSON)
+3. the exact direct canonical consumption path for the Workforce npm-provenance-publisher profile/package
 4. versioning, tagging, and provenance expectations
 5. minimum CI/build/test gates before publish
 6. what implementation work is required next
 
 Hard constraints:
+- direct Workforce package/profile consumption is required, not optional
 - no local copy-paste persona shortcuts
+- if direct consumption is impossible today, identify the exact missing Workforce export surface as a blocker
 - no publishing placeholder/spec-only packages as if they are ready
 - optimize for robust release discipline, not speed
 
@@ -94,7 +96,7 @@ Required outputs:
 Requirements:
 - package readiness matrix must identify publish-now vs defer
 - implementation plan must be concrete enough to directly drive the next workflow
-- profile consumption plan must explain the canonical reuse path for the Workforce profile and any gap if export plumbing is missing
+- profile consumption plan must specify the direct Workforce package/profile usage path; if it cannot, it must clearly identify the exact missing export and treat that as a blocker rather than recommending a local copy
 
 IMPORTANT:
 - write files to disk
@@ -119,8 +121,9 @@ Read:
 Assess:
 1. is the release plan robust and realistic?
 2. does it avoid publishing unready packages?
-3. does it handle canonical Workforce profile reuse properly?
-4. is this strong enough to drive implementation next?
+3. does it require direct Workforce package/profile consumption rather than a copied local fallback?
+4. if direct consumption is blocked, does it identify the blocker explicitly and correctly?
+5. is this strong enough to drive implementation next?
 
 Write docs/architecture/publish-infrastructure-review-verdict.md.
 Use PASS, PASS_WITH_FOLLOWUPS, or FAIL.
