@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createConnectivityLayer } from '@relay-assistant/connectivity';
+import { createConnectivityLayer } from '@agent-assistant/connectivity';
 
 import {
   CoordinationBlockedError,

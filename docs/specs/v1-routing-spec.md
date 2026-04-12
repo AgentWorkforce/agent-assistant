@@ -1,8 +1,8 @@
-# v1 Routing Spec — `@relay-assistant/routing`
+# v1 Routing Spec — `@agent-assistant/routing`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/routing`
+**Package:** `@agent-assistant/routing`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 **Roadmap stage:** v1.2 (after core, sessions, surfaces, memory, connectivity land)
 
@@ -10,7 +10,7 @@
 
 ## 1. Responsibilities
 
-`@relay-assistant/routing` manages model selection and routing-mode decisions across an assistant's coordination context. It is the layer that translates cost/latency/quality requirements into concrete model choices, without knowing about business logic or user-facing content.
+`@agent-assistant/routing` manages model selection and routing-mode decisions across an assistant's coordination context. It is the layer that translates cost/latency/quality requirements into concrete model choices, without knowing about business logic or user-facing content.
 
 This package is directly informed by Workforce routing patterns: cheap/fast/deep mode tiers, per-request cost envelopes, and quality-preserving routing with configurable thresholds.
 
@@ -21,15 +21,15 @@ This package is directly informed by Workforce routing patterns: cheap/fast/deep
 - `RoutingContext` — the signal envelope passed to the model selector for each invocation
 - Cost envelope tracking — per-thread accounting of token/cost budget; trips mode escalation when exceeded
 - Latency envelope — per-request latency target; routing selects models that can meet it
-- Escalation receiver — implements `RoutingEscalationHook` from `@relay-assistant/connectivity`; applies requested mode changes
+- Escalation receiver — implements `RoutingEscalationHook` from `@agent-assistant/connectivity`; applies requested mode changes
 
 **Does NOT own:**
 - The actual model API calls (→ product code or capability handlers; routing provides the model spec, not the invocation)
 - Prompts, context assembly, or response formatting (→ product capability handlers)
-- Coordination logic or specialist delegation (→ `@relay-assistant/coordination`)
-- Connectivity signals (→ `@relay-assistant/connectivity`; routing receives escalation signals from connectivity, does not emit them)
-- Session management (→ `@relay-assistant/sessions`)
-- Surface delivery (→ `@relay-assistant/surfaces`)
+- Coordination logic or specialist delegation (→ `@agent-assistant/coordination`)
+- Connectivity signals (→ `@agent-assistant/connectivity`; routing receives escalation signals from connectivity, does not emit them)
+- Session management (→ `@agent-assistant/sessions`)
+- Surface delivery (→ `@agent-assistant/surfaces`)
 
 ---
 
@@ -246,7 +246,7 @@ export interface Router {
   resetCost(threadId: string): void;
 
   /**
-   * Implements RoutingEscalationHook from @relay-assistant/connectivity.
+   * Implements RoutingEscalationHook from @agent-assistant/connectivity.
    * Called by the connectivity layer when an escalation signal is emitted.
    * Returns the requested routing mode based on the signal.
    */
@@ -384,12 +384,12 @@ Products override these via `RouterConfig.defaultModelSpecs` or `RoutingPolicy.m
 ## 7. Package Boundaries
 
 ### Depends on
-- `@relay-assistant/core` — import `AssistantRuntime` for `runtime.register('routing', router)` pattern.
-- `@relay-assistant/connectivity` — imports `RequestedRoutingMode` type only (to satisfy `RoutingEscalationHook` interface). Routing does not import ConnectivityLayer or call its methods.
+- `@agent-assistant/core` — import `AssistantRuntime` for `runtime.register('routing', router)` pattern.
+- `@agent-assistant/connectivity` — imports `RequestedRoutingMode` type only (to satisfy `RoutingEscalationHook` interface). Routing does not import ConnectivityLayer or call its methods.
 
 ### Depended on by
-- `@relay-assistant/coordination` — calls `router.decide()` before delegating work to a specialist.
-- `@relay-assistant/connectivity` — calls `router.onEscalation()` via the hook interface.
+- `@agent-assistant/coordination` — calls `router.decide()` before delegating work to a specialist.
+- `@agent-assistant/connectivity` — calls `router.onEscalation()` via the hook interface.
 - Product capability handlers — may call `router.decide()` directly for single-turn routing.
 
 ### Relay foundation boundary

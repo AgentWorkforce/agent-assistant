@@ -1,15 +1,15 @@
-# v1 Surfaces Spec — `@relay-assistant/surfaces`
+# v1 Surfaces Spec — `@agent-assistant/surfaces`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/surfaces`
+**Package:** `@agent-assistant/surfaces`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 
 ---
 
 ## 1. Responsibilities
 
-`@relay-assistant/surfaces` manages the connections between the assistant runtime and user-facing interaction mediums. A surface is any channel through which a user sends messages to or receives messages from the assistant (web chat, Slack, desktop, API, etc.).
+`@agent-assistant/surfaces` manages the connections between the assistant runtime and user-facing interaction mediums. A surface is any channel through which a user sends messages to or receives messages from the assistant (web chat, Slack, desktop, API, etc.).
 
 **Owns:**
 - `SurfaceConnection` — registered connection to one surface; carries inbound and outbound contracts
@@ -23,9 +23,9 @@
 
 **Does NOT own:**
 - The underlying transport protocol (HTTP, WebSocket, Slack Events API). That is the relay foundation.
-- Session attachment decisions (→ `@relay-assistant/sessions`)
-- Routing decisions about which model to call (→ `@relay-assistant/routing`)
-- Memory (→ `@relay-assistant/memory`)
+- Session attachment decisions (→ `@agent-assistant/sessions`)
+- Routing decisions about which model to call (→ `@agent-assistant/routing`)
+- Memory (→ `@agent-assistant/memory`)
 - Delivery guarantees or retry logic (→ relay foundation)
 
 ---
@@ -36,7 +36,7 @@
 - Surfaces does not manage authentication or access control for surface connections. That is the relay foundation's responsibility.
 - Surfaces does not buffer or queue messages for offline surfaces. If a surface adapter's send fails, the error propagates to the caller.
 - Surfaces does not know about conversation history. It handles one outbound event at a time.
-- Surfaces is not a notification system. Proactive delivery is driven by `@relay-assistant/proactive`; surfaces handles the actual send once triggered.
+- Surfaces is not a notification system. Proactive delivery is driven by `@agent-assistant/proactive`; surfaces handles the actual send once triggered.
 
 ---
 
@@ -188,7 +188,7 @@ export type SurfaceFormatHook = (
 ```typescript
 /**
  * Central surface management object. Implements both RelayInboundAdapter
- * and RelayOutboundAdapter from @relay-assistant/core, serving as the
+ * and RelayOutboundAdapter from @agent-assistant/core, serving as the
  * bridge between the relay foundation and the assistant runtime.
  */
 export interface SurfaceRegistry {
@@ -276,7 +276,7 @@ export interface FanoutOutcome {
 `SurfaceRegistry` implements core's `RelayInboundAdapter` interface:
 
 ```typescript
-// From @relay-assistant/core
+// From @agent-assistant/core
 export interface RelayInboundAdapter {
   onMessage(handler: (message: InboundMessage) => void): void;
   offMessage(handler: (message: InboundMessage) => void): void;
@@ -376,12 +376,12 @@ export interface SurfaceRegistryConfig {
 ## 6. Package Boundaries
 
 ### Depends on
-- `@relay-assistant/core` — imports `InboundMessage`, `OutboundEvent` types. The `SurfaceRegistry` acts as the inbound relay adapter for core.
-- `@relay-assistant/sessions` — imports `Session` type to read `attachedSurfaces` for fanout.
+- `@agent-assistant/core` — imports `InboundMessage`, `OutboundEvent` types. The `SurfaceRegistry` acts as the inbound relay adapter for core.
+- `@agent-assistant/sessions` — imports `Session` type to read `attachedSurfaces` for fanout.
 
 ### Depended on by
 - Product code that registers surface connections.
-- `@relay-assistant/proactive` — calls `surfaceRegistry.send()` or `fanout()` to deliver proactive messages.
+- `@agent-assistant/proactive` — calls `surfaceRegistry.send()` or `fanout()` to deliver proactive messages.
 
 ### Relay foundation boundary
 - Surfaces never opens sockets or calls relay APIs directly. The relay foundation calls `surfaceRegistry.receiveRaw()` (push model) and implements `SurfaceAdapter.send()` for each surface type.

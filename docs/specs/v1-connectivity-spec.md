@@ -1,8 +1,8 @@
-# v1 Connectivity Spec — `@relay-assistant/connectivity`
+# v1 Connectivity Spec — `@agent-assistant/connectivity`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/connectivity`
+**Package:** `@agent-assistant/connectivity`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 **Canonical scope:** `docs/architecture/v1-connectivity-scope.md` (SCOPE_LOCKED)
 
@@ -10,7 +10,7 @@
 
 ## 1. Responsibilities
 
-`@relay-assistant/connectivity` provides a typed, in-process signaling layer for internal multi-agent coordination. It is not a generic event bus or pub/sub system. It is the mechanism by which specialists, coordinators, and supporting subsystems communicate state, confidence, handoffs, conflicts, and escalations without verbose transcript exchange.
+`@agent-assistant/connectivity` provides a typed, in-process signaling layer for internal multi-agent coordination. It is not a generic event bus or pub/sub system. It is the mechanism by which specialists, coordinators, and supporting subsystems communicate state, confidence, handoffs, conflicts, and escalations without verbose transcript exchange.
 
 **Owns:**
 - `ConnectivitySignal` — the canonical signal envelope and all supporting types
@@ -24,8 +24,8 @@
 
 **Does NOT own:**
 - Model invocations or reasoning
-- Routing mode selection or model spec (→ `@relay-assistant/routing`)
-- Coordinator/specialist orchestration or work assignment (→ `@relay-assistant/coordination`)
+- Routing mode selection or model spec (→ `@agent-assistant/routing`)
+- Coordinator/specialist orchestration or work assignment (→ `@agent-assistant/coordination`)
 - Session or surface management
 - Transport or delivery (signals are in-process in v1)
 
@@ -420,7 +420,7 @@ Connectivity and routing interact via a single, one-directional hook interface.
 
 ```typescript
 /**
- * Implemented by @relay-assistant/routing.
+ * Implemented by @agent-assistant/routing.
  * Registered with connectivity at initialization via ConnectivityLayerConfig.
  */
 export interface RoutingEscalationHook {
@@ -551,14 +551,14 @@ Coordination calls connectivity. Connectivity never calls coordination.
 
 | Direction | Rule |
 |---|---|
-| Connectivity → `@relay-assistant/core` | Allowed. Type imports only. |
-| Connectivity → `@relay-assistant/routing` | Import `RequestedRoutingMode` type only. Never call routing methods. |
-| Connectivity → `@relay-assistant/sessions` | **Forbidden.** |
-| Connectivity → `@relay-assistant/surfaces` | **Forbidden.** |
-| Connectivity → `@relay-assistant/memory` | **Forbidden.** |
-| Connectivity → `@relay-assistant/coordination` | **Forbidden.** Coordination depends on connectivity, not vice versa. |
-| `@relay-assistant/coordination` → connectivity | Allowed. Primary consumer. |
-| `@relay-assistant/routing` → connectivity | Allowed. Routing implements `RoutingEscalationHook`. |
+| Connectivity → `@agent-assistant/core` | Allowed. Type imports only. |
+| Connectivity → `@agent-assistant/routing` | Import `RequestedRoutingMode` type only. Never call routing methods. |
+| Connectivity → `@agent-assistant/sessions` | **Forbidden.** |
+| Connectivity → `@agent-assistant/surfaces` | **Forbidden.** |
+| Connectivity → `@agent-assistant/memory` | **Forbidden.** |
+| Connectivity → `@agent-assistant/coordination` | **Forbidden.** Coordination depends on connectivity, not vice versa. |
+| `@agent-assistant/coordination` → connectivity | Allowed. Primary consumer. |
+| `@agent-assistant/routing` → connectivity | Allowed. Routing implements `RoutingEscalationHook`. |
 | Product specialist handlers → connectivity | Allowed. Specialists call `emit()` directly. |
 
 ### 14.2 Permanent Scope Exclusions

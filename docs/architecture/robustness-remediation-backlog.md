@@ -1,5 +1,7 @@
 # Robustness Remediation Backlog — 2026-04-12
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Source:** `docs/architecture/robustness-audit-report.md` (2026-04-12)
 **Priority rule:** HIGH = must fix before any v1 milestone gate. MEDIUM = fix within current milestone. LOW = track, fix opportunistically.
 
@@ -41,7 +43,7 @@
 
 | # | Finding | Package(s) | Remediation | Owner |
 |---|---------|------------|-------------|-------|
-| L1 | **proactive `it()` count is 53 but consumer docs claim 45 passing** | docs | Update `how-products-should-adopt-relay-agent-assistant.md` proactive test count from 45 → 53 (or verify against actual `npx vitest run` output and use that number). Minor accuracy issue. | — |
+| L1 | **proactive `it()` count is 53 but consumer docs claim 45 passing** | docs | Update `how-products-should-adopt-agent-assistant-sdk.md` proactive test count from 45 → 53 (or verify against actual `npx vitest run` output and use that number). Minor accuracy issue. | — |
 | L2 | **policy and integration packages use older vitest (^1.6.0) and TypeScript (^5.4.0) versions vs other packages (vitest ^3.2.4, TS ^5.9.3)** | policy, integration | Align devDependency versions: update policy and integration package.json to use vitest ^3.2.4 and typescript ^5.9.3. Test to confirm no breaking API changes. Keeps tooling consistent across the monorepo. | — |
 
 ---

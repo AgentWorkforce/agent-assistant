@@ -1,7 +1,7 @@
 /**
  * 03 — Policy-Gated Assistant
  *
- * Shows how to wire @relay-assistant/policy into an assistant's capability
+ * Shows how to wire @agent-assistant/policy into an assistant's capability
  * handler so that every user-facing action is classified, evaluated, and
  * audited before execution.
  *
@@ -11,13 +11,13 @@
  *   on the decision before emitting a response.
  */
 
-import { createAssistant } from '@relay-assistant/core';
+import { createAssistant } from '@agent-assistant/core';
 import type {
   InboundMessage,
   RelayInboundAdapter,
   RelayOutboundAdapter,
   OutboundEvent,
-} from '@relay-assistant/core';
+} from '@agent-assistant/core';
 import {
   createActionPolicy,
   InMemoryAuditSink,
@@ -25,7 +25,7 @@ import {
   type Action,
   type RiskLevel,
   type PolicyEvaluationContext,
-} from '@relay-assistant/policy';
+} from '@agent-assistant/policy';
 
 // --- Adapters ------------------------------------------------------------
 

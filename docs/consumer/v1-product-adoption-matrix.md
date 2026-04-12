@@ -21,13 +21,13 @@ This document gives each product a concrete, opinionated adoption path through t
 ## Sage
 
 ### Priority packages
-- `@relay-assistant/core` — start here
-- `@relay-assistant/traits` — add immediately; traits are lightweight and establish identity early
-- `@relay-assistant/proactive` — Sage's core value is follow-up and re-engagement; this is the priority path
+- `@agent-assistant/core` — start here
+- `@agent-assistant/traits` — add immediately; traits are lightweight and establish identity early
+- `@agent-assistant/proactive` — Sage's core value is follow-up and re-engagement; this is the priority path
 
 ### Deferred packages
-- `@relay-assistant/policy` — add when proactive follow-ups need explicit gating (v1.2 milestone). Use `05-full-assembly.ts` for the bridge pattern when the time comes.
-- `@relay-assistant/memory` — evaluate `@agent-relay/memory` first; do not build greenfield until assessed
+- `@agent-assistant/policy` — add when proactive follow-ups need explicit gating (v1.2 milestone). Use `05-full-assembly.ts` for the bridge pattern when the time comes.
+- `@agent-assistant/memory` — evaluate `@agent-relay/memory` first; do not build greenfield until assessed
 
 ### Adoption sequence
 
@@ -51,7 +51,7 @@ This document gives each product a concrete, opinionated adoption path through t
 | Product-specific context shaping | Sage-specific prompt assembly |
 | Slack-specific behavior | Not general enough for the SDK yet |
 | Follow-up heuristics (specific conditions) | Sage product logic — use proactive rule `condition` functions |
-| Memory retrieval | Until `@relay-assistant/memory` ships in v1.1 |
+| Memory retrieval | Until `@agent-assistant/memory` ships in v1.1 |
 
 ### Proof that the adoption path is realistic
 
@@ -67,13 +67,13 @@ Sage replaces `idleFollowUpRule.condition` with workspace-activity logic. Everyt
 ## My Senior Dev (MSD)
 
 ### Priority packages
-- `@relay-assistant/core` — start here
-- `@relay-assistant/policy` — MSD code review operations need action gating and approval workflows immediately
-- `@relay-assistant/traits` — establish assistant personality early
+- `@agent-assistant/core` — start here
+- `@agent-assistant/policy` — MSD code review operations need action gating and approval workflows immediately
+- `@agent-assistant/traits` — establish assistant personality early
 
 ### Deferred packages
-- `@relay-assistant/proactive` — add in v1.2 when automated PR follow-up behavior is prioritized
-- `@relay-assistant/coordination` — when MSD's multi-specialist architecture is ready (v1.2)
+- `@agent-assistant/proactive` — add in v1.2 when automated PR follow-up behavior is prioritized
+- `@agent-assistant/coordination` — when MSD's multi-specialist architecture is ready (v1.2)
 
 ### Adoption sequence
 
@@ -99,7 +99,7 @@ Sage replaces `idleFollowUpRule.condition` with workspace-activity logic. Everyt
 | Code review operations | MSD-specific tools — do not generalize |
 | PR workflow logic | Review-specific orchestration |
 | Review-specific escalation chains | Business rules belong in MSD, not the SDK |
-| Coordinator delegation | Until `@relay-assistant/coordination` ships in v1.2 |
+| Coordinator delegation | Until `@agent-assistant/coordination` ships in v1.2 |
 | Risk classifier logic | MSD's action risk taxonomy is domain-specific |
 
 ### Risk classifier example (product-owned)
@@ -207,7 +207,7 @@ proactiveEngine.registerFollowUpRule({
 | Founder/CTO communication style | Highly personalized — not generalizable |
 | Specialist lineup choices | NightCTO's internal agent roster is product-specific |
 | Client-tier policy rules | Business rules that vary per client |
-| Per-client memory | Until `@relay-assistant/memory` ships in v1.1 |
+| Per-client memory | Until `@agent-assistant/memory` ships in v1.1 |
 | Escalation routing and notification | Product UX, not SDK contract |
 
 ### Proof that the adoption path is realistic
@@ -269,7 +269,7 @@ This is not a migration plan. It does not describe existing product code to remo
 
 It is a **starting point for adoption** — a concrete guide to which examples to read first, which packages to wire today, and what to keep in product repos.
 
-For the authoritative adoption sequencing rule, see `docs/consumer/how-products-should-adopt-relay-agent-assistant.md`.
+For the authoritative adoption sequencing rule, see `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md`.
 
 ---
 

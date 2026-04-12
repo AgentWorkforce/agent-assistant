@@ -1,5 +1,7 @@
 # v1 Proactive Package — Bounded Scope
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Status:** SCOPE_DEFINED
 **Date:** 2026-04-12
 **Package:** `@relay-assistant/proactive`

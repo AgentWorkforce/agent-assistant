@@ -13,9 +13,9 @@ Three of four ready-now packages apply to MSD at v1. Proactive is deferred until
 
 | Package | Version/Status | Why |
 |---|---|---|
-| `@relay-assistant/core` | SPEC_RECONCILED, 31 tests | Runtime, lifecycle, dispatch — universal foundation |
-| `@relay-assistant/traits` | IMPLEMENTATION_READY, 32 tests | MSD identity (technical, cautious, code-review-focused) |
-| `@relay-assistant/policy` | implemented, 64 tests | MSD code review actions require gating — merge, deploy, approve, comment |
+| `@agent-assistant/core` | SPEC_RECONCILED, 31 tests | Runtime, lifecycle, dispatch — universal foundation |
+| `@agent-assistant/traits` | IMPLEMENTATION_READY, 32 tests | MSD identity (technical, cautious, code-review-focused) |
+| `@agent-assistant/policy` | implemented, 64 tests | MSD code review actions require gating — merge, deploy, approve, comment |
 
 Proactive is deferred — see Deferred Packages below.
 
@@ -23,11 +23,11 @@ Do not adopt any of the following at v1:
 
 | Package | Block reason |
 |---|---|
-| `@relay-assistant/proactive` | Not immediately required; defer until automated PR follow-up behavior is prioritized (v1.2) |
-| `@relay-assistant/memory` | `@agent-relay/memory` dep missing — placeholder only |
-| `@relay-assistant/coordination` | Tests blocked; depends on `@relay-assistant/connectivity` |
-| `@relay-assistant/connectivity` | `nanoid` dep missing — tests blocked |
-| `@relay-assistant/routing` | 12/40+ tests — DoD gap |
+| `@agent-assistant/proactive` | Not immediately required; defer until automated PR follow-up behavior is prioritized (v1.2) |
+| `@agent-assistant/memory` | `@agent-relay/memory` dep missing — placeholder only |
+| `@agent-assistant/coordination` | Tests blocked; depends on `@agent-assistant/connectivity` |
+| `@agent-assistant/connectivity` | `nanoid` dep missing — tests blocked |
+| `@agent-assistant/routing` | 12/40+ tests — DoD gap |
 
 ---
 
@@ -55,7 +55,7 @@ These concerns stay in the MSD product repo. Do not move them into the SDK.
 | Concern | Why it stays local |
 |---|---|
 | Code review operations and PR workflow tools | MSD-specific domain — does not generalize across products |
-| Review-specific orchestration and delegation | Until `@relay-assistant/coordination` ships; even then, only if the pattern generalizes |
+| Review-specific orchestration and delegation | Until `@agent-assistant/coordination` ships; even then, only if the pattern generalizes |
 | Action risk classifier taxonomy | MSD's risk categories (`merge`, `deploy`, `comment`, `approve`) are domain-specific |
 | Review escalation chains | Business rules owned by MSD |
 | Coordinator/notifier/reviewer role dispatch | Product-specific multi-agent pattern — keep local until coordination package unblocks |
@@ -143,11 +143,11 @@ Each item must be classified as **Demonstrated**, **Inspectable**, or **Planned*
 
 | Package | What unblocks it | When |
 |---|---|---|
-| `@relay-assistant/proactive` | Automated PR follow-up behavior prioritized; add using `05-full-assembly.ts` as composition reference | v1.2 |
-| `@relay-assistant/coordination` | `nanoid` dep resolved, connectivity/coordination tests pass, pattern generalizes beyond MSD | v1.2 |
-| `@relay-assistant/memory` | `@agent-relay/memory` dep resolved; v1.1 milestone complete | v1.1 |
+| `@agent-assistant/proactive` | Automated PR follow-up behavior prioritized; add using `05-full-assembly.ts` as composition reference | v1.2 |
+| `@agent-assistant/coordination` | `nanoid` dep resolved, connectivity/coordination tests pass, pattern generalizes beyond MSD | v1.2 |
+| `@agent-assistant/memory` | `@agent-relay/memory` dep resolved; v1.1 milestone complete | v1.1 |
 
-When `@relay-assistant/coordination` ships: coordinator/notifier/reviewer role dispatch may partially migrate to SDK coordination contracts. MSD's domain-specific specialist definitions and review workflows stay local regardless.
+When `@agent-assistant/coordination` ships: coordinator/notifier/reviewer role dispatch may partially migrate to SDK coordination contracts. MSD's domain-specific specialist definitions and review workflows stay local regardless.
 
 ---
 
@@ -156,4 +156,4 @@ When `@relay-assistant/coordination` ships: coordinator/notifier/reviewer role d
 1. **Relay adapter wiring** — MSD's surface transport adapters must be identified and plumbed for inbound/outbound. This is required before any real code review messages flow through the assistant.
 2. **Risk classifier implementation** — `msdClassifier` must be authored in product code before policy rules can produce meaningful decisions. The SDK accepts the classifier via `createActionPolicy({ classifier, auditSink })`; the taxonomy is entirely MSD-owned.
 3. **Non-allow branch coverage** — `03-policy-gated-assistant.ts` only exercises the `allow` path. MSD should author its own integration scenarios that drive `deny` (e.g., `deploy_to_production` at critical risk) and `require_approval` (e.g., `merge_pr_to_main`) so these branches are **Demonstrated** rather than **Inspectable** in MSD's adoption proof.
-4. **Multi-agent delegation** — MSD's coordinator/notifier/reviewer pattern must remain in product code until `@relay-assistant/coordination` ships. Do not attempt to replicate coordination semantics inside the policy package.
+4. **Multi-agent delegation** — MSD's coordinator/notifier/reviewer pattern must remain in product code until `@agent-assistant/coordination` ships. Do not attempt to replicate coordination semantics inside the policy package.

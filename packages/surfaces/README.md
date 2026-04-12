@@ -1,11 +1,11 @@
-# `@relay-assistant/surfaces`
+# `@agent-assistant/surfaces`
 
-`@relay-assistant/surfaces` provides the assistant-facing surface layer for Relay Agent Assistant. It owns surface registration, inbound normalization, outbound dispatch, formatting hooks, and multi-surface fanout. It does not implement transport protocols or product-specific surface logic.
+`@agent-assistant/surfaces` provides the assistant-facing surface layer for Agent Assistant SDK. It owns surface registration, inbound normalization, outbound dispatch, formatting hooks, and multi-surface fanout. It does not implement transport protocols or product-specific surface logic.
 
 ## Responsibilities
 
 - register and track `SurfaceConnection` records
-- expose a single registry that satisfies the inbound and outbound adapter contracts used by `@relay-assistant/core`
+- expose a single registry that satisfies the inbound and outbound adapter contracts used by `@agent-assistant/core`
 - normalize raw inbound payloads into the structural `InboundMessage` shape core expects
 - dispatch outbound events to one surface or fan them out across session-attached surfaces
 - apply optional per-surface formatting hooks before delivery
@@ -20,7 +20,7 @@
 ## Installation
 
 ```bash
-npm install @relay-assistant/surfaces
+npm install @agent-assistant/surfaces
 ```
 
 ## Core Concepts
@@ -40,8 +40,8 @@ That lets products wire one registry instance into the runtime and the relay-fac
 ## Usage
 
 ```ts
-import { createAssistant } from '@relay-assistant/core';
-import { createSurfaceRegistry } from '@relay-assistant/surfaces';
+import { createAssistant } from '@agent-assistant/core';
+import { createSurfaceRegistry } from '@agent-assistant/surfaces';
 
 const surfaces = createSurfaceRegistry();
 

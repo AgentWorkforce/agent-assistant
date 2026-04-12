@@ -1,8 +1,8 @@
-# `@relay-assistant/examples`
+# `@agent-assistant/examples`
 
 **Status:** REFERENCE_ONLY — not published to npm, not a production runtime package.
 
-**Purpose:** Canonical reference assembly patterns for Relay Agent Assistant SDK consumers.
+**Purpose:** Canonical reference assembly patterns for Agent Assistant SDK SDK consumers.
 
 ---
 

@@ -1,6 +1,6 @@
-# `@relay-assistant/traits`
+# `@agent-assistant/traits`
 
-`@relay-assistant/traits` is a TypeScript-first leaf package for validated, immutable assistant trait data.
+`@agent-assistant/traits` is a TypeScript-first leaf package for validated, immutable assistant trait data.
 
 It defines how an assistant presents itself and which formatting hints it prefers. It does not own runtime config, persona prompts, routing, model choice, memory, or product behavior.
 
@@ -10,13 +10,13 @@ It defines how an assistant presents itself and which formatting hints it prefer
 import {
   createTraitsProvider,
   TraitsValidationError,
-} from '@relay-assistant/traits';
+} from '@agent-assistant/traits';
 
 import type {
   AssistantTraits,
   SurfaceFormattingTraits,
   TraitsProvider,
-} from '@relay-assistant/traits';
+} from '@agent-assistant/traits';
 ```
 
 ## Data Model
@@ -76,7 +76,7 @@ Consumers should depend on the read-only provider contract, not mutate or rebuil
 ## Creating a Provider
 
 ```typescript
-import { createTraitsProvider } from '@relay-assistant/traits';
+import { createTraitsProvider } from '@agent-assistant/traits';
 
 const traits = createTraitsProvider(
   {
@@ -100,7 +100,7 @@ const traits = createTraitsProvider(
 ## Validation Errors
 
 ```typescript
-import { createTraitsProvider, TraitsValidationError } from '@relay-assistant/traits';
+import { createTraitsProvider, TraitsValidationError } from '@agent-assistant/traits';
 
 try {
   createTraitsProvider({
@@ -167,7 +167,7 @@ The package does not generate prompts, emit formatted output, or interpret domai
 
 ## Core Integration
 
-`@relay-assistant/core` can attach a provider on `AssistantDefinition`:
+`@agent-assistant/core` can attach a provider on `AssistantDefinition`:
 
 ```typescript
 const assistant = createAssistant({

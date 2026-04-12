@@ -1,5 +1,7 @@
 # v1 Proactive ↔ Policy Integration Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-12
 **Packages:** `@relay-assistant/proactive`, `@relay-assistant/policy`
 **Input:** v1 proactive package review verdict, v1 policy package review verdict, integration contract

@@ -13,25 +13,25 @@ Target: 2026-04-13 (Sunday night)
 
 | Package | Tests | Status |
 | --- | --- | --- |
-| `@relay-assistant/core` | 44 pass | COMPLETE |
-| `@relay-assistant/sessions` | 25 pass | COMPLETE |
-| `@relay-assistant/surfaces` | 28 pass | COMPLETE |
+| `@agent-assistant/core` | 44 pass | COMPLETE |
+| `@agent-assistant/sessions` | 25 pass | COMPLETE |
+| `@agent-assistant/surfaces` | 28 pass | COMPLETE |
 
 **WF-6 is COMPLETE.** `packages/core/src/core-sessions-surfaces.test.ts` (describe block labeled WF-6) covers multi-surface session attachment, fanout, targeted send, and detach behavior.
 
 **WF-7 is OPEN.** The end-to-end assembly test in `packages/examples/src/` does not yet exist. Package READMEs for core (152 lines), sessions (118 lines), and surfaces (175 lines) are substantive — not placeholders. The v1 release tag is gated on the assembly test being written.
 
 **Remaining open items:**
-- `@relay-assistant/routing` has a blocking DoD failure (12 tests, 40+ required). Do not wire routing into product code until this is resolved.
+- `@agent-assistant/routing` has a blocking DoD failure (12 tests, 40+ required). Do not wire routing into product code until this is resolved.
 - No root `package.json` or monorepo workspace config exists. The `workspace:*` protocol referenced below is the target pattern, not current reality. Use `npm pack` tarballs or path-based installs until a root workspace is configured.
 
 ---
 
 ## Goal
 
-Sage, MSD, and NightCTO teams can `npm install @relay-assistant/core @relay-assistant/sessions @relay-assistant/surfaces` by Sunday night, with type contracts stable enough to write product adapter code against.
+Sage, MSD, and NightCTO teams can `npm install @agent-assistant/core @agent-assistant/sessions @agent-assistant/surfaces` by Sunday night, with type contracts stable enough to write product adapter code against.
 
-> **npm install note:** For v1, "npm install" means **local monorepo consumption** via workspace references (`"@relay-assistant/core": "workspace:*"`) or `npm pack` tarballs — not the public npm registry. Public publishing is a post-v1 task tracked separately.
+> **npm install note:** For v1, "npm install" means **local monorepo consumption** via workspace references (`"@agent-assistant/core": "workspace:*"`) or `npm pack` tarballs — not the public npm registry. Public publishing is a post-v1 task tracked separately.
 >
 > **Workspace config gap:** No root `package.json` with workspace configuration currently exists. Each package is independently installable. Until a workspace root is configured, consume packages via `npm pack` tarballs or local path references. This is tracked in the audit plan as D-5.
 
@@ -54,7 +54,7 @@ Products using this SDK should understand the distinction between workforce pers
 
 **Workforce personas** are runtime execution profiles (model, harness, system prompt, service tier). These are defined and owned in Workforce infrastructure. They are not imported from this SDK.
 
-**Assistant traits** are identity and behavioral characteristics (voice, style, vocabulary, proactivity level). The `@relay-assistant/traits` package is planned for v1.2. In v1, products define traits as local data objects and inject them manually into persona prompts and format hooks.
+**Assistant traits** are identity and behavioral characteristics (voice, style, vocabulary, proactivity level). The `@agent-assistant/traits` package is planned for v1.2. In v1, products define traits as local data objects and inject them manually into persona prompts and format hooks.
 
 See [traits-and-persona-layer.md](../architecture/traits-and-persona-layer.md) for the full boundary definition.
 
@@ -119,7 +119,7 @@ All three specs are already `IMPLEMENTATION_READY`. WF-1, WF-2, WF-3 implementat
 
 Each product team runs the consumer readiness checklist against the released packages:
 
-- [ ] `npm install @relay-assistant/core @relay-assistant/sessions @relay-assistant/surfaces` (resolves via workspace protocol or local tarballs — not the public npm registry for v1)
+- [ ] `npm install @agent-assistant/core @agent-assistant/sessions @agent-assistant/surfaces` (resolves via workspace protocol or local tarballs — not the public npm registry for v1)
 - [ ] Define an assistant with `createAssistant(definition, adapters)` where `definition.capabilities` is `Record<string, CapabilityHandler>`
 - [ ] Wire a `SessionStore` via `runtime.register('sessions', createSessionStore({ adapter }))`
 - [ ] Register surfaces via `createSurfaceRegistry()` and wire it as the core relay adapter pair
@@ -141,27 +141,27 @@ Tag v1 release once all checks pass.
 | Step | Action |
 | --- | --- |
 | v1 | Install core, sessions, surfaces. Define the Sage assistant identity using `createAssistant()`. Wire `createSessionStore({ adapter: new InMemorySessionStoreAdapter() })`. Register a Slack `SurfaceConnection` in a `SurfaceRegistry`. |
-| Immediate after v1 | Begin adapter stub for `@relay-assistant/memory` (v1.1). Sage's existing memory patterns are the primary signal for the memory spec. |
+| Immediate after v1 | Begin adapter stub for `@agent-assistant/memory` (v1.1). Sage's existing memory patterns are the primary signal for the memory spec. |
 | v1.1 gates | Full memory persistence across Sage sessions. Proactive follow-up engine. |
-| v1.2 gates | `@relay-assistant/traits` — Sage is a primary extraction signal. Define local `sageTraits` object now so the v1.2 extraction has a concrete pattern to generalize from. |
+| v1.2 gates | `@agent-assistant/traits` — Sage is a primary extraction signal. Define local `sageTraits` object now so the v1.2 extraction has a concrete pattern to generalize from. |
 
 **What stays in Sage for now:**
 - Knowledge and workspace-specific prompt behavior
 - Workforce persona definitions (model, harness, system prompt, tier) — these are workforce-owned, not SDK concerns
 - Product-specific follow-up heuristics
 - Slack-specific UI conventions and block kit templates
-- Trait values (voice, style, vocabulary) — define as a local data object; `@relay-assistant/traits` ships at v1.2
-- Memory retrieval logic (until v1.1 `@relay-assistant/memory` ships)
+- Trait values (voice, style, vocabulary) — define as a local data object; `@agent-assistant/traits` ships at v1.2
+- Memory retrieval logic (until v1.1 `@agent-assistant/memory` ships)
 
 **Sage v1 minimum viable assembly:**
 
 ```ts
-import { createAssistant } from "@relay-assistant/core";
-import type { AssistantDefinition, InboundMessage, CapabilityContext } from "@relay-assistant/core";
-import { createSessionStore, InMemorySessionStoreAdapter, resolveSession, createDefaultAffinityResolver } from "@relay-assistant/sessions";
-import type { SessionStore } from "@relay-assistant/sessions";
-import { createSurfaceRegistry } from "@relay-assistant/surfaces";
-import type { SurfaceConnection, SurfaceCapabilities } from "@relay-assistant/surfaces";
+import { createAssistant } from "@agent-assistant/core";
+import type { AssistantDefinition, InboundMessage, CapabilityContext } from "@agent-assistant/core";
+import { createSessionStore, InMemorySessionStoreAdapter, resolveSession, createDefaultAffinityResolver } from "@agent-assistant/sessions";
+import type { SessionStore } from "@agent-assistant/sessions";
+import { createSurfaceRegistry } from "@agent-assistant/surfaces";
+import type { SurfaceConnection, SurfaceCapabilities } from "@agent-assistant/surfaces";
 
 // 1. Define the Sage assistant
 const definition: AssistantDefinition = {
@@ -232,7 +232,7 @@ await runtime.start();
 | Step | Action |
 | --- | --- |
 | v1 | Install core, sessions, surfaces. Define the MSD assistant identity. Wire session store. Register Slack and web surface connections in the surface registry. |
-| After v1 | Stub `@relay-assistant/policy` interface for approval-mode scaffolding (policy ships in v2 but MSD can define the interface contract early as a passthrough). |
+| After v1 | Stub `@agent-assistant/policy` interface for approval-mode scaffolding (policy ships in v2 but MSD can define the interface contract early as a passthrough). |
 | v1.2 gates | Coordination for review orchestration. Policy for external action governance. |
 
 **What stays in MSD for now:**
@@ -240,17 +240,17 @@ await runtime.start();
 - Review-specific orchestration logic
 - PR-specific tools and heuristics
 - Workforce persona definitions — owned by Workforce, not imported from SDK
-- Coordinator delegation (until v1.2 `@relay-assistant/coordination` ships for product use)
+- Coordinator delegation (until v1.2 `@agent-assistant/coordination` ships for product use)
 
 **MSD v1 minimum viable assembly:**
 
 ```ts
-import { createAssistant } from "@relay-assistant/core";
-import type { AssistantDefinition, InboundMessage, CapabilityContext } from "@relay-assistant/core";
-import { createSessionStore, InMemorySessionStoreAdapter, resolveSession, createDefaultAffinityResolver } from "@relay-assistant/sessions";
-import type { SessionStore } from "@relay-assistant/sessions";
-import { createSurfaceRegistry } from "@relay-assistant/surfaces";
-import type { SurfaceConnection } from "@relay-assistant/surfaces";
+import { createAssistant } from "@agent-assistant/core";
+import type { AssistantDefinition, InboundMessage, CapabilityContext } from "@agent-assistant/core";
+import { createSessionStore, InMemorySessionStoreAdapter, resolveSession, createDefaultAffinityResolver } from "@agent-assistant/sessions";
+import type { SessionStore } from "@agent-assistant/sessions";
+import { createSurfaceRegistry } from "@agent-assistant/surfaces";
+import type { SurfaceConnection } from "@agent-assistant/surfaces";
 
 const definition: AssistantDefinition = {
   id: "msd-review-assistant",
@@ -325,25 +325,25 @@ await runtime.start();
 | --- | --- |
 | v1 | Install core, sessions, surfaces. Define NightCTO assistant identity. Wire session store. Register primary Slack surface connection in the registry. |
 | v1.1 gates | Memory for per-client continuity. Connectivity for multi-component flows. |
-| v1.2 gates | Proactive monitoring and digests. Coordination for specialist orchestration. Routing for model selection and depth/cost decisions. `@relay-assistant/traits` — NightCTO is a primary extraction signal alongside Sage. |
+| v1.2 gates | Proactive monitoring and digests. Coordination for specialist orchestration. Routing for model selection and depth/cost decisions. `@agent-assistant/traits` — NightCTO is a primary extraction signal alongside Sage. |
 
 **What stays in NightCTO for now:**
 - Founder/CTO communication style and persona — trait values defined locally until v1.2
 - Workforce persona definitions — owned by Workforce
 - Client-tier and service policy
-- Domain-specific specialist lineups (until v1.2 `@relay-assistant/coordination` ships)
-- Per-client memory (until v1.1 `@relay-assistant/memory` ships)
-- Proactive monitoring (until v1.2 `@relay-assistant/proactive` ships)
+- Domain-specific specialist lineups (until v1.2 `@agent-assistant/coordination` ships)
+- Per-client memory (until v1.1 `@agent-assistant/memory` ships)
+- Proactive monitoring (until v1.2 `@agent-assistant/proactive` ships)
 
 **NightCTO v1 minimum viable assembly:**
 
 ```ts
-import { createAssistant } from "@relay-assistant/core";
-import type { AssistantDefinition, InboundMessage, CapabilityContext } from "@relay-assistant/core";
-import { createSessionStore, InMemorySessionStoreAdapter, resolveSession, createDefaultAffinityResolver } from "@relay-assistant/sessions";
-import type { SessionStore } from "@relay-assistant/sessions";
-import { createSurfaceRegistry } from "@relay-assistant/surfaces";
-import type { SurfaceConnection } from "@relay-assistant/surfaces";
+import { createAssistant } from "@agent-assistant/core";
+import type { AssistantDefinition, InboundMessage, CapabilityContext } from "@agent-assistant/core";
+import { createSessionStore, InMemorySessionStoreAdapter, resolveSession, createDefaultAffinityResolver } from "@agent-assistant/sessions";
+import type { SessionStore } from "@agent-assistant/sessions";
+import { createSurfaceRegistry } from "@agent-assistant/surfaces";
+import type { SurfaceConnection } from "@agent-assistant/surfaces";
 
 const definition: AssistantDefinition = {
   id: "nightcto",
@@ -415,7 +415,7 @@ WF-6 and WF-7 remain to validate full integration and update package documentati
 
 | Risk | Mitigation |
 | --- | --- |
-| Routing consumed before DoD is cleared | Do not wire `@relay-assistant/routing` into product integrations until F-1 (tests) and F-2 (escalated flag) are resolved |
+| Routing consumed before DoD is cleared | Do not wire `@agent-assistant/routing` into product integrations until F-1 (tests) and F-2 (escalated flag) are resolved |
 | No monorepo workspace config exists | Use npm pack or path references until a root package.json is configured; do not assume workspace:* works |
 | Traits/persona conflation | Workforce personas stay in workforce; SDK traits are v1.2; in v1 define trait values as local product data objects |
 | Spec vocabulary drift causes wrong implementation | Treat `docs/specs/v1-*-spec.md` as the only source of truth; discard any planning doc that conflicts |
@@ -431,8 +431,8 @@ Once v1 is tagged:
 2. **Draft `docs/workflows/connectivity-wf-*.md`** (four workflow specs required by the v1.1 connectivity spec)
 3. **MSD team validates cross-surface session behavior** against their existing session architecture using WF-6 as the reference test
 4. **Begin v1.1 implementation planning** — memory spec is already IMPLEMENTATION_READY; connectivity spec is already IMPLEMENTATION_READY
-5. **Resolve routing DoD failures** (F-1, F-2) before any product attempts to consume `@relay-assistant/routing`
-6. **Define local traits objects in Sage, MSD, and NightCTO** — these are the v1.2 extraction signal for `@relay-assistant/traits`
+5. **Resolve routing DoD failures** (F-1, F-2) before any product attempts to consume `@agent-assistant/routing`
+6. **Define local traits objects in Sage, MSD, and NightCTO** — these are the v1.2 extraction signal for `@agent-assistant/traits`
 
 ---
 

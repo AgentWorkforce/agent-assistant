@@ -4,7 +4,7 @@
 **Date:** 2026-04-11
 **Spec reference:** `docs/specs/v1-connectivity-spec.md` (V1_CONNECTIVITY_SPEC_READY)
 
-This catalog is the authoritative reference for all signal classes defined in `@relay-assistant/connectivity` v1. Each entry specifies: semantics, required and optional fields, valid audience values, expected `priority` range, convergence responsibilities, and anti-patterns.
+This catalog is the authoritative reference for all signal classes defined in `@agent-assistant/connectivity` v1. Each entry specifies: semantics, required and optional fields, valid audience values, expected `priority` range, convergence responsibilities, and anti-patterns.
 
 ---
 

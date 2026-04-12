@@ -2,10 +2,10 @@
  * 05 — Full Assembly
  *
  * Composes all four SDK packages into a single assistant:
- *   - @relay-assistant/core       — runtime, lifecycle, dispatch
- *   - @relay-assistant/traits     — personality and formatting traits
- *   - @relay-assistant/policy     — action classification, gating, audit
- *   - @relay-assistant/proactive  — follow-up rules, watch rules
+ *   - @agent-assistant/core       — runtime, lifecycle, dispatch
+ *   - @agent-assistant/traits     — personality and formatting traits
+ *   - @agent-assistant/policy     — action classification, gating, audit
+ *   - @agent-assistant/proactive  — follow-up rules, watch rules
  *
  * The integration helpers (followUpToAction, watchTriggerToAction) bridge
  * proactive decisions into policy evaluation. This is the canonical
@@ -26,15 +26,15 @@
  *   └──────────────────────────────────┘
  */
 
-import { createAssistant } from '@relay-assistant/core';
+import { createAssistant } from '@agent-assistant/core';
 import type {
   InboundMessage,
   AssistantRuntime,
   RelayInboundAdapter,
   RelayOutboundAdapter,
   OutboundEvent,
-} from '@relay-assistant/core';
-import { createTraitsProvider } from '@relay-assistant/traits';
+} from '@agent-assistant/core';
+import { createTraitsProvider } from '@agent-assistant/traits';
 import {
   createActionPolicy,
   InMemoryAuditSink,
@@ -43,7 +43,7 @@ import {
   type Action,
   type RiskLevel,
   type PolicyEvaluationContext,
-} from '@relay-assistant/policy';
+} from '@agent-assistant/policy';
 import {
   createProactiveEngine,
   InMemorySchedulerBinding,
@@ -51,7 +51,7 @@ import {
   type FollowUpRule,
   type FollowUpDecision,
   type WatchTrigger,
-} from '@relay-assistant/proactive';
+} from '@agent-assistant/proactive';
 
 // --- Integration helpers -------------------------------------------------
 // In a real repo these would come from a shared integration package.

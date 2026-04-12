@@ -1,5 +1,7 @@
 # Robustness Audit Review Verdict — 2026-04-12
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 ## Verdict
 
 **PASS_WITH_FOLLOWUPS**
@@ -37,7 +39,7 @@ Believable findings with strong evidence:
 
 - `docs/current-state.md` is stale and contradictory about policy/proactive status and counts.
 - `packages/memory/package.json` escapes the repo via `file:../../../relay/packages/memory`.
-- `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` contradicts itself by recommending blocked packages in product guidance while marking them "Do not adopt" later.
+- `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` contradicts itself by recommending blocked packages in product guidance while marking them "Do not adopt" later.
 - `packages/connectivity/package.json` keeps `@relay-assistant/routing` only in `devDependencies` despite re-exporting routing types.
 
 Problems that weaken the report:

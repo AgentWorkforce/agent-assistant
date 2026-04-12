@@ -1,6 +1,6 @@
 # Robustness Audit Standard
 
-A repeatable audit checklist for the RelayAssistant SDK. Run this audit before any milestone gate, after significant implementation work, or when onboarding a new package to the v1 baseline.
+A repeatable audit checklist for the Agent Assistant SDK SDK. Run this audit before any milestone gate, after significant implementation work, or when onboarding a new package to the v1 baseline.
 
 **Goal:** Catch quality shortcuts before they harden into architecture.
 
@@ -32,7 +32,7 @@ rg '"file:' packages/*/package.json || true
 rg "from ['\"]\..*dist/" packages/*/src/ || true
 
 # 5. Circular or upward package references
-rg "from ['\"]@relay-assistant/" packages/*/src/ || true
+rg "from ['\"]@agent-assistant/" packages/*/src/ || true
 ```
 
 Capture this output as audit context before proceeding.
@@ -49,7 +49,7 @@ Capture this output as audit context before proceeding.
 | 1.2 | No `file:` dependency references pointing outside the monorepo | `rg '"file:' packages/*/package.json` — flag any path containing `../` that escapes the repo root | **HIGH** — breaks CI and external consumers |
 | 1.3 | No source files importing from sibling package `dist/` directories | `rg "from ['\"]\..*dist/" packages/*/src/` | **MEDIUM** — fragile build-order coupling |
 | 1.4 | No `src/../` path gymnastics in source files | `rg "src/\.\.\/" packages/*/src/` | **MEDIUM** — indicates broken module boundaries |
-| 1.5 | All `@relay-assistant/*` cross-package imports resolve to published entry points, not deep paths | `rg "from ['\"]@relay-assistant/[^'\"]+/" packages/*/src/` — flag any that go deeper than the package name | **MEDIUM** — violates encapsulation |
+| 1.5 | All `@agent-assistant/*` cross-package imports resolve to published entry points, not deep paths | `rg "from ['\"]@agent-assistant/[^'\"]+/" packages/*/src/` — flag any that go deeper than the package name | **MEDIUM** — violates encapsulation |
 
 ---
 
@@ -101,7 +101,7 @@ Capture this output as audit context before proceeding.
 | # | Check | How to verify | Severity |
 |---|-------|---------------|----------|
 | 5.1 | Each package's `package.json` declares only its actual dependencies | For each package: compare `dependencies` and `devDependencies` against actual `import` statements in `src/`. Flag undeclared imports and unused declared deps | **HIGH** — broken installs for consumers |
-| 5.2 | No circular dependencies between packages | Trace `@relay-assistant/*` imports across all packages. Flag any cycle | **HIGH** — breaks tree-shaking and reasoning |
+| 5.2 | No circular dependencies between packages | Trace `@agent-assistant/*` imports across all packages. Flag any cycle | **HIGH** — breaks tree-shaking and reasoning |
 | 5.3 | Package `index.ts` exports match the spec's public API surface | For each package with a spec: compare `export` statements in `index.ts` against the spec's "Exports" or "Public API" section | **MEDIUM** — spec/code drift |
 | 5.4 | No runtime code in type-only files (`types.ts`) | `rg "^(export )?(function\|class\|const .* = )" packages/*/src/types.ts` — flag non-type exports | **LOW** — layer confusion |
 | 5.5 | `tsconfig.json` `references` or `paths` do not create implicit coupling | Review each package's `tsconfig.json` for `paths` or `references` that bypass `package.json` dependency declarations | **MEDIUM** — hidden coupling |
@@ -131,7 +131,7 @@ Capture this output as audit context before proceeding.
 |---|-------|---------------|----------|
 | 7.1 | `how-to-build-an-assistant.md` only uses v1-baseline packages in its primary path | Read the doc. Flag any code example that imports a non-baseline package without an explicit "beyond v1" caveat | **HIGH** — leads consumers into broken paths |
 | 7.2 | Product adoption paths (`sage-adoption-path.md`, etc.) do not recommend gated packages | Cross-reference each adoption path against the gating notes in `current-state.md` | **HIGH** — products adopt broken code |
-| 7.3 | `how-products-should-adopt-relay-agent-assistant.md` reflects current package status | Verify every package mentioned has its current status accurately represented | **MEDIUM** — stale guidance |
+| 7.3 | `how-products-should-adopt-agent-assistant-sdk.md` reflects current package status | Verify every package mentioned has its current status accurately represented | **MEDIUM** — stale guidance |
 | 7.4 | Code snippets in consumer docs compile against current package exports | Extract import statements from consumer docs and verify they resolve | **MEDIUM** — broken copy-paste examples |
 | 7.5 | Adoption matrix (`consumer-adoption-matrix.md`) matches `current-state.md` | Compare stability tiers, readiness markers, and blocker notes between the two | **MEDIUM** — conflicting signals |
 | 7.6 | No adoption doc recommends a package whose tests are blocked | Cross-reference all `docs/consumer/` files against blocked packages in `current-state.md` | **HIGH** — recommending unverified code |

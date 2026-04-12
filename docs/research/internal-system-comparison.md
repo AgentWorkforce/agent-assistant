@@ -1,5 +1,7 @@
 # Internal System Comparison
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 Date: 2026-04-11
 Revised: 2026-04-11 (sdk-audit-and-traits-alignment-plan — implementation status added; workforce persona vs traits distinction made explicit)
 

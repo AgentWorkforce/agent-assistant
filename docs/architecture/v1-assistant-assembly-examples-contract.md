@@ -1,5 +1,7 @@
 # v1 Assistant Assembly Examples Contract
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Status:** DEFINED
 **Date:** 2026-04-12
 **Inputs:**
@@ -9,7 +11,7 @@
 - `packages/proactive/README.md` — follow-up rules, watch rules, scheduler bindings
 - `packages/integration/src/helpers.ts` — proactive→policy bridge helpers
 - `docs/consumer/how-to-build-an-assistant.md` — skeletal assembly pattern
-- `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` — adoption sequence
+- `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` — adoption sequence
 - `docs/architecture/v1-proactive-policy-integration-contract.md` — proactive↔policy boundary
 - `docs/architecture/v1-traits-core-integration-review-verdict.md` — traits-core integration status
 
@@ -376,7 +378,7 @@ These examples complement, not replace, existing docs:
 | Document | Role | Examples role |
 |---|---|---|
 | `docs/consumer/how-to-build-an-assistant.md` | Architectural guidance, skeletal assembly with sessions + surfaces | Concrete, runnable-shape composition with traits + policy + proactive |
-| `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` | Adoption sequence and decision rules | Examples demonstrate the "what" behind the adoption "how" |
+| `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` | Adoption sequence and decision rules | Examples demonstrate the "what" behind the adoption "how" |
 | `docs/architecture/v1-proactive-policy-integration-contract.md` | Formal boundary contract | Example 05 is the reference implementation of the contract's orchestration pattern |
 | `docs/architecture/v1-traits-core-integration-review-verdict.md` | Review findings on traits-core boundary | Example 02 demonstrates the correct assembly pattern; Example 05 shows traits in full composition |
 | Package READMEs | Per-package API reference | Examples show cross-package composition that no single README covers |

@@ -32,9 +32,9 @@ Exit criteria:
 
 Target packages:
 
-- `@relay-assistant/core`
-- `@relay-assistant/sessions`
-- `@relay-assistant/surfaces`
+- `@agent-assistant/core`
+- `@agent-assistant/sessions`
+- `@agent-assistant/surfaces`
 
 Reason:
 

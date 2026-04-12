@@ -1,6 +1,6 @@
-# `@relay-assistant/sessions`
+# `@agent-assistant/sessions`
 
-`@relay-assistant/sessions` owns assistant session continuity across surfaces and time. It provides spec-aligned session types, a session store factory, an in-memory adapter for local use and tests, and a small affinity helper for lookup-or-create flows.
+`@agent-assistant/sessions` owns assistant session continuity across surfaces and time. It provides spec-aligned session types, a session store factory, an in-memory adapter for local use and tests, and a small affinity helper for lookup-or-create flows.
 
 ## Scope
 
@@ -30,7 +30,7 @@ import {
   createSessionStore,
   defaultAffinityResolver,
   resolveSession,
-} from '@relay-assistant/sessions';
+} from '@agent-assistant/sessions';
 ```
 
 ## Core API
@@ -73,7 +73,7 @@ import {
   createSessionStore,
   defaultAffinityResolver,
   resolveSession,
-} from '@relay-assistant/sessions';
+} from '@agent-assistant/sessions';
 
 const store = createSessionStore({
   adapter: new InMemorySessionStoreAdapter(),

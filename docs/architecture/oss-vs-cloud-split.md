@@ -44,8 +44,8 @@ That later cloud layer can provide:
 
 Possible future naming pattern:
 
-- OSS here: `@relay-assistant/*`
-- cloud elsewhere: `@relay-assistant-cloud/*` or a separate cloud repo
+- OSS here: `@agent-assistant/*`
+- cloud elsewhere: `@agent-assistant-cloud/*` or a separate cloud repo
 
 The exact package names can be decided later. The boundary should not.
 
@@ -64,7 +64,7 @@ Product teams should build against the OSS interfaces first.
 
 Examples:
 
-- Sage should be able to compose `@relay-assistant/*` packages using its current local or product-owned backends
+- Sage should be able to compose `@agent-assistant/*` packages using its current local or product-owned backends
 - MSD should be able to use the session and surface contracts without any hosted runtime assumption
 - NightCTO should be able to adopt coordination and policy contracts before any shared cloud control plane exists
 

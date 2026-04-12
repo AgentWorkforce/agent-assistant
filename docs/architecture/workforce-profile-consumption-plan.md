@@ -1,5 +1,7 @@
 # Workforce Profile Consumption Plan — RelayAssistant
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 > Specifies the direct Workforce npm-provenance-publisher profile consumption path.
 > Identifies the exact missing export, confirms BLOCKER-WF-001, and documents what
 > the publish workflow does in the interim.

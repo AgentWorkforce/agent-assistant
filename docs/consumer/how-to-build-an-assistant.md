@@ -30,7 +30,7 @@ Canonical import shape for v1 packages (core, sessions, surfaces):
 
 ```ts
 // Core
-import { createAssistant } from "@relay-assistant/core";
+import { createAssistant } from "@agent-assistant/core";
 import type {
   AssistantDefinition,
   AssistantRuntime,
@@ -38,7 +38,7 @@ import type {
   OutboundEvent,
   CapabilityHandler,
   CapabilityContext,
-} from "@relay-assistant/core";
+} from "@agent-assistant/core";
 
 // Sessions
 import {
@@ -46,28 +46,28 @@ import {
   InMemorySessionStoreAdapter,
   resolveSession,
   createDefaultAffinityResolver,
-} from "@relay-assistant/sessions";
-import type { Session, SessionStore } from "@relay-assistant/sessions";
+} from "@agent-assistant/sessions";
+import type { Session, SessionStore } from "@agent-assistant/sessions";
 
 // Surfaces
-import { createSurfaceRegistry } from "@relay-assistant/surfaces";
+import { createSurfaceRegistry } from "@agent-assistant/surfaces";
 import type {
   SurfaceConnection,
   SurfaceRegistry,
   SurfaceAdapter,
   SurfaceCapabilities,
   SurfaceFormatHook,
-} from "@relay-assistant/surfaces";
+} from "@agent-assistant/surfaces";
 ```
 
 Later packages (v1.1+) follow the same pattern:
 
 ```ts
-import { createMemoryStore } from "@relay-assistant/memory";
-import { createProactiveEngine } from "@relay-assistant/proactive";
-import { createCoordinator } from "@relay-assistant/coordination";
-import { createConnectivityLayer } from "@relay-assistant/connectivity";
-import { createActionPolicy } from "@relay-assistant/policy";
+import { createMemoryStore } from "@agent-assistant/memory";
+import { createProactiveEngine } from "@agent-assistant/proactive";
+import { createCoordinator } from "@agent-assistant/coordination";
+import { createConnectivityLayer } from "@agent-assistant/connectivity";
+import { createActionPolicy } from "@agent-assistant/policy";
 ```
 
 The names above for future packages are illustrative. v1 names (`createAssistant`, `createSessionStore`, `createSurfaceRegistry`) are spec-confirmed.
@@ -76,14 +76,14 @@ The names above for future packages are illustrative. v1 names (`createAssistant
 
 Build an assistant in this order:
 
-1. define the assistant identity and runtime boundary in `@relay-assistant/core`
-2. define how inbound activity maps into an assistant session via `@relay-assistant/sessions`
-3. attach surfaces through `@relay-assistant/surfaces`
-4. add memory via `@relay-assistant/memory` if continuity is needed
-5. add proactive behavior via `@relay-assistant/proactive` if the assistant should act when the user is not actively messaging
-6. add specialist orchestration via `@relay-assistant/coordination` if one assistant needs multiple internal agents
-7. add focused internal signaling via `@relay-assistant/connectivity` when multiple subsystems or specialists must coordinate efficiently
-8. govern external actions with `@relay-assistant/policy`
+1. define the assistant identity and runtime boundary in `@agent-assistant/core`
+2. define how inbound activity maps into an assistant session via `@agent-assistant/sessions`
+3. attach surfaces through `@agent-assistant/surfaces`
+4. add memory via `@agent-assistant/memory` if continuity is needed
+5. add proactive behavior via `@agent-assistant/proactive` if the assistant should act when the user is not actively messaging
+6. add specialist orchestration via `@agent-assistant/coordination` if one assistant needs multiple internal agents
+7. add focused internal signaling via `@agent-assistant/connectivity` when multiple subsystems or specialists must coordinate efficiently
+8. govern external actions with `@agent-assistant/policy`
 
 ## What The Product Must Supply
 
@@ -128,21 +128,21 @@ Future subsystems (memory, proactive, coordination, policy) are also registered 
 ## Skeletal Assembly Example
 
 ```ts
-import { createAssistant } from "@relay-assistant/core";
+import { createAssistant } from "@agent-assistant/core";
 import type {
   AssistantDefinition,
   InboundMessage,
   CapabilityContext,
-} from "@relay-assistant/core";
+} from "@agent-assistant/core";
 import {
   createSessionStore,
   InMemorySessionStoreAdapter,
   resolveSession,
   createDefaultAffinityResolver,
-} from "@relay-assistant/sessions";
-import type { SessionStore } from "@relay-assistant/sessions";
-import { createSurfaceRegistry } from "@relay-assistant/surfaces";
-import type { SurfaceConnection, SurfaceCapabilities } from "@relay-assistant/surfaces";
+} from "@agent-assistant/sessions";
+import type { SessionStore } from "@agent-assistant/sessions";
+import { createSurfaceRegistry } from "@agent-assistant/surfaces";
+import type { SurfaceConnection, SurfaceCapabilities } from "@agent-assistant/surfaces";
 
 // Step 1: Define assistant identity and capabilities
 const definition: AssistantDefinition = {
@@ -255,21 +255,21 @@ Do not:
 
 Four packages are now implemented with passing test suites and can be composed today:
 
-- `@relay-assistant/core` — runtime, lifecycle, dispatch (31+ tests, SPEC_RECONCILED)
-- `@relay-assistant/traits` — personality and formatting traits (32 tests, IMPLEMENTATION_READY)
-- `@relay-assistant/policy` — action classification, gating, audit (64 tests, implemented)
-- `@relay-assistant/proactive` — follow-up rules, watch rules, scheduler binding (45 tests, implemented)
+- `@agent-assistant/core` — runtime, lifecycle, dispatch (31+ tests, SPEC_RECONCILED)
+- `@agent-assistant/traits` — personality and formatting traits (32 tests, IMPLEMENTATION_READY)
+- `@agent-assistant/policy` — action classification, gating, audit (64 tests, implemented)
+- `@agent-assistant/proactive` — follow-up rules, watch rules, scheduler binding (45 tests, implemented)
 
 These replace the "future packages" placeholders from earlier in this document for v1 assembly.
 
 ### Full four-package assembly sketch
 
 ```ts
-import { createAssistant } from '@relay-assistant/core';
-import type { InboundMessage, AssistantRuntime } from '@relay-assistant/core';
-import { createTraitsProvider } from '@relay-assistant/traits';
-import { createActionPolicy, InMemoryAuditSink, type Action } from '@relay-assistant/policy';
-import { createProactiveEngine, InMemorySchedulerBinding } from '@relay-assistant/proactive';
+import { createAssistant } from '@agent-assistant/core';
+import type { InboundMessage, AssistantRuntime } from '@agent-assistant/core';
+import { createTraitsProvider } from '@agent-assistant/traits';
+import { createActionPolicy, InMemoryAuditSink, type Action } from '@agent-assistant/policy';
+import { createProactiveEngine, InMemorySchedulerBinding } from '@agent-assistant/proactive';
 
 // 1. Traits — declarative personality and formatting preferences
 const traits = createTraitsProvider(
@@ -363,7 +363,7 @@ Keep in Sage:
 
 - knowledge and workspace-specific prompt behavior
 - product-specific follow-up heuristics
-- memory retrieval logic (until `@relay-assistant/memory` ships in v1.1)
+- memory retrieval logic (until `@agent-assistant/memory` ships in v1.1)
 
 Starting example: `packages/examples/src/04-proactive-assistant.ts`
 
@@ -385,7 +385,7 @@ Keep in MSD:
 
 - review-specific tools
 - PR and code-review heuristics
-- coordinator delegation (until `@relay-assistant/coordination` ships in v1.2)
+- coordinator delegation (until `@agent-assistant/coordination` ships in v1.2)
 
 Starting example: `packages/examples/src/03-policy-gated-assistant.ts`
 
@@ -406,6 +406,6 @@ Keep in NightCTO:
 - founder-facing service behavior
 - specialist lineup choices
 - business escalation and client-tier rules
-- per-client memory (until `@relay-assistant/memory` ships in v1.1)
+- per-client memory (until `@agent-assistant/memory` ships in v1.1)
 
 Starting example: `packages/examples/src/05-full-assembly.ts`

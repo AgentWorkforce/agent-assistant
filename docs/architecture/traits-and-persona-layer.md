@@ -5,7 +5,7 @@ Source: [sdk-audit-and-traits-alignment-plan.md](sdk-audit-and-traits-alignment-
 
 ## Purpose
 
-This document defines where assistant traits and identity live in the package architecture, how they differ from workforce personas, and what the planned `@relay-assistant/traits` package will own.
+This document defines where assistant traits and identity live in the package architecture, how they differ from workforce personas, and what the planned `@agent-assistant/traits` package will own.
 
 ---
 
@@ -40,7 +40,7 @@ Assistant traits are **identity and behavioral characteristics**. Traits define:
 
 Traits answer: **"How should this assistant present itself and behave across interactions?"**
 
-Traits are SDK-layer data, owned by `@relay-assistant/traits` (planned for v1.2). Until that package ships, products define traits as local data objects.
+Traits are SDK-layer data, owned by `@agent-assistant/traits` (planned for v1.2). Until that package ships, products define traits as local data objects.
 
 ---
 
@@ -75,17 +75,17 @@ SDK routing modes (`cheap`/`fast`/`deep`) are SDK vocabulary for latency/depth/c
 | Concern | Owner | Consumes traits? |
 | --- | --- | --- |
 | Persona resolution (`resolvePersona`) | Workforce workload-router | No — personas are self-contained runtime configs. Products may inject trait values into prompt templates before passing to the persona. |
-| Routing mode selection (`router.decide()`) | `@relay-assistant/routing` | No — routing is about depth/latency/cost, not identity. |
-| Surface formatting (`formatHook`) | `@relay-assistant/surfaces` | Yes — a format hook may read traits to adjust voice, block style, or formality per surface. |
-| Session continuity | `@relay-assistant/sessions` | No — sessions track state, not identity. |
-| Coordination synthesis | `@relay-assistant/coordination` | Yes — a synthesizer may read traits to maintain consistent voice when merging specialist outputs. |
-| Proactive behavior (future) | `@relay-assistant/proactive` | Yes — traits like proactivity level and risk posture inform watch rules and follow-up thresholds. |
+| Routing mode selection (`router.decide()`) | `@agent-assistant/routing` | No — routing is about depth/latency/cost, not identity. |
+| Surface formatting (`formatHook`) | `@agent-assistant/surfaces` | Yes — a format hook may read traits to adjust voice, block style, or formality per surface. |
+| Session continuity | `@agent-assistant/sessions` | No — sessions track state, not identity. |
+| Coordination synthesis | `@agent-assistant/coordination` | Yes — a synthesizer may read traits to maintain consistent voice when merging specialist outputs. |
+| Proactive behavior (future) | `@agent-assistant/proactive` | Yes — traits like proactivity level and risk posture inform watch rules and follow-up thresholds. |
 
 ---
 
 ## Current State (v1)
 
-**No traits package exists.** `@relay-assistant/traits` is planned for v1.2.
+**No traits package exists.** `@agent-assistant/traits` is planned for v1.2.
 
 In v1:
 - Products define traits as local data objects (not imported from this SDK).
@@ -114,24 +114,24 @@ const slackConnection: SurfaceConnection = {
 
 ---
 
-## Planned Package: `@relay-assistant/traits` (v1.2)
+## Planned Package: `@agent-assistant/traits` (v1.2)
 
 ### Position in package map
 
 | Package | Purpose |
 | --- | --- |
-| `@relay-assistant/core` | Assistant definition, lifecycle, runtime composition |
-| **`@relay-assistant/traits`** | **Assistant identity traits: voice, style, vocabulary, behavioral defaults, surface formatting preferences** |
-| `@relay-assistant/memory` | Memory scopes, stores, retrieval, promotion |
-| `@relay-assistant/sessions` | Session identity, lifecycle, surface attachment |
-| `@relay-assistant/surfaces` | Surface abstractions, normalization, fanout |
-| `@relay-assistant/coordination` | Specialist orchestration, synthesis |
-| `@relay-assistant/connectivity` | Inter-agent signaling, convergence |
-| `@relay-assistant/routing` | Depth/latency/cost mode selection |
-| `@relay-assistant/proactive` | Follow-ups, watchers, schedulers |
-| `@relay-assistant/policy` | Approvals, safeguards, audit |
+| `@agent-assistant/core` | Assistant definition, lifecycle, runtime composition |
+| **`@agent-assistant/traits`** | **Assistant identity traits: voice, style, vocabulary, behavioral defaults, surface formatting preferences** |
+| `@agent-assistant/memory` | Memory scopes, stores, retrieval, promotion |
+| `@agent-assistant/sessions` | Session identity, lifecycle, surface attachment |
+| `@agent-assistant/surfaces` | Surface abstractions, normalization, fanout |
+| `@agent-assistant/coordination` | Specialist orchestration, synthesis |
+| `@agent-assistant/connectivity` | Inter-agent signaling, convergence |
+| `@agent-assistant/routing` | Depth/latency/cost mode selection |
+| `@agent-assistant/proactive` | Follow-ups, watchers, schedulers |
+| `@agent-assistant/policy` | Approvals, safeguards, audit |
 
-### What `@relay-assistant/traits` owns
+### What `@agent-assistant/traits` owns
 
 - `AssistantTraits` type definition (voice, style, vocabulary, proactivity level, risk posture, formality, domain framing)
 - `SurfaceFormattingTraits` type definition (per-surface-type formatting preferences that inform format hooks)
@@ -139,7 +139,7 @@ const slackConnection: SurfaceConnection = {
 - `createTraitsProvider(traits: AssistantTraits)` factory
 - Validation that trait values are within acceptable ranges/enums
 
-### What `@relay-assistant/traits` must not own
+### What `@agent-assistant/traits` must not own
 
 - Persona definitions — those stay in workforce
 - System prompts — those are persona artifacts, not traits
@@ -167,7 +167,7 @@ export interface AssistantDefinition {
   id: string;
   name: string;
   description?: string;
-  traits?: TraitsProvider;  // NEW — optional, from @relay-assistant/traits
+  traits?: TraitsProvider;  // NEW — optional, from @agent-assistant/traits
   capabilities: Record<string, CapabilityHandler>;
   hooks?: AssistantHooks;
   constraints?: RuntimeConstraints;
@@ -182,7 +182,7 @@ The `traits?` field is optional so existing consumers are unaffected. Products t
 
 - **v1 (current):** No traits package. Products define traits as local data objects. Acceptable for the current adoption phase.
 - **v1.1 (with memory):** Memory may begin storing trait-like user preferences, but `AssistantDefinition` still does not gain a `traits` field at this stage. Keep trait objects product-local until the traits package exists.
-- **v1.2 (with proactive + coordination maturity):** Implement `@relay-assistant/traits` package. By this point, multiple products will have local trait patterns worth extracting.
+- **v1.2 (with proactive + coordination maturity):** Implement `@agent-assistant/traits` package. By this point, multiple products will have local trait patterns worth extracting.
 
 ### Extraction signal
 
@@ -198,7 +198,7 @@ The same rule that governs all SDK extraction applies: if a capability is reusab
 
 3. **Traits are not prompts.** A trait like `voice: "concise"` is a data value. The prompt that says "Respond concisely" is a persona artifact. Products turn traits into prompt fragments; the SDK does not.
 
-4. **The `AssistantDefinition.traits?` field does not exist yet** and must not be added until `@relay-assistant/traits` ships. The current `packages/core/src/types.ts` has no `traits` field on `AssistantDefinition` — that is correct. When the traits package ships, the field will be added as `traits?: TraitsProvider` (optional, non-breaking).
+4. **The `AssistantDefinition.traits?` field does not exist yet** and must not be added until `@agent-assistant/traits` ships. The current `packages/core/src/types.ts` has no `traits` field on `AssistantDefinition` — that is correct. When the traits package ships, the field will be added as `traits?: TraitsProvider` (optional, non-breaking).
 
 5. **Future workflows touching identity, formatting, or behavioral consistency** should check whether the traits package exists before implementing product-local workarounds.
 

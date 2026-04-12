@@ -1,4 +1,4 @@
-import type { RoutingEscalationHook } from '@relay-assistant/routing';
+import type { RoutingEscalationHook } from '@agent-assistant/routing';
 
 export type SignalAudience = 'self' | 'coordinator' | 'selected' | 'all';
 
@@ -28,7 +28,7 @@ export type SignalEvent = 'emitted' | 'superseded' | 'resolved' | 'expired';
 export type {
   RequestedRoutingMode,
   RoutingEscalationHook,
-} from '@relay-assistant/routing';
+} from '@agent-assistant/routing';
 
 export interface ConnectivitySignal {
   id: string;

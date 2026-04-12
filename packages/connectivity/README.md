@@ -1,6 +1,6 @@
-# `@relay-assistant/connectivity`
+# `@agent-assistant/connectivity`
 
-`@relay-assistant/connectivity` implements the v1 in-process signaling layer for internal assistant coordination. It provides a bounded signal vocabulary, validation, suppression, lifecycle management, audience resolution hooks, and an escalation hook that routing can implement without handing routing ownership to this package.
+`@agent-assistant/connectivity` implements the v1 in-process signaling layer for internal assistant coordination. It provides a bounded signal vocabulary, validation, suppression, lifecycle management, audience resolution hooks, and an escalation hook that routing can implement without handing routing ownership to this package.
 
 ## Scope
 
@@ -31,7 +31,7 @@ import {
   createConnectivityLayer,
   type ConnectivitySignal,
   type EmitSignalInput,
-} from '@relay-assistant/connectivity';
+} from '@agent-assistant/connectivity';
 ```
 
 ## Signal Model
@@ -185,7 +185,7 @@ Connectivity does not store the returned mode, does not choose routing modes, an
 ## Example
 
 ```ts
-import { createConnectivityLayer } from '@relay-assistant/connectivity';
+import { createConnectivityLayer } from '@agent-assistant/connectivity';
 
 const layer = createConnectivityLayer();
 

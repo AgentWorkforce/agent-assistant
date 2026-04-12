@@ -1,6 +1,6 @@
-# `@relay-assistant/memory`
+# `@agent-assistant/memory`
 
-`@relay-assistant/memory` is the v1 assistant-facing composition layer over `@agent-relay/memory`.
+`@agent-assistant/memory` is the v1 assistant-facing composition layer over `@agent-relay/memory`.
 
 It reuses relay adapters directly for persistence and CRUD, then adds only the approved v1 behaviors:
 - assistant memory scopes: `session`, `user`, `workspace`, `org`, `object`
@@ -15,7 +15,7 @@ It does not implement a new memory engine, semantic search, policy controls, clo
 ## Installation
 
 ```bash
-npm install @relay-assistant/memory
+npm install @agent-assistant/memory
 ```
 
 ## Exports
@@ -25,7 +25,7 @@ import {
   createMemoryStore,
   InMemoryMemoryStoreAdapter,
   RelayMemoryStoreAdapter,
-} from '@relay-assistant/memory';
+} from '@agent-assistant/memory';
 ```
 
 The package exports the public `MemoryEntry`, `MemoryScope`, `MemoryStore`, input/query types, and the error classes `MemoryEntryNotFoundError`, `InvalidScopePromotionError`, and `CompactionError`.
@@ -33,7 +33,7 @@ The package exports the public `MemoryEntry`, `MemoryScope`, `MemoryStore`, inpu
 ## Quick Start
 
 ```typescript
-import { createMemoryStore, InMemoryMemoryStoreAdapter } from '@relay-assistant/memory';
+import { createMemoryStore, InMemoryMemoryStoreAdapter } from '@agent-assistant/memory';
 
 const memory = createMemoryStore({
   adapter: new InMemoryMemoryStoreAdapter(),
@@ -138,7 +138,7 @@ The package preserves assistant provenance metadata through writes, updates, pro
 ## Production Usage
 
 ```typescript
-import { createMemoryStore, RelayMemoryStoreAdapter } from '@relay-assistant/memory';
+import { createMemoryStore, RelayMemoryStoreAdapter } from '@agent-assistant/memory';
 import { createMemoryAdapter } from '@agent-relay/memory';
 
 const relayAdapter = await createMemoryAdapter({

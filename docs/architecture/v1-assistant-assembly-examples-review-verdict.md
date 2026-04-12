@@ -1,5 +1,7 @@
 # v1 Assistant Assembly Examples Review Verdict
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-12
 **Review target:**
 - `docs/architecture/v1-assistant-assembly-examples-contract.md`
@@ -51,9 +53,9 @@ Impact:
 The new v1 readiness sections are useful, but the older "Product-Specific Guidance" section still recommends starting with packages that the same document later marks as not ready for adoption. The largest contradiction is Sage starting with `memory` and NightCTO starting with `coordination` and `memory`, despite the later status table saying not to adopt those now.
 
 References:
-- [docs/consumer/how-products-should-adopt-relay-agent-assistant.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-relay-agent-assistant.md:54)
-- [docs/consumer/how-products-should-adopt-relay-agent-assistant.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-relay-agent-assistant.md:91)
-- [docs/consumer/how-products-should-adopt-relay-agent-assistant.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-relay-agent-assistant.md:154)
+- [docs/consumer/how-products-should-adopt-agent-assistant-sdk.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-agent-assistant-sdk.md:54)
+- [docs/consumer/how-products-should-adopt-agent-assistant-sdk.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-agent-assistant-sdk.md:91)
+- [docs/consumer/how-products-should-adopt-agent-assistant-sdk.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-agent-assistant-sdk.md:154)
 
 Impact:
 - Blunts the concrete adoption benefit for Sage and NightCTO.
@@ -94,13 +96,13 @@ The only meaningful caveat is not a boundary violation but a scope gap: the full
 - **MSD:** Improved materially. `03` is the right shape, but it should prove more than the allow path.
 - **NightCTO:** Improved, but `05` should cover watch-trigger-to-policy flow before it can be called the complete canonical reference.
 
-The new `v1-product-adoption-matrix.md` helps a lot. The main drag on adoption clarity is the stale contradictory guidance in `how-products-should-adopt-relay-agent-assistant.md`.
+The new `v1-product-adoption-matrix.md` helps a lot. The main drag on adoption clarity is the stale contradictory guidance in `how-products-should-adopt-agent-assistant-sdk.md`.
 
 ## Required Follow-Ups
 
 1. Extend `05-full-assembly.ts` to register at least one watch rule, evaluate a watch trigger, convert it with `watchTriggerToAction()`, and run that through policy.
 2. Either drive non-allow outcomes in `03-policy-gated-assistant.ts` and `05-full-assembly.ts`, or tone down README claims so "proof scenarios" are clearly labeled as code-path inspection rather than executed behavior.
-3. Reconcile `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` so the early product guidance matches the later v1 readiness table and adoption matrix.
+3. Reconcile `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` so the early product guidance matches the later v1 readiness table and adoption matrix.
 4. Add one explicit `runtime.get('policy')` / `runtime.get('proactive')` retrieval in `05-full-assembly.ts` if that remains part of the claimed proof surface.
 
 ## What Was Reviewed

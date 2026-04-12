@@ -1,15 +1,15 @@
-# v1 Sessions Spec — `@relay-assistant/sessions`
+# v1 Sessions Spec — `@agent-assistant/sessions`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/sessions`
+**Package:** `@agent-assistant/sessions`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 
 ---
 
 ## 1. Responsibilities
 
-`@relay-assistant/sessions` manages the continuity unit that spans surfaces. A session is not a conversation turn; it is the persistent identity context within which turns happen.
+`@agent-assistant/sessions` manages the continuity unit that spans surfaces. A session is not a conversation turn; it is the persistent identity context within which turns happen.
 
 **Owns:**
 - `Session` entity — identity, metadata, lifecycle state, associated surfaces
@@ -21,11 +21,11 @@
 - Stale-session detection — sessions that have not seen activity within a configurable TTL are marked `suspended`; explicit expiry marks them `expired`
 
 **Does NOT own:**
-- Memory content within a session (→ `@relay-assistant/memory`)
-- Message routing decisions (→ `@relay-assistant/routing`)
-- Surface protocol or formatting (→ `@relay-assistant/surfaces`)
-- Multi-assistant coordination (→ `@relay-assistant/coordination`)
-- Policy enforcement on session operations (→ `@relay-assistant/policy`)
+- Memory content within a session (→ `@agent-assistant/memory`)
+- Message routing decisions (→ `@agent-assistant/routing`)
+- Surface protocol or formatting (→ `@agent-assistant/surfaces`)
+- Multi-assistant coordination (→ `@agent-assistant/coordination`)
+- Policy enforcement on session operations (→ `@agent-assistant/policy`)
 
 ---
 
@@ -287,19 +287,19 @@ export interface SessionStoreConfig {
 ## 6. Package Boundaries
 
 ### Depends on
-- `@relay-assistant/core` — imports `InboundMessage` type to extract `sessionId` in middleware helper (optional utility; not a hard runtime dependency).
+- `@agent-assistant/core` — imports `InboundMessage` type to extract `sessionId` in middleware helper (optional utility; not a hard runtime dependency).
 
 ### Depended on by
-- `@relay-assistant/surfaces` — reads attached surfaces from session to fanout messages.
-- `@relay-assistant/memory` — reads `userId`, `workspaceId`, `id` from session to scope memory queries.
-- `@relay-assistant/routing` — reads session metadata for affinity routing.
-- `@relay-assistant/coordination` — reads session context when delegating work to specialists.
+- `@agent-assistant/surfaces` — reads attached surfaces from session to fanout messages.
+- `@agent-assistant/memory` — reads `userId`, `workspaceId`, `id` from session to scope memory queries.
+- `@agent-assistant/routing` — reads session metadata for affinity routing.
+- `@agent-assistant/coordination` — reads session context when delegating work to specialists.
 
 ### Relay foundation boundary
 - Sessions has no direct dependency on the relay foundation. `surfaceId` strings are opaque identifiers passed from the relay layer through core; sessions stores them but does not call relay APIs.
 
 ### Storage boundary
-- All persistence goes through `SessionStoreAdapter`. The adapter is provided by the caller or by a platform package (e.g., `@relay-assistant/platform-redis`). Sessions never imports a specific storage driver.
+- All persistence goes through `SessionStoreAdapter`. The adapter is provided by the caller or by a platform package (e.g., `@agent-assistant/platform-redis`). Sessions never imports a specific storage driver.
 
 ---
 

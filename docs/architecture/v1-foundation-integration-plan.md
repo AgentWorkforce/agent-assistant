@@ -1,5 +1,7 @@
 # V1 Foundation Integration Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-11
 **Scope:** WF-4 (core + sessions) and WF-6 (core + sessions + surfaces)
 **Status:** Planning

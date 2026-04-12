@@ -8,7 +8,7 @@ Revised: 2026-04-11 (sdk-audit-and-traits-alignment-plan — traits/persona laye
 This document defines what belongs in:
 
 - Relay foundation repos
-- `relay-agent-assistant` OSS SDK packages
+- `agent-assistant-sdk` OSS SDK packages
 - product repositories such as Sage, MSD, and NightCTO
 
 The goal is to prevent duplicate assistant-runtime work while avoiding leakage of transport infrastructure or product-specific behavior into the wrong layer.
@@ -39,7 +39,7 @@ These are distinct concerns that solve different problems. Do not conflate them.
 
 Personas answer: **"What runtime configuration should this agent use to execute a task?"**
 
-**Assistant traits** are identity and behavioral characteristics owned by this SDK (future `@relay-assistant/traits` package). Traits define:
+**Assistant traits** are identity and behavioral characteristics owned by this SDK (future `@agent-assistant/traits` package). Traits define:
 - voice and communication style
 - domain vocabulary and framing
 - behavioral defaults (proactivity level, formality, risk tolerance)
@@ -50,7 +50,7 @@ Traits answer: **"How should this assistant present itself and behave across int
 
 A workforce persona's `systemPrompt` may **embed** trait values (e.g., "You are Sage, a knowledge-focused assistant who speaks concisely"), but the prompt is a persona artifact. Traits are the **source data** that prompts, formatters, and behavioral policies read from. Products compose traits into personas, not the other way around.
 
-See [traits-and-persona-layer.md](traits-and-persona-layer.md) for the full boundary definition, integration points, and the proposed `@relay-assistant/traits` package spec.
+See [traits-and-persona-layer.md](traits-and-persona-layer.md) for the full boundary definition, integration points, and the proposed `@agent-assistant/traits` package spec.
 
 ---
 
@@ -76,12 +76,12 @@ Examples that stay out of this repo:
 - generic cron registration
 - raw `spawn_agent` or message-delivery plumbing
 
-### Relay Agent Assistant SDK
+### Agent Assistant SDK SDK
 
 This repo should own reusable assistant-runtime behavior:
 
 - assistant definition and capability registration
-- assistant identity traits (voice, style, behavioral defaults) — see `@relay-assistant/traits`
+- assistant identity traits (voice, style, behavioral defaults) — see `@agent-assistant/traits`
 - memory scopes, retrieval, persistence contracts, promotion, compaction
 - proactive engines, watch rules, reminders, scheduler bindings
 - assistant session continuity across surfaces
@@ -120,7 +120,7 @@ Examples:
 
 ## Package Responsibilities
 
-### `@relay-assistant/core`
+### `@agent-assistant/core`
 
 **Implementation status: IMPLEMENTED — 44 tests passing, `SPEC_RECONCILED`**
 
@@ -133,8 +133,8 @@ Owns:
 
 Identity scope note:
 - `core` owns `id`, `name`, `description?` — the minimum identity fields needed to run an assistant
-- Behavioral identity (voice, style, vocabulary, proactivity) will live in `@relay-assistant/traits` when extracted
-- `AssistantDefinition` does **not** have a `traits` field yet. When `@relay-assistant/traits` ships in v1.2, a `traits?: TraitsProvider` optional field will be added. Do not add it prematurely — the current types.ts has no such field and that is correct.
+- Behavioral identity (voice, style, vocabulary, proactivity) will live in `@agent-assistant/traits` when extracted
+- `AssistantDefinition` does **not** have a `traits` field yet. When `@agent-assistant/traits` ships in v1.2, a `traits?: TraitsProvider` optional field will be added. Do not add it prematurely — the current types.ts has no such field and that is correct.
 
 Composition note:
 - `core` should not become a heavy package that hard-depends on every other package by default
@@ -147,7 +147,7 @@ Must not own:
 - product workflows
 - workforce persona definitions
 
-### `@relay-assistant/traits` (planned — v1.2)
+### `@agent-assistant/traits` (planned — v1.2)
 
 **Implementation status: NOT IMPLEMENTED — no spec, no types, no placeholder**
 
@@ -171,7 +171,7 @@ Dependency direction: traits has zero upstream dependencies on other SDK package
 
 See [traits-and-persona-layer.md](traits-and-persona-layer.md) for full spec.
 
-### `@relay-assistant/memory`
+### `@agent-assistant/memory`
 
 **Implementation status: placeholder — spec exists (`v1-memory-spec.md`, `IMPLEMENTATION_READY`); roadmap: v1.1**
 
@@ -192,7 +192,7 @@ Must not own:
 - one product's tag taxonomy
 - one surface's thread model as the only memory key shape
 
-### `@relay-assistant/proactive`
+### `@agent-assistant/proactive`
 
 **Implementation status: placeholder — no formal spec; roadmap: v1.2**
 
@@ -209,7 +209,7 @@ Must not own:
 - product-only trigger logic
 - surface-specific evidence collection that cannot generalize
 
-### `@relay-assistant/sessions`
+### `@agent-assistant/sessions`
 
 **Implementation status: IMPLEMENTED — 25 tests passing, `IMPLEMENTATION_READY`**
 
@@ -225,7 +225,7 @@ Must not own:
 - raw transport sessions
 - provider webhook semantics
 
-### `@relay-assistant/surfaces`
+### `@agent-assistant/surfaces`
 
 **Implementation status: IMPLEMENTED — 28 tests passing, `SPEC_RECONCILED`**
 
@@ -246,7 +246,7 @@ Must not own:
 - webhook verification
 - provider SDK clients as foundational transport code
 
-### `@relay-assistant/coordination`
+### `@agent-assistant/coordination`
 
 **Implementation status: IMPLEMENTED — 45 tests passing**
 
@@ -263,7 +263,7 @@ Must not own:
 - a fixed specialist lineup for any one product
 - product-specific dispatch heuristics that cannot generalize
 
-### `@relay-assistant/connectivity`
+### `@agent-assistant/connectivity`
 
 **Implementation status: IMPLEMENTED — 87 tests passing, `IMPLEMENTATION_READY`**
 
@@ -280,7 +280,7 @@ Must not own:
 - product-specific specialist registries
 - generic user-facing messaging APIs
 
-### `@relay-assistant/routing`
+### `@agent-assistant/routing`
 
 **Implementation status: IMPLEMENTED — 12 tests passing**
 
@@ -300,7 +300,7 @@ Must not own:
 - product-specific commercial routing rules
 - workforce persona names or tier mapping — products map between SDK modes and workforce tiers
 
-### `@relay-assistant/policy`
+### `@agent-assistant/policy`
 
 **Implementation status: placeholder — no formal spec; roadmap: v2**
 
@@ -315,7 +315,7 @@ Must not own:
 
 - one product's commercial rules or customer-tier behavior
 
-### `@relay-assistant/examples`
+### `@agent-assistant/examples`
 
 **Implementation status: placeholder**
 
@@ -352,10 +352,10 @@ Consumers should import only the package boundaries they need.
 
 Examples:
 
-- a simple assistant may import `@relay-assistant/core`, `@relay-assistant/sessions`, and `@relay-assistant/surfaces`
-- a memory-heavy assistant may additionally import `@relay-assistant/memory`
-- a specialist-based assistant may add `@relay-assistant/coordination` and `@relay-assistant/policy`
-- an assistant with consistent behavioral identity may add `@relay-assistant/traits` (v1.2)
+- a simple assistant may import `@agent-assistant/core`, `@agent-assistant/sessions`, and `@agent-assistant/surfaces`
+- a memory-heavy assistant may additionally import `@agent-assistant/memory`
+- a specialist-based assistant may add `@agent-assistant/coordination` and `@agent-assistant/policy`
+- an assistant with consistent behavioral identity may add `@agent-assistant/traits` (v1.2)
 
 Consumers should not import Relay infrastructure directly to bypass assistant-level contracts unless they are implementing a transport adapter or other foundational infrastructure outside this repo.
 
@@ -379,7 +379,7 @@ Architectural implication for current memory work:
 
 ## Future Memory and Policy Capability: Private/Shared Memory Compartments
 
-RelayAssistant should explicitly support a compartment model rather than one flat assistant memory pool.
+Agent Assistant SDK should explicitly support a compartment model rather than one flat assistant memory pool.
 
 Target shape over time:
 - per-user private memory rooms for personal agents (for example Telegram/WhatsApp direct agents)

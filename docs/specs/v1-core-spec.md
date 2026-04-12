@@ -1,15 +1,15 @@
-# v1 Core Spec — `@relay-assistant/core`
+# v1 Core Spec — `@agent-assistant/core`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/core`
+**Package:** `@agent-assistant/core`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 
 ---
 
 ## 1. Responsibilities
 
-`@relay-assistant/core` is the root composition layer. Every other package in this SDK depends on contracts exported from core; core depends on nothing else in this monorepo.
+`@agent-assistant/core` is the root composition layer. Every other package in this SDK depends on contracts exported from core; core depends on nothing else in this monorepo.
 
 **Owns:**
 - `AssistantDefinition` — the declarative config struct describing an assistant's identity, capabilities, and runtime constraints
@@ -18,14 +18,14 @@
 - Lifecycle hooks — `onStart`, `onStop`, `onMessage`, `onError` (synchronous signatures; async adapters are the caller's responsibility)
 - Health/readiness probe — `runtime.status()` returns a structured object suitable for a health endpoint
 
-> **Normalization boundary:** Core does not normalize raw relay events. It receives already-normalized `InboundMessage` objects from the surfaces layer. The `SurfaceRegistry` (from `@relay-assistant/surfaces`) implements core's `RelayInboundAdapter` interface and performs normalization before calling the registered handler. See Contradiction 1 resolution in `docs/architecture/spec-reconciliation-rules.md`.
+> **Normalization boundary:** Core does not normalize raw relay events. It receives already-normalized `InboundMessage` objects from the surfaces layer. The `SurfaceRegistry` (from `@agent-assistant/surfaces`) implements core's `RelayInboundAdapter` interface and performs normalization before calling the registered handler. See Contradiction 1 resolution in `docs/architecture/spec-reconciliation-rules.md`.
 
 **Does NOT own:**
-- Session state (→ `@relay-assistant/sessions`)
-- Surface I/O (→ `@relay-assistant/surfaces`)
-- Memory retrieval or storage (→ `@relay-assistant/memory`)
-- Model selection or routing (→ `@relay-assistant/routing`)
-- Multi-agent coordination (→ `@relay-assistant/coordination`)
+- Session state (→ `@agent-assistant/sessions`)
+- Surface I/O (→ `@agent-assistant/surfaces`)
+- Memory retrieval or storage (→ `@agent-assistant/memory`)
+- Model selection or routing (→ `@agent-assistant/routing`)
+- Multi-agent coordination (→ `@agent-assistant/coordination`)
 - Any transport protocol, HTTP server, or relay socket management (→ relay foundation layer)
 
 ---
@@ -35,7 +35,7 @@
 - Core does not start a web server, open sockets, or manage relay connections. Those belong to the relay foundation beneath this SDK.
 - Core does not implement retry logic, queue management, or delivery guarantees. Those are relay-layer concerns.
 - Core is not an orchestrator. It registers capabilities and dispatches events; it does not sequence multi-step workflows.
-- Core does not enforce action policy (→ `@relay-assistant/policy`).
+- Core does not enforce action policy (→ `@agent-assistant/policy`).
 - Core does not know about cloud infrastructure. All interfaces must be implementable by a self-hosted consumer without any private service.
 
 ---
@@ -283,7 +283,7 @@ Thrown by `runtime.emit()` when an `OutboundEvent` has neither `surfaceId` nor `
 - Nothing from this monorepo. Core is the dependency root.
 
 ### Depended on by (internal)
-- All other `@relay-assistant/*` packages import types from core.
+- All other `@agent-assistant/*` packages import types from core.
 
 ### Relay foundation boundary
 - Core calls into the relay foundation through **adapters**, not directly. Two adapter interfaces are defined in core:

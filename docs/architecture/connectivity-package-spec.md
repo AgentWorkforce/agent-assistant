@@ -6,7 +6,7 @@ Date: 2026-04-11
 
 ## Purpose
 
-This document defines the intended scope of `@relay-assistant/connectivity`.
+This document defines the intended scope of `@agent-assistant/connectivity`.
 
 The package owns focused internal coordination messages for assistant systems with multiple active components, specialists, or subsystems.
 
@@ -23,8 +23,8 @@ It exists to make internal communication:
 Connectivity sits:
 
 - above Relay transport and delivery primitives
-- beside `@relay-assistant/coordination`
-- adjacent to `@relay-assistant/routing`
+- beside `@agent-assistant/coordination`
+- adjacent to `@agent-assistant/routing`
 - below product-specific specialist behavior in Sage, MSD, NightCTO, and future assistants
 
 ## Core Thesis
@@ -69,7 +69,7 @@ Focused coordination messages solve for a different objective:
 
 ## Distinction From Adjacent Packages
 
-### vs `@relay-assistant/coordination`
+### vs `@agent-assistant/coordination`
 
 Coordination owns who is doing what.
 
@@ -88,7 +88,7 @@ Connectivity examples:
 - planner emits `handoff.ready`
 - policy gate emits `escalation.immediate`
 
-### vs `@relay-assistant/routing`
+### vs `@agent-assistant/routing`
 
 Routing chooses the operating envelope.
 
@@ -407,7 +407,7 @@ The package is on the right track when:
 - how much structured evidence should fit in one signal before summarization is required
 - whether signal replacement should be explicit or inferred
 - what the default suppression window should be for repeated low-value signals
-- how route-escalation hints should integrate with `@relay-assistant/routing`
+- how route-escalation hints should integrate with `@agent-assistant/routing`
 - which observability hooks belong in OSS vs cloud adapters
 
 CONNECTIVITY_SPEC_COMPLETE

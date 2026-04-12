@@ -1,5 +1,7 @@
 # v1 Traits-Core Integration Review Verdict
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-12
 **Scope reviewed:** `docs/architecture/v1-traits-core-integration-contract.md`, `docs/architecture/v1-traits-core-integration-plan.md`, `docs/architecture/v1-traits-core-integration-proof.md`, `packages/core/src/core-traits.test.ts`, `packages/core/src/core.ts`, `packages/core/src/types.ts`, `packages/core/README.md`
 **Verdict:** `PASS_WITH_FOLLOWUPS`

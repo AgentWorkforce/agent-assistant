@@ -1,7 +1,7 @@
 /**
  * 04 — Proactive Assistant
  *
- * Demonstrates the proactive engine from @relay-assistant/proactive wired
+ * Demonstrates the proactive engine from @agent-assistant/proactive wired
  * into a core assistant. The proactive engine manages follow-up rules (session
  * re-engagement) and watch rules (periodic condition checks). The assistant's
  * onStart hook registers rules and its capabilities act on proactive decisions.
@@ -13,20 +13,20 @@
  *   capabilities or emit path.
  */
 
-import { createAssistant } from '@relay-assistant/core';
+import { createAssistant } from '@agent-assistant/core';
 import type {
   InboundMessage,
   RelayInboundAdapter,
   RelayOutboundAdapter,
   OutboundEvent,
-} from '@relay-assistant/core';
+} from '@agent-assistant/core';
 import {
   createProactiveEngine,
   InMemorySchedulerBinding,
   type FollowUpRule,
   type WatchRule,
   type ProactiveEngine,
-} from '@relay-assistant/proactive';
+} from '@agent-assistant/proactive';
 
 // --- Adapters ------------------------------------------------------------
 

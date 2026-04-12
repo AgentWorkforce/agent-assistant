@@ -1,4 +1,4 @@
-# `@relay-assistant/policy`
+# `@agent-assistant/policy`
 
 **Status:** IMPLEMENTED
 **Version:** 0.1.0 (pre-1.0, provisional)
@@ -9,7 +9,7 @@
 
 ## What This Package Does
 
-`@relay-assistant/policy` is the classification, gating, and audit layer for assistant actions — the boundary between "the assistant decided to act" and "the action actually executes."
+`@agent-assistant/policy` is the classification, gating, and audit layer for assistant actions — the boundary between "the assistant decided to act" and "the action actually executes."
 
 It provides:
 
@@ -29,18 +29,18 @@ This package does **not** own approval UX, approval workflows, scheduling, notif
 ## Installation
 
 ```sh
-npm install @relay-assistant/policy
+npm install @agent-assistant/policy
 ```
 
-No `@relay-assistant/*` runtime dependencies. Only `nanoid` is required at runtime.
+No `@agent-assistant/*` runtime dependencies. Only `nanoid` is required at runtime.
 
 ---
 
 ## Quick Start
 
 ```ts
-import { createActionPolicy, InMemoryAuditSink } from '@relay-assistant/policy';
-import type { PolicyRule, RiskClassifier } from '@relay-assistant/policy';
+import { createActionPolicy, InMemoryAuditSink } from '@agent-assistant/policy';
+import type { PolicyRule, RiskClassifier } from '@agent-assistant/policy';
 
 const auditSink = new InMemoryAuditSink();
 
@@ -328,7 +328,7 @@ const engine = createActionPolicy({ auditSink: { record: async () => {} } });
 The policy package does not read traits directly. Products map trait values to policy configuration at setup time:
 
 ```ts
-import { createActionPolicy } from '@relay-assistant/policy';
+import { createActionPolicy } from '@agent-assistant/policy';
 
 const policyEngine = createActionPolicy({
   fallbackDecision: traits.riskTolerance === 'cautious' ? 'deny' : 'require_approval',
@@ -384,8 +384,8 @@ class ClassificationError extends PolicyError { cause?: unknown }
 | User authentication and identity | Relay foundation (relayauth) |
 | Fleet-level rate limiting | Relay foundation / cloud infra |
 | Content moderation and safety filtering | External services / product repos |
-| Session lifecycle | `@relay-assistant/sessions` |
-| Outbound message delivery | `@relay-assistant/surfaces` + Relay runtime |
+| Session lifecycle | `@agent-assistant/sessions` |
+| Outbound message delivery | `@agent-assistant/surfaces` + Relay runtime |
 | Hosted audit pipelines and storage | `AgentWorkforce/cloud` |
 | Persistent rule storage | Deferred to v1.1 |
 | Time-based auto-escalation | Deferred to v1.1 |

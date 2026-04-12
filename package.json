@@ -1,5 +1,5 @@
 {
-  "name": "relay-agent-assistant-monorepo",
+  "name": "agent-assistant-sdk-monorepo",
   "version": "0.1.0",
   "private": true,
   "workspaces": [

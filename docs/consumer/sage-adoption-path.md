@@ -13,9 +13,9 @@ Three of four ready-now packages apply to Sage at v1. Policy is deferred until p
 
 | Package | Version/Status | Why |
 |---|---|---|
-| `@relay-assistant/core` | SPEC_RECONCILED, 31 tests | Runtime, lifecycle, dispatch — universal foundation |
-| `@relay-assistant/traits` | IMPLEMENTATION_READY, 32 tests | Sage identity (conversational, knowledge-focused, high proactivity) |
-| `@relay-assistant/proactive` | implemented, 45 tests | Sage's core value — follow-up, re-engagement, stale-thread handling |
+| `@agent-assistant/core` | SPEC_RECONCILED, 31 tests | Runtime, lifecycle, dispatch — universal foundation |
+| `@agent-assistant/traits` | IMPLEMENTATION_READY, 32 tests | Sage identity (conversational, knowledge-focused, high proactivity) |
+| `@agent-assistant/proactive` | implemented, 45 tests | Sage's core value — follow-up, re-engagement, stale-thread handling |
 
 Policy is deferred — see Deferred Packages below.
 
@@ -23,11 +23,11 @@ Do not adopt any of the following at v1:
 
 | Package | Block reason |
 |---|---|
-| `@relay-assistant/policy` | Not immediately required; defer until proactive actions need gating (v1.2) |
-| `@relay-assistant/memory` | `@agent-relay/memory` dep missing — evaluate existing Relay memory before any greenfield |
-| `@relay-assistant/coordination` | Tests blocked; depends on `@relay-assistant/connectivity` |
-| `@relay-assistant/connectivity` | `nanoid` dep missing — tests blocked |
-| `@relay-assistant/routing` | 12/40+ tests — DoD gap |
+| `@agent-assistant/policy` | Not immediately required; defer until proactive actions need gating (v1.2) |
+| `@agent-assistant/memory` | `@agent-relay/memory` dep missing — evaluate existing Relay memory before any greenfield |
+| `@agent-assistant/coordination` | Tests blocked; depends on `@agent-assistant/connectivity` |
+| `@agent-assistant/connectivity` | `nanoid` dep missing — tests blocked |
+| `@agent-assistant/routing` | 12/40+ tests — DoD gap |
 
 ---
 
@@ -55,7 +55,7 @@ These concerns stay in the Sage product repo. Do not move them into the SDK.
 | Workspace knowledge workflows and context shaping | Sage product domain — does not generalize |
 | Product-specific follow-up heuristics | Delivered as `condition` functions on proactive rules; the conditions themselves are Sage logic |
 | Slack-specific behavior | May move to SDK later if MSD/NightCTO also need it; not general enough at v1 |
-| Memory retrieval and workspace context assembly | Until `@relay-assistant/memory` ships in v1.1; even then, workspace-scope memory is Sage-owned |
+| Memory retrieval and workspace context assembly | Until `@agent-assistant/memory` ships in v1.1; even then, workspace-scope memory is Sage-owned |
 | Knowledge digest generation | Sage-specific output format |
 | Workforce persona definitions | Model, harness, system prompt, tier — stay in Workforce, never in the SDK |
 | Product prompts and instruction sets | Sage-specific content |
@@ -119,11 +119,11 @@ Each item must be classified as **Demonstrated**, **Inspectable**, or **Planned*
 
 | Package | What unblocks it | When |
 |---|---|---|
-| `@relay-assistant/policy` | Proactive follow-ups require explicit gating; Sage product team prioritizes it | v1.2 — upgrade to `05-full-assembly.ts` pattern at that point |
-| `@relay-assistant/memory` | Evaluate `@agent-relay/memory` first; only proceed if it does not satisfy workspace-scope continuity needs | v1.1 — do not build greenfield |
-| `@relay-assistant/coordination` | `nanoid` dep resolved, connectivity tests pass | v1.2 (lower priority for Sage) |
+| `@agent-assistant/policy` | Proactive follow-ups require explicit gating; Sage product team prioritizes it | v1.2 — upgrade to `05-full-assembly.ts` pattern at that point |
+| `@agent-assistant/memory` | Evaluate `@agent-relay/memory` first; only proceed if it does not satisfy workspace-scope continuity needs | v1.1 — do not build greenfield |
+| `@agent-assistant/coordination` | `nanoid` dep resolved, connectivity tests pass | v1.2 (lower priority for Sage) |
 
-**Memory note:** Before any `@relay-assistant/memory` work, Sage must evaluate whether `@agent-relay/memory` already satisfies workspace-scope continuity. Prefer wrapping/adapting over greenfield implementation.
+**Memory note:** Before any `@agent-assistant/memory` work, Sage must evaluate whether `@agent-relay/memory` already satisfies workspace-scope continuity. Prefer wrapping/adapting over greenfield implementation.
 
 ---
 

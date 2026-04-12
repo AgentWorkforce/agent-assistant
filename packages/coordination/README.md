@@ -1,6 +1,6 @@
-# `@relay-assistant/coordination`
+# `@agent-assistant/coordination`
 
-`@relay-assistant/coordination` implements the bounded v1 many-agents-one-assistant runtime for Relay Agent Assistant. It provides a specialist registry, delegation plan validation, sequential coordinator execution, synthesis helpers, and clean integration with `@relay-assistant/connectivity` for handoffs, conflicts, and escalations.
+`@agent-assistant/coordination` implements the bounded v1 many-agents-one-assistant runtime for Agent Assistant SDK. It provides a specialist registry, delegation plan validation, sequential coordinator execution, synthesis helpers, and clean integration with `@agent-assistant/connectivity` for handoffs, conflicts, and escalations.
 
 ## Scope
 
@@ -31,7 +31,7 @@ import {
   createSpecialistRegistry,
   createSynthesizer,
   validateDelegationPlan,
-} from '@relay-assistant/coordination';
+} from '@agent-assistant/coordination';
 ```
 
 ## Core Concepts
@@ -86,7 +86,7 @@ const plan = createDelegationPlan(
 The coordinator validates the plan, executes each step in order, observes connectivity signals on the turn thread, and synthesizes a final output.
 
 ```ts
-import { createConnectivityLayer } from '@relay-assistant/connectivity';
+import { createConnectivityLayer } from '@agent-assistant/connectivity';
 
 const connectivity = createConnectivityLayer();
 
@@ -102,7 +102,7 @@ console.log(turn.output.text);
 
 ## Connectivity Boundary
 
-Coordination depends on `@relay-assistant/connectivity` as a signaling substrate only.
+Coordination depends on `@agent-assistant/connectivity` as a signaling substrate only.
 
 What coordination does with connectivity:
 

@@ -247,14 +247,14 @@ jobs:
           name: manifest-${{ matrix.package }}
           path: packages/${{ matrix.package }}
 
-      - name: Publish @relay-assistant/${{ matrix.package }}
+      - name: Publish @agent-assistant/${{ matrix.package }}
         if: ${{ github.event.inputs.dry_run != 'true' }}
         working-directory: packages/${{ matrix.package }}
         run: npm publish --access public --provenance --tag ${{ github.event.inputs.tag }} --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Dry run publish — @relay-assistant/${{ matrix.package }}
+      - name: Dry run publish — @agent-assistant/${{ matrix.package }}
         if: ${{ github.event.inputs.dry_run == 'true' }}
         working-directory: packages/${{ matrix.package }}
         run: npm publish --access public --dry-run --ignore-scripts

@@ -1,8 +1,8 @@
-# v1 Policy Spec — `@relay-assistant/policy`
+# v1 Policy Spec — `@agent-assistant/policy`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-12
-**Package:** `@relay-assistant/policy`
+**Package:** `@agent-assistant/policy`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 **Roadmap stage:** v1.4 (after core, sessions, surfaces, memory, connectivity, routing, coordination, proactive land)
 **Scope reference:** `docs/architecture/v1-policy-scope.md`
@@ -11,7 +11,7 @@
 
 ## 1. Responsibilities
 
-`@relay-assistant/policy` provides the **classification, gating, and audit contract** for assistant actions — the layer between "the assistant decided to act" and "the action actually executes."
+`@agent-assistant/policy` provides the **classification, gating, and audit contract** for assistant actions — the layer between "the assistant decided to act" and "the action actually executes."
 
 **Owns:**
 - `PolicyEngine` — the central evaluator for action risk, rule matching, and decisions
@@ -475,8 +475,8 @@ class ClassificationError extends PolicyError {
 ### 10.1 Basic Setup
 
 ```ts
-import { createActionPolicy, InMemoryAuditSink } from '@relay-assistant/policy';
-import type { PolicyRule, RiskClassifier } from '@relay-assistant/policy';
+import { createActionPolicy, InMemoryAuditSink } from '@agent-assistant/policy';
+import type { PolicyRule, RiskClassifier } from '@agent-assistant/policy';
 
 const auditSink = new InMemoryAuditSink();
 

@@ -1,5 +1,7 @@
 # Publish Package Readiness Matrix — RelayAssistant
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 > Authoritative publish-now vs defer decision matrix for all `@relay-assistant/*` packages.
 > Derived from the publish infrastructure contract, current package state, and per-package test status.
 > Date: 2026-04-12

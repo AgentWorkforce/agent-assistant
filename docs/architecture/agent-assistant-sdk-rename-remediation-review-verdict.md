@@ -4,65 +4,68 @@ Date: 2026-04-12
 
 ## Verdict
 
-**FAIL**
+**PASS_WITH_FOLLOWUPS**
 
-The remediation fixes the original high-signal rename defects in active workflow IDs and the broken consumer-doc filename, but it does **not** leave workflow/doc/public surfaces fully consistent. The rename should **not** yet be treated as operationally complete.
+The remediation closes the original blocking rename defects: active `relay-assistant-*` workflow IDs are gone, the consumer-adoption doc path is fixed, and package/public install surfaces now use `@agent-assistant/*`. However, the repo is not yet perfectly consistent: one active workflow still references a nonexistent renamed architecture-draft filename, and the remediation report records a narrowed V6 interpretation rather than satisfying the boundary's literal zero-match rule. That is enough to keep this from being a clean unconditional PASS, but not enough to justify FAIL given that the original blockers are resolved.
 
 ---
 
 ## Findings
 
-### 1. Public docs index still links to a nonexistent renamed architecture draft
+### 1. One active workflow still points at a nonexistent renamed architecture draft
 
-- [docs/index.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/index.md:36) links to `architecture/2026-04-11-agent-assistant-sdk-architecture-draft.md`.
-- The file that actually exists on disk is [docs/architecture/2026-04-11-relay-agent-assistant-architecture-draft.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/2026-04-11-relay-agent-assistant-architecture-draft.md:1).
-- This is a broken public navigation path in the main docs entrypoint, so workflow/doc/public surfaces are not yet consistent.
+- [workflows/docs-first-sdk-scaffold.ts](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/workflows/docs-first-sdk-scaffold.ts:49) reads `docs/architecture/2026-04-11-agent-assistant-sdk-architecture-draft.md`.
+- The file that actually exists is [docs/architecture/2026-04-11-relay-agent-assistant-architecture-draft.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/2026-04-11-relay-agent-assistant-architecture-draft.md:1).
+- Because that step uses `failOnError: true`, this is a live workflow-surface inconsistency, not just historical wording.
 
-### 2. The remediation report overstates validation criterion V6
+### 2. The remediation report does not literally satisfy its own boundary criterion V6
 
-- The boundary defines completion criterion 6 as zero matches for `how-products-should-adopt-relay-agent-assistant` across `README.md docs/ workflows/` in [agent-assistant-sdk-rename-remediation-boundary.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/agent-assistant-sdk-rename-remediation-boundary.md:163).
-- The report records this as `PASS*` with an exception in [agent-assistant-sdk-rename-remediation-report.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/agent-assistant-sdk-rename-remediation-report.md:92).
-- That is not the same as the stated validation rule. The report is materially closer to correct than the prior overclaiming, but it still does not strictly satisfy the boundary it claims to have passed.
+- The boundary still defines V6 as zero matches for `how-products-should-adopt-relay-agent-assistant` across `README.md docs/ workflows/` in [docs/architecture/agent-assistant-sdk-rename-remediation-boundary.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/agent-assistant-sdk-rename-remediation-boundary.md:163).
+- The report records a scoped variant instead, limited to navigation surfaces, in [docs/architecture/agent-assistant-sdk-rename-remediation-report.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture/agent-assistant-sdk-rename-remediation-report.md:113).
+- The exact boundary command still returns matches in the rename-tracking docs themselves, so the report is directionally reasonable but not literally true against the boundary as written.
 
 ---
 
 ## Confirmed Fixed
 
-- Active workflow IDs no longer use `relay-assistant-*` or `rename-relay-*`; current `workflow('...')` declarations are on `agent-assistant-*`, `agent-assistant-sdk-*`, or the renamed `rename-to-agent-assistant-sdk` form.
-- The consumer adoption doc has been renamed to [docs/consumer/how-products-should-adopt-agent-assistant-sdk.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/consumer/how-products-should-adopt-agent-assistant-sdk.md:1), and the old file no longer exists.
-- Package manifests reviewed in `package.json` and `packages/*/package.json` consistently use the `@agent-assistant/*` scope.
-- README public-facing package/install/docs references are aligned with the renamed package scope and consumer-doc path.
+- `rg "workflow\\('relay-assistant-" workflows/` returns zero results.
+- `rg "workflow\\('rename-relay-" workflows/` returns zero results.
+- `rg "@relay-assistant" workflows/` returns zero results.
+- [README.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/README.md:17) and [docs/index.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/index.md:49) now point at `@agent-assistant/*` and the renamed consumer-adoption doc.
+- `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` exists, and `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` no longer exists.
+- Root and package manifests now use the renamed surfaces, including [package.json](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/package.json:2) and `packages/*/package.json`.
+- The publish workflow now publishes `@agent-assistant/*` package names in [.github/workflows/publish.yml](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/.github/workflows/publish.yml:250).
 
 ---
 
 ## Assessment
 
 1. Are the blocking rename issues actually fixed?
-Yes, the originally identified workflow-ID and broken consumer-doc-path blockers are fixed. The application report was also corrected substantially.
+Yes. The failed-review blockers are fixed: the old workflow IDs are gone, the broken consumer-doc rename issue is fixed, and README/package/workflow publish surfaces use the new package scope.
 
 2. Are workflow/doc/public surfaces now consistent?
-No. The broken docs-index architecture link is a live public inconsistency, and the remediation report still claims a boundary validation pass that is not literally true.
+Mostly, but not fully. Public navigation is now consistent, but workflow surfaces are not fully clean because `docs-first-sdk-scaffold.ts` still targets a nonexistent renamed architecture-draft file. The remediation report also remains slightly inconsistent with the boundary's literal V6 wording.
 
 3. Is the rename now ready to be treated as operationally complete?
-No. The rename is close, but the remaining docs-index break and validation overstatement should be resolved first.
+Not quite. It is close enough that the remediation should not be marked FAIL, but the remaining workflow-path mismatch and boundary/report mismatch should be closed before calling the rename fully operationally complete.
 
 4. PASS, PASS_WITH_FOLLOWUPS, or FAIL?
-**FAIL**
+**PASS_WITH_FOLLOWUPS**
 
 ---
 
-## Required Follow-up To Reach Pass
+## Follow-Ups Required For Full Pass
 
-- Fix the docs index link at [docs/index.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/index.md:36) so it points to the real architecture draft filename, or rename the underlying file to match the published link target.
+- Update [workflows/docs-first-sdk-scaffold.ts](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/workflows/docs-first-sdk-scaffold.ts:49) to read the real architecture-draft filename, or rename the draft file to the published target.
 - Reconcile V6 between the boundary and the remediation report:
-  - either narrow the boundary criterion so the boundary doc itself is explicitly exempted, or
-  - update the report to say the criterion does not strictly pass as currently written.
+  - either narrow the boundary to explicitly exempt rename-tracking artifacts, or
+  - update the report to say the literal boundary command does not pass as written.
 
 ---
 
 ## Summary
 
-I reviewed the remediation boundary, remediation report, README, workflow IDs, package manifests, and public docs surfaces. The original rename blockers are largely fixed, but the remediation is not yet operationally complete because a public docs-index link is broken and the remediation report still overclaims one validation result.
+I reviewed the remediation boundary, remediation report, README, current workflow IDs, changed docs/workflow markdown, publish workflow, and root/package manifests. The original rename blockers are fixed and the repo is substantially aligned on `Agent Assistant SDK` / `@agent-assistant/*`, but one active workflow still references a nonexistent renamed file and the remediation report still softens one boundary criterion instead of meeting it literally.
 
 Artifact produced:
 - `docs/architecture/agent-assistant-sdk-rename-remediation-review-verdict.md`

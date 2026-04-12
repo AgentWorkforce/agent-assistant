@@ -1,5 +1,7 @@
 # v1 Memory Review Verdict
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Verdict:** PASS_WITH_FOLLOWUPS
 **Date:** 2026-04-11
 **Scope reviewed:** `docs/architecture/v1-memory-scope.md`, `docs/specs/v1-memory-spec.md`, `docs/architecture/v1-memory-implementation-plan.md`, `docs/research/memory-reuse-investigation.md`, `packages/memory/README.md`, `../relay/packages/memory/src/index.ts`, `../relay/packages/memory/src/types.ts`, `../relay/packages/memory/src/service.ts`, `../relay/packages/memory/src/adapters/inmemory.ts`, `../relay/packages/memory/src/adapters/supermemory.ts`, `../relay/packages/memory/package.json`

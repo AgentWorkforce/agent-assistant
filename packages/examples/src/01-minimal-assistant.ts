@@ -12,12 +12,12 @@
 import {
   createAssistant,
   type InboundMessage,
-} from '@relay-assistant/core';
+} from '@agent-assistant/core';
 import type {
   RelayInboundAdapter,
   RelayOutboundAdapter,
   OutboundEvent,
-} from '@relay-assistant/core';
+} from '@agent-assistant/core';
 
 // --- Adapters (product-owned) -------------------------------------------
 

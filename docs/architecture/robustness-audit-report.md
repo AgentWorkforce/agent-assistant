@@ -1,5 +1,7 @@
 # Robustness Audit Report — 2026-04-12
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Auditor:** automated (non-interactive worker agent)
 **Standard:** `docs/architecture/robustness-audit-standard.md`
 **Scope:** All packages under `packages/`, consumer docs under `docs/consumer/`, current-state doc at `docs/current-state.md`
@@ -98,7 +100,7 @@
 
   Reality: Both packages have substantial implementations. `packages/proactive/src/proactive.ts` is ~391 lines with a full `createProactiveEngine` factory, `InMemorySchedulerBinding`, follow-up rules, watch rules, suppression logic, and reminder state management. `packages/policy/src/policy.ts` is ~178 lines with a full `createActionPolicy` factory, rule priority sorting, classifier validation, approval correlation, and audit sink integration. Both have passing test suites (53 and 64 tests respectively). Both have specs: `docs/specs/v1-proactive-spec.md` and `docs/specs/v1-policy-spec.md` exist.
 
-  Consumer docs (`docs/consumer/how-products-should-adopt-relay-agent-assistant.md`, `docs/consumer/how-to-build-an-assistant.md`) correctly call them "implemented" — the stale document is `current-state.md`.
+  Consumer docs (`docs/consumer/how-products-should-adopt-agent-assistant-sdk.md`, `docs/consumer/how-to-build-an-assistant.md`) correctly call them "implemented" — the stale document is `current-state.md`.
 - **Remediation:** Update `current-state.md` package status table: change policy and proactive from "placeholder" to "IMPLEMENTED", update spec status from "none" to "IMPLEMENTATION_READY", add them to the test results table with accurate counts, and update the V1 Baseline section to include them.
 
 #### Check 2.3: "Stable" or "v1 baseline" claims have passing test suites
@@ -125,13 +127,13 @@
 #### Check 2.6: Consumer-facing docs do not reference unimplemented features as available
 - **Status:** CONFIRMED
 - **Severity:** HIGH
-- **Evidence:** `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` product-specific guidance section (lines 54–110) recommends:
+- **Evidence:** `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` product-specific guidance section (lines 54–110) recommends:
   - **Sage**: "Adopt first: `@relay-assistant/memory`" — memory is a placeholder, blocked by `file:../../../relay/packages/memory` dep
   - **NightCTO**: "Adopt first: `@relay-assistant/coordination`" — coordination tests blocked; no dist artifact
   - **NightCTO**: "Adopt first: `@relay-assistant/memory`" — same blocker
 
   The later section of the same document (v1 Package Status table, lines 154–171) correctly says "Do not adopt" for memory, coordination, and connectivity. The document contains contradictory guidance in the same file — older product-guidance text vs. newer status table. The `docs/consumer/consumer-adoption-matrix.md` is accurate and marks these as "Do not adopt (blocked)."
-- **Remediation:** Remove or correct the Sage/NightCTO "Adopt first" recommendations in the product-specific guidance section of `how-products-should-adopt-relay-agent-assistant.md` to align with the v1 Package Status table already in that document.
+- **Remediation:** Remove or correct the Sage/NightCTO "Adopt first" recommendations in the product-specific guidance section of `how-products-should-adopt-agent-assistant-sdk.md` to align with the v1 Package Status table already in that document.
 
 ---
 
@@ -166,7 +168,7 @@
 #### Check 3.4: Product adoption paths reference only packages that pass their own tests
 - **Status:** CONFIRMED
 - **Severity:** HIGH
-- **Evidence:** As noted in 2.6, `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` (older guidance section) recommends blocked packages. `docs/consumer/consumer-adoption-matrix.md` and the v1 status table later in the same file correctly mark blocked packages as "Do not adopt." The contradiction is within the same document.
+- **Evidence:** As noted in 2.6, `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` (older guidance section) recommends blocked packages. `docs/consumer/consumer-adoption-matrix.md` and the v1 status table later in the same file correctly mark blocked packages as "Do not adopt." The contradiction is within the same document.
 - **Remediation:** Same as 2.6 — remove or correct the stale product-guidance section.
 
 ---
@@ -300,7 +302,7 @@
 #### Check 7.2: Product adoption paths do not recommend gated packages
 - **Status:** CONFIRMED
 - **Severity:** HIGH
-- **Evidence:** `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` product-specific guidance (lines 54–110) recommends:
+- **Evidence:** `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` product-specific guidance (lines 54–110) recommends:
   - **Sage**: "Adopt first: `@relay-assistant/memory`" — memory is a placeholder blocked by external dependency
   - **NightCTO**: "Adopt first: `@relay-assistant/coordination`" — tests blocked, no dist artifact
   - **NightCTO**: "Adopt first: `@relay-assistant/memory`" — blocked
@@ -308,7 +310,7 @@
   The v1 Package Status table later in the same file (lines 154–171) correctly marks these as "Do not adopt (blocked)." The document contradicts itself. The older guidance section was not updated when the status table was added.
 - **Remediation:** Revise the product-specific guidance sections (Sage/NightCTO adoption-first recommendations) to align with the v1 Package Status table. Mark memory and coordination as deferred in both sections.
 
-#### Check 7.3: `how-products-should-adopt-relay-agent-assistant.md` reflects current package status
+#### Check 7.3: `how-products-should-adopt-agent-assistant-sdk.md` reflects current package status
 - **Status:** CONFIRMED
 - **Severity:** MEDIUM
 - **Evidence:** The v1 Package Status table in the document accurately labels policy (64 tests, implemented, yes) and proactive (45 tests, implemented, yes). Sessions and surfaces are listed as "v1 baseline" with "—" for tests (no test count shown, though both have passing suites per current-state.md). The proactive test count "45 passing" differs from the actual `it()` count of 53 (minor overclaim). Core is listed as "40 passing" vs current-state.md's "31+6=37" (with additional untracked test files bringing it higher). These minor count mismatches are LOW severity compared to the structural contradictions already flagged.
@@ -333,7 +335,7 @@
 #### Check 7.6: No adoption doc recommends a package whose tests are blocked
 - **Status:** CONFIRMED
 - **Severity:** HIGH
-- **Evidence:** As documented in 2.6 and 7.2: `how-products-should-adopt-relay-agent-assistant.md` older guidance section recommends Sage adopt memory (blocked) and NightCTO adopt coordination (blocked) and memory (blocked). This is a direct violation. The newer v1 Package Status table in the same file is correct.
+- **Evidence:** As documented in 2.6 and 7.2: `how-products-should-adopt-agent-assistant-sdk.md` older guidance section recommends Sage adopt memory (blocked) and NightCTO adopt coordination (blocked) and memory (blocked). This is a direct violation. The newer v1 Package Status table in the same file is correct.
 - **Remediation:** Same as 2.6 and 7.2.
 
 ---

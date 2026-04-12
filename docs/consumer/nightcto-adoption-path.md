@@ -13,19 +13,19 @@ All four ready-now packages apply to NightCTO. Adopt in this order:
 
 | Package | Version/Status | Why |
 |---|---|---|
-| `@relay-assistant/core` | SPEC_RECONCILED, 31 tests | Runtime, lifecycle, dispatch — universal foundation |
-| `@relay-assistant/traits` | IMPLEMENTATION_READY, 32 tests | Founder/CTO identity established early; read-only, no downstream deps |
-| `@relay-assistant/policy` | implemented, 64 tests | Client-tier policy, cross-client data gating, escalation to human CTO |
-| `@relay-assistant/proactive` | implemented, 45 tests | Monitoring re-engagement, client thread check-in, stale pipeline follow-up |
+| `@agent-assistant/core` | SPEC_RECONCILED, 31 tests | Runtime, lifecycle, dispatch — universal foundation |
+| `@agent-assistant/traits` | IMPLEMENTATION_READY, 32 tests | Founder/CTO identity established early; read-only, no downstream deps |
+| `@agent-assistant/policy` | implemented, 64 tests | Client-tier policy, cross-client data gating, escalation to human CTO |
+| `@agent-assistant/proactive` | implemented, 45 tests | Monitoring re-engagement, client thread check-in, stale pipeline follow-up |
 
 Do not adopt any of the following at v1:
 
 | Package | Block reason |
 |---|---|
-| `@relay-assistant/memory` | `@agent-relay/memory` dep missing — placeholder only |
-| `@relay-assistant/coordination` | Tests blocked; depends on `@relay-assistant/connectivity` |
-| `@relay-assistant/connectivity` | `nanoid` dep missing — tests blocked |
-| `@relay-assistant/routing` | 12/40+ tests — DoD gap |
+| `@agent-assistant/memory` | `@agent-relay/memory` dep missing — placeholder only |
+| `@agent-assistant/coordination` | Tests blocked; depends on `@agent-assistant/connectivity` |
+| `@agent-assistant/connectivity` | `nanoid` dep missing — tests blocked |
+| `@agent-assistant/routing` | 12/40+ tests — DoD gap |
 
 ---
 
@@ -54,7 +54,7 @@ These concerns stay in the NightCTO product repo. Do not move them into the SDK.
 | Founder/CTO communication style and register | Highly personalized; not generalizable across other products |
 | Specialist lineup and dispatch logic | NightCTO's internal agent roster is product-specific |
 | Client-tier policy rules and service agreements | Business rules vary per client engagement |
-| Per-client memory and relationship continuity | Until `@relay-assistant/memory` ships (v1.1); even then, client-tier scoping is NightCTO-owned |
+| Per-client memory and relationship continuity | Until `@agent-assistant/memory` ships (v1.1); even then, client-tier scoping is NightCTO-owned |
 | Escalation routing and human-CTO notification | Product UX concern — not an SDK contract |
 | Monitoring window definitions | Domain-specific scheduling logic |
 | Workforce persona definitions | Model, harness, system prompt, tier — stay in Workforce, never in the SDK |
@@ -132,13 +132,13 @@ Each item must be classified as **Demonstrated**, **Inspectable**, or **Planned*
 
 | Package | What unblocks it | When |
 |---|---|---|
-| `@relay-assistant/memory` | `@agent-relay/memory` dep resolved; v1.1 milestone complete | v1.1 — defer per-client memory until then |
-| `@relay-assistant/coordination` | `nanoid` dep resolved, connectivity tests pass, coordination tests pass | v1.2 |
-| `@relay-assistant/connectivity` | `nanoid` installed in connectivity package | v1.2 (prerequisite for coordination) |
+| `@agent-assistant/memory` | `@agent-relay/memory` dep resolved; v1.1 milestone complete | v1.1 — defer per-client memory until then |
+| `@agent-assistant/coordination` | `nanoid` dep resolved, connectivity tests pass, coordination tests pass | v1.2 |
+| `@agent-assistant/connectivity` | `nanoid` installed in connectivity package | v1.2 (prerequisite for coordination) |
 
-When `@relay-assistant/memory` ships: integrate per-client memory scoped to `clientId`. Until then, NightCTO manages per-client continuity in product code.
+When `@agent-assistant/memory` ships: integrate per-client memory scoped to `clientId`. Until then, NightCTO manages per-client continuity in product code.
 
-When `@relay-assistant/coordination` ships: specialist lineup and dispatch logic may migrate partially to the SDK coordination contract. Product-specific specialist definitions stay local regardless.
+When `@agent-assistant/coordination` ships: specialist lineup and dispatch logic may migrate partially to the SDK coordination contract. Product-specific specialist definitions stay local regardless.
 
 ---
 

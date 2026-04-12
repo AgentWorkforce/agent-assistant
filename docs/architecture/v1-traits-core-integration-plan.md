@@ -1,5 +1,7 @@
 # v1 Traits-Core Integration Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-12
 **Packages:** `@relay-assistant/traits` (0.1.0), `@relay-assistant/core` (0.1.0)
 **Input:** v1-traits-package-review-verdict, v1-core-review-verdict, v1-traits-core-integration-contract

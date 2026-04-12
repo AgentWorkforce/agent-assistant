@@ -1,4 +1,4 @@
-# `@relay-assistant/proactive`
+# `@agent-assistant/proactive`
 
 **Status:** IMPLEMENTATION_READY
 **Version:** 0.1.0 (pre-1.0, provisional)
@@ -9,7 +9,7 @@
 
 ## What This Package Does
 
-`@relay-assistant/proactive` is the decision layer for proactive assistant behavior — any assistant action that originates without a direct user message in the current turn.
+`@agent-assistant/proactive` is the decision layer for proactive assistant behavior — any assistant action that originates without a direct user message in the current turn.
 
 It provides:
 
@@ -28,10 +28,10 @@ This package does **not** own scheduling infrastructure, session lifecycle, mess
 ## Installation
 
 ```sh
-npm install @relay-assistant/proactive
+npm install @agent-assistant/proactive
 ```
 
-No `@relay-assistant/*` runtime dependencies. Only `nanoid` is required at runtime.
+No `@agent-assistant/*` runtime dependencies. Only `nanoid` is required at runtime.
 
 ---
 
@@ -41,8 +41,8 @@ No `@relay-assistant/*` runtime dependencies. Only `nanoid` is required at runti
 import {
   createProactiveEngine,
   InMemorySchedulerBinding,
-} from '@relay-assistant/proactive';
-import type { FollowUpRule } from '@relay-assistant/proactive';
+} from '@agent-assistant/proactive';
+import type { FollowUpRule } from '@agent-assistant/proactive';
 
 // Wire a scheduler binding (InMemorySchedulerBinding for tests/dev)
 const schedulerBinding = new InMemorySchedulerBinding();
@@ -244,11 +244,11 @@ engine.resetReminderState('session-abc');
 | Scheduling infrastructure (timers, cron, dispatch) | Relay foundation (relaycron) |
 | Domain-specific rule definitions | Product repos |
 | Product-specific timing thresholds | Product configuration |
-| Memory persistence | `@relay-assistant/memory` (via `FollowUpEvidenceSource`) |
-| Session lifecycle | `@relay-assistant/sessions` |
-| Outbound message delivery | `@relay-assistant/surfaces` + Relay runtime |
-| Cross-agent coordination of proactive actions | `@relay-assistant/coordination` (v1.2) |
-| Proactive action rate limiting / budgets | `@relay-assistant/policy` (v2) |
+| Memory persistence | `@agent-assistant/memory` (via `FollowUpEvidenceSource`) |
+| Session lifecycle | `@agent-assistant/sessions` |
+| Outbound message delivery | `@agent-assistant/surfaces` + Relay runtime |
+| Cross-agent coordination of proactive actions | `@agent-assistant/coordination` (v1.2) |
+| Proactive action rate limiting / budgets | `@agent-assistant/policy` (v2) |
 
 ---
 

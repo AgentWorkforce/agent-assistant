@@ -1,6 +1,6 @@
-# @relay-assistant/routing
+# @agent-assistant/routing
 
-`@relay-assistant/routing` is the assistant-level routing package for model-selection policy. It implements the bounded v1 routing surface described in `docs/specs/v1-routing-spec.md`: cheap/fast/deep mode selection, abstract `ModelSpec` recommendations, per-thread cost tracking, latency-aware mode selection, and a narrow escalation hook for connectivity integration.
+`@agent-assistant/routing` is the assistant-level routing package for model-selection policy. It implements the bounded v1 routing surface described in `docs/specs/v1-routing-spec.md`: cheap/fast/deep mode selection, abstract `ModelSpec` recommendations, per-thread cost tracking, latency-aware mode selection, and a narrow escalation hook for connectivity integration.
 
 The package is TypeScript-first, provider-agnostic, and runnable in isolation. It does not call model providers, own transport, inspect user content, or import connectivity runtime code.
 
@@ -31,7 +31,7 @@ npm install
 ## API
 
 ```ts
-import { createRouter } from '@relay-assistant/routing';
+import { createRouter } from '@agent-assistant/routing';
 ```
 
 ### Core Types
@@ -51,7 +51,7 @@ import { createRouter } from '@relay-assistant/routing';
 ## Usage
 
 ```ts
-import { createRouter } from '@relay-assistant/routing';
+import { createRouter } from '@agent-assistant/routing';
 
 const router = createRouter({
   policy: {

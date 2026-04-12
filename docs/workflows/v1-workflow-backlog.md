@@ -18,11 +18,11 @@ Revised: 2026-04-11 (sdk-audit-and-traits-alignment-plan — implementation stat
 | WF-6: Multi-surface session fanout | core + sessions + surfaces | **COMPLETE** — `packages/core/src/core-sessions-surfaces.test.ts` (WF-6 label, line 99) covers multi-surface session attachment, fanout, targeted send, and detach behavior |
 | WF-7: End-to-end assembly | core + sessions + surfaces | **OPEN** — no assembly test in `packages/examples/src/` (directory not yet created); core/sessions/surfaces READMEs are substantive (not placeholders) |
 
-**Blocking DoD failure (not cleared):** `@relay-assistant/routing` has 12 tests against a required 40+ target. Routing is implemented but is gated from product consumption until this is resolved. See `docs/architecture/v1-routing-review-verdict.md` for F-1 (test count) and F-2 (escalated flag) details.
+**Blocking DoD failure (not cleared):** `@agent-assistant/routing` has 12 tests against a required 40+ target. Routing is implemented but is gated from product consumption until this is resolved. See `docs/architecture/v1-routing-review-verdict.md` for F-1 (test count) and F-2 (escalated flag) details.
 
 **Additional implemented packages (beyond WF-1 through WF-5 scope):**
-- `@relay-assistant/connectivity` — 87 tests passing
-- `@relay-assistant/coordination` — 45 tests passing; routing integration reviewed; escalation-routing pipeline dormant (v1 known gap)
+- `@agent-assistant/connectivity` — 87 tests passing
+- `@agent-assistant/coordination` — 45 tests passing; routing integration reviewed; escalation-routing pipeline dormant (v1 known gap)
 
 ---
 
@@ -162,7 +162,7 @@ Three cross-package contradictions identified in `docs/architecture/spec-reconci
 **Depends on:** WF-2, WF-3
 **Produces:** `runtime.register('sessions', store)`, session resolution in capability handler context, `resolveSession()` utility integration
 
-> **Cross-package note:** Sessions does not inject session middleware into core's dispatch pipeline. Products wire session lookups into capability handlers themselves using `context.runtime.get<SessionStore>('sessions')` and the `resolveSession()` utility exported by `@relay-assistant/sessions`. Core remains unaware of session semantics.
+> **Cross-package note:** Sessions does not inject session middleware into core's dispatch pipeline. Products wire session lookups into capability handlers themselves using `context.runtime.get<SessionStore>('sessions')` and the `resolveSession()` utility exported by `@agent-assistant/sessions`. Core remains unaware of session semantics.
 
 ---
 
@@ -220,7 +220,7 @@ Three cross-package contradictions identified in `docs/architecture/spec-reconci
 
 ### Steps
 
-1. Import only `@relay-assistant/core`, `@relay-assistant/sessions`, `@relay-assistant/surfaces` — no other packages
+1. Import only `@agent-assistant/core`, `@agent-assistant/sessions`, `@agent-assistant/surfaces` — no other packages
 2. Define `AssistantDefinition` with `id`, `name`, `capabilities: { chat: chatHandler }`
 3. Create `InMemorySessionStoreAdapter` and `createSessionStore({ adapter })`
 4. Create `createSurfaceRegistry()` with slack and web connections (stub adapters)
@@ -236,7 +236,7 @@ Three cross-package contradictions identified in `docs/architecture/spec-reconci
 ### Acceptance criteria
 
 - Full end-to-end cycle passes in a single test with no external dependencies
-- Assembly uses only `@relay-assistant/core`, `@relay-assistant/sessions`, `@relay-assistant/surfaces`
+- Assembly uses only `@agent-assistant/core`, `@agent-assistant/sessions`, `@agent-assistant/surfaces`
 - Assembly pattern matches the canonical pattern from `docs/architecture/spec-reconciliation-rules.md §3b`
 - The test passes without any cloud, network, or external dependency
 - Package READMEs for core, sessions, and surfaces are updated with real API docs replacing placeholder text
@@ -244,7 +244,7 @@ Three cross-package contradictions identified in `docs/architecture/spec-reconci
 
 ---
 
-## Open Routing Issues (gates product consumption of `@relay-assistant/routing`)
+## Open Routing Issues (gates product consumption of `@agent-assistant/routing`)
 
 These must be resolved before routing is consumed by any product:
 
@@ -316,7 +316,7 @@ Before authoring a new package implementation workflow, agents should inspect `r
 
 Specific instruction for memory:
 - use the existing `@agent-relay/memory` package as the starting point
-- treat `@relay-assistant/memory` as an assistant-facing integration/adaptation layer unless a clear gap requires new implementation work
+- treat `@agent-assistant/memory` as an assistant-facing integration/adaptation layer unless a clear gap requires new implementation work
 
 This applies equally to proactive, policy, and any future packages. Investigation is not optional — it is the first step.
 
@@ -332,7 +332,7 @@ A future **v5-v8 level** capability should add a librarian/night-crawler style s
 
 ## Future Track — Private and Shared Memory Compartments
 
-A future workflow/spec track should define how RelayAssistant supports:
+A future workflow/spec track should define how Agent Assistant SDK supports:
 - personal/private user agents
 - shared company/workspace agents
 - unified identity across surfaces

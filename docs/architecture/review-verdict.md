@@ -1,5 +1,7 @@
 # Review Verdict: Relay Agent Assistant Docs Scaffold
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 Date: 2026-04-11
 Verdict: **PASS_WITH_FOLLOWUPS**
 
@@ -31,12 +33,12 @@ Minor issue: there is no `docs/` index or sidebar document. Readers entering the
 
 `how-to-build-an-assistant.md` gives a concrete 7-step build order, product-specific package selection per assistant type, and explicit "what to avoid" guidance. This is the right shape for a developer onboarding doc.
 
-`how-products-should-adopt-relay-agent-assistant.md` gives a 4-step adoption sequence and per-product adoption priority with rationale. The decision test ("would Sage, MSD, and NightCTO all plausibly use this with different configuration or adapters") is a clean heuristic that teams can apply independently.
+`how-products-should-adopt-agent-assistant-sdk.md` gives a 4-step adoption sequence and per-product adoption priority with rationale. The decision test ("would Sage, MSD, and NightCTO all plausibly use this with different configuration or adapters") is a clean heuristic that teams can apply independently.
 
 Gaps:
 - There is no end-to-end pseudo-code assembly example. The illustrative imports in `how-to-build-an-assistant.md` are useful but stop short of showing how the pieces wire together even at a conceptual level. A single 20–30 line skeletal assembly example — even if entirely illustrative — would significantly reduce the activation energy for a new consumer.
 - No failure or degradation guidance. What should a product do if the session store is unavailable? If coordination fails mid-request? Even a one-paragraph stub on graceful degradation expectations would set the right tone for consumers.
-- The "MSD-style assistant" profile in `how-to-build-an-assistant.md` lists `core`, `sessions`, `surfaces`, `coordination`, `policy` but does not list `memory`. The `how-products-should-adopt-relay-agent-assistant.md` MSD section also omits `memory`. If MSD genuinely has no memory requirements, that should be stated explicitly rather than left as an implied omission.
+- The "MSD-style assistant" profile in `how-to-build-an-assistant.md` lists `core`, `sessions`, `surfaces`, `coordination`, `policy` but does not list `memory`. The `how-products-should-adopt-agent-assistant-sdk.md` MSD section also omits `memory`. If MSD genuinely has no memory requirements, that should be stated explicitly rather than left as an implied omission.
 
 ### 3. OSS vs cloud split
 

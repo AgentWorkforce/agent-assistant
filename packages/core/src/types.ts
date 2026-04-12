@@ -1,4 +1,4 @@
-import type { TraitsProvider } from '@relay-assistant/traits';
+import type { TraitsProvider } from '@agent-assistant/traits';
 
 export interface InboundMessage {
   id: string;

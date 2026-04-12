@@ -1,6 +1,6 @@
-# `@relay-assistant/core`
+# `@agent-assistant/core`
 
-`@relay-assistant/core` is the root composition package for the Relay Agent Assistant SDK. It defines the assistant contract, creates the runtime, dispatches normalized inbound messages to capability handlers, and emits outbound events through injected adapters.
+`@agent-assistant/core` is the root composition package for the Agent Assistant SDK SDK. It defines the assistant contract, creates the runtime, dispatches normalized inbound messages to capability handlers, and emits outbound events through injected adapters.
 
 The package is TypeScript-first, has no cloud assumptions, and does not implement sessions, surfaces, memory, routing, or product logic. Those concerns stay in later packages and integrate through abstract contracts defined here.
 
@@ -46,7 +46,7 @@ import {
   type AssistantDefinition,
   type InboundMessage,
   type OutboundEvent,
-} from "@relay-assistant/core";
+} from "@agent-assistant/core";
 ```
 
 ### `createAssistant(definition, adapters)`
@@ -109,7 +109,7 @@ runtime.register("sessions", {
 ## Example
 
 ```ts
-import { createAssistant, type InboundMessage } from "@relay-assistant/core";
+import { createAssistant, type InboundMessage } from "@agent-assistant/core";
 
 const runtime = createAssistant(
   {
@@ -147,11 +147,11 @@ await runtime.start();
 
 ## Traits
 
-`AssistantDefinition` accepts an optional `traits` field of type `TraitsProvider` from `@relay-assistant/traits`. Core stores and freezes the provider during assembly. It does not read, branch on, or interpret any trait values.
+`AssistantDefinition` accepts an optional `traits` field of type `TraitsProvider` from `@agent-assistant/traits`. Core stores and freezes the provider during assembly. It does not read, branch on, or interpret any trait values.
 
 ```ts
-import { createTraitsProvider } from "@relay-assistant/traits";
-import { createAssistant } from "@relay-assistant/core";
+import { createTraitsProvider } from "@agent-assistant/traits";
+import { createAssistant } from "@agent-assistant/core";
 
 const runtime = createAssistant(
   {
@@ -177,7 +177,7 @@ const runtime = createAssistant(
 
 `traits` is optional. Existing definitions without traits work without modification.
 
-`@relay-assistant/traits` is a peer dependency. Consumers that do not use traits do not need to install it.
+`@agent-assistant/traits` is a peer dependency. Consumers that do not use traits do not need to install it.
 
 ## Development
 

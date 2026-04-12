@@ -1,8 +1,8 @@
-# v1 Memory Spec — `@relay-assistant/memory`
+# v1 Memory Spec — `@agent-assistant/memory`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/memory`
+**Package:** `@agent-assistant/memory`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 **Roadmap stage:** v1.1 (after core, sessions, surfaces land)
 
@@ -10,7 +10,7 @@
 
 ## 1. Reuse-First Mandate
 
-`@relay-assistant/memory` is a **composition layer** over `@agent-relay/memory`. It is explicitly NOT a greenfield memory engine, NOT a wrapper, and NOT an adapter pattern.
+`@agent-assistant/memory` is a **composition layer** over `@agent-relay/memory`. It is explicitly NOT a greenfield memory engine, NOT a wrapper, and NOT an adapter pattern.
 
 **Guiding rule:** Before authoring any code, confirm that the required behavior does not already exist in `@agent-relay/memory`. Only write new code for behavior that relay memory provably does not provide.
 
@@ -22,7 +22,7 @@ See `docs/research/memory-reuse-investigation.md` for the full investigation sup
 
 ## 2. Package Role: Composition Layer
 
-`@relay-assistant/memory` is a **thin composition layer**. This designation means:
+`@agent-assistant/memory` is a **thin composition layer**. This designation means:
 
 - It **imports** relay types and uses relay service primitives directly.
 - It defines **assistant-facing types** (`MemoryEntry`, `MemoryScope`, `MemoryStore`, `MemoryQuery`) that are the public API for product code.
@@ -31,7 +31,7 @@ See `docs/research/memory-reuse-investigation.md` for the full investigation sup
 - Product code **never** imports from `@agent-relay/memory` for memory operations. The relay dependency is an implementation detail of this package.
 
 This is distinct from:
-- **Adapter** — `@relay-assistant/memory` is not implementing a new `MemoryAdapter` for relay; it uses relay adapters as its storage engine.
+- **Adapter** — `@agent-assistant/memory` is not implementing a new `MemoryAdapter` for relay; it uses relay adapters as its storage engine.
 - **Wrapper** — a wrapper re-exports relay types with a thin pass-through; this package defines new types and semantics.
 - **Thin extension** — an extension adds one or two behaviors; this package adds scope semantics, promotion, compaction, and expiry — a coherent new abstraction layer.
 
@@ -39,7 +39,7 @@ This is distinct from:
 
 ## 3. Responsibilities
 
-`@relay-assistant/memory` provides scoped, retrievable, promotable memory across assistant sessions. Memory is not conversation history; it is durable context that survives session boundaries and informs future interactions.
+`@agent-assistant/memory` provides scoped, retrievable, promotable memory across assistant sessions. Memory is not conversation history; it is durable context that survives session boundaries and informs future interactions.
 
 **Owns:**
 - `MemoryEntry` — unit of stored context, always associated with a scope
@@ -54,10 +54,10 @@ This is distinct from:
 **Does NOT own:**
 - The strategy for deciding what to write to memory (that is the capability handler's concern)
 - The model call that generates compacted summaries (compaction requires a callback; memory does not call a model directly)
-- Session lifecycle (→ `@relay-assistant/sessions`)
-- Surface delivery (→ `@relay-assistant/surfaces`)
-- Routing (→ `@relay-assistant/routing`)
-- Policy enforcement on what may be stored (→ `@relay-assistant/policy`)
+- Session lifecycle (→ `@agent-assistant/sessions`)
+- Surface delivery (→ `@agent-assistant/surfaces`)
+- Routing (→ `@agent-assistant/routing`)
+- Policy enforcement on what may be stored (→ `@agent-assistant/policy`)
 
 ---
 
@@ -102,7 +102,7 @@ The following relay components are reused directly. No reimplementation.
 
 ---
 
-## 5. What Is New in `@relay-assistant/memory` v1
+## 5. What Is New in `@agent-assistant/memory` v1
 
 New code is authored only where relay memory demonstrably does not provide the behavior.
 
@@ -148,7 +148,7 @@ New code: expiry filtering on search results (~20-30 lines).
 
 ### 5.6 Assistant-Facing Types
 
-Product code imports `MemoryEntry`, `MemoryScope`, `MemoryStore`, `MemoryQuery` from `@relay-assistant/memory`. These are semantically richer than relay types.
+Product code imports `MemoryEntry`, `MemoryScope`, `MemoryStore`, `MemoryQuery` from `@agent-assistant/memory`. These are semantically richer than relay types.
 
 New code: type definitions (~150-200 lines).
 
@@ -501,12 +501,12 @@ export interface MemoryStoreConfig {
 
 ### Depends on
 - `@agent-relay/memory` — **primary dependency**; all storage and retrieval delegates here
-- `@relay-assistant/core` — imports `InboundMessage` (type only; optional convenience utility)
-- `@relay-assistant/sessions` — imports `Session` type to extract scope keys
+- `@agent-assistant/core` — imports `InboundMessage` (type only; optional convenience utility)
+- `@agent-assistant/sessions` — imports `Session` type to extract scope keys
 
 ### Depended on by
-- `@relay-assistant/proactive` — reads memory for triggers and evidence
-- `@relay-assistant/coordination` — reads shared workspace/org memory
+- `@agent-assistant/proactive` — reads memory for triggers and evidence
+- `@agent-assistant/coordination` — reads shared workspace/org memory
 - Product capability handlers (direct consumers)
 
 ### Dependency Rules
@@ -566,14 +566,14 @@ Semantic retrieval (embedding-based search) is out of scope for v1. When added, 
 
 ### Deferred to v1.1
 - Semantic/embedding search — relay's `SupermemoryAdapter` supports it via `MemoryAdapter.search()`. In v1, `search()` is not called by the assistant layer (it requires a semantic query string). Wire-up deferred to v1.1 via an optional `semanticQuery` field on `MemoryQuery`.
-- Session archival workflow — requires `@relay-assistant/sessions` coordination
+- Session archival workflow — requires `@agent-assistant/sessions` coordination
 
 ### Deferred to v1.2+
-- Proactive memory — requires `@relay-assistant/proactive`
-- Memory-informed traits — requires `@relay-assistant/traits`
+- Proactive memory — requires `@agent-assistant/proactive`
+- Memory-informed traits — requires `@agent-assistant/traits`
 
 ### Deferred to v2
-- Policy-gated memory — requires `@relay-assistant/policy`
+- Policy-gated memory — requires `@agent-assistant/policy`
 - Encrypted memory — storage adapter responsibility
 
 ### Deferred to v5-v8: Cross-Agent Memory Consolidation

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 
-import type { ConnectivitySignal, SignalCallback } from '@relay-assistant/connectivity';
+import type { ConnectivitySignal, SignalCallback } from '@agent-assistant/connectivity';
 
 import {
   CoordinationBlockedError,

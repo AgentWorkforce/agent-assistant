@@ -1,5 +1,7 @@
 # Policy Runtime Notes — `@relay-assistant/policy`
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-12
 **Status:** COMPLETE
 **Feeds into:** `docs/specs/v1-policy-spec.md`, `docs/architecture/v1-policy-implementation-plan.md`

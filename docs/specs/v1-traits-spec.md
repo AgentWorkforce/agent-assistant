@@ -1,8 +1,8 @@
-# v1 Traits Spec — `@relay-assistant/traits`
+# v1 Traits Spec — `@agent-assistant/traits`
 
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
-**Package:** `@relay-assistant/traits`
+**Package:** `@agent-assistant/traits`
 **Version target:** v0.1.0 (pre-1.0, provisional)
 **Roadmap stage:** v1.2 (after memory and proactive land)
 **Scope doc:** `docs/architecture/v1-traits-scope.md`
@@ -11,7 +11,7 @@
 
 ## 1. Purpose
 
-`@relay-assistant/traits` is a **leaf data package** that defines assistant identity and behavioral characteristics. It provides a shared, validated, immutable data contract so that format hooks, synthesizers, and product code can all read from a single authoritative source rather than maintaining parallel local trait objects.
+`@agent-assistant/traits` is a **leaf data package** that defines assistant identity and behavioral characteristics. It provides a shared, validated, immutable data contract so that format hooks, synthesizers, and product code can all read from a single authoritative source rather than maintaining parallel local trait objects.
 
 It answers one question: **"How should this assistant present itself and behave?"**
 
@@ -28,7 +28,7 @@ It does not answer questions about runtime execution, routing mode, model select
 - `TraitsProvider` read-only interface
 - `createTraitsProvider` factory with validation and freeze
 - `TraitsValidationError` typed error class
-- Integration point: `AssistantDefinition.traits?: TraitsProvider` on `@relay-assistant/core`
+- Integration point: `AssistantDefinition.traits?: TraitsProvider` on `@agent-assistant/core`
 
 ### Out of scope (v1)
 
@@ -200,15 +200,15 @@ Example: `new TraitsValidationError('formality', 'semi-formal', "formality must 
 
 ## 7. `AssistantDefinition` Integration
 
-When this package ships, `@relay-assistant/core` gains an optional `traits` field on `AssistantDefinition`:
+When this package ships, `@agent-assistant/core` gains an optional `traits` field on `AssistantDefinition`:
 
 ```typescript
-// in @relay-assistant/core types.ts
+// in @agent-assistant/core types.ts
 export interface AssistantDefinition {
   id: string;
   name: string;
   description?: string;
-  traits?: TraitsProvider;          // NEW — from @relay-assistant/traits
+  traits?: TraitsProvider;          // NEW — from @agent-assistant/traits
   capabilities: Record<string, CapabilityHandler>;
   hooks?: AssistantHooks;
   constraints?: RuntimeConstraints;
@@ -217,7 +217,7 @@ export interface AssistantDefinition {
 
 This is a **non-breaking addition**. Existing consumers that do not pass `traits` are unaffected. Products that want trait-aware formatting or synthesis wire a `TraitsProvider` at definition time. Downstream packages access it via `runtime.definition.traits`.
 
-**Do not add this field to `packages/core/src/types.ts` until `@relay-assistant/traits` ships.** The implementation plan describes the coordinated change.
+**Do not add this field to `packages/core/src/types.ts` until `@agent-assistant/traits` ships.** The implementation plan describes the coordinated change.
 
 ---
 
@@ -227,7 +227,7 @@ Traits are data. They do not contain hooks. But they inform hooks in consuming p
 
 ### 8.1 Surface format hook pattern
 
-Format hooks in `@relay-assistant/surfaces` may receive traits as a parameter from product code:
+Format hooks in `@agent-assistant/surfaces` may receive traits as a parameter from product code:
 
 ```typescript
 // Product code — not SDK
@@ -267,7 +267,7 @@ Specialist agents have their own operational characteristics. Traits apply to th
 
 ### 8.3 Proactive behavior hook pattern (v1.2+)
 
-Future `@relay-assistant/proactive` watch rules may gate follow-up logic on trait values:
+Future `@agent-assistant/proactive` watch rules may gate follow-up logic on trait values:
 
 ```typescript
 // Example — proactive package, not yet implemented
@@ -283,15 +283,15 @@ This is forward-looking. The v1 traits package does not import or reference the 
 ## 9. Dependency Direction
 
 ```
-@relay-assistant/traits   (leaf — zero SDK dependencies)
+@agent-assistant/traits   (leaf — zero SDK dependencies)
         ^
-        |--- @relay-assistant/core       (optional: AssistantDefinition.traits?)
-        |--- @relay-assistant/surfaces   (optional: format hooks read TraitsProvider)
-        |--- @relay-assistant/coordination (optional: synthesizers read TraitsProvider)
-        |--- @relay-assistant/proactive  (optional: watch rules read traits, future)
+        |--- @agent-assistant/core       (optional: AssistantDefinition.traits?)
+        |--- @agent-assistant/surfaces   (optional: format hooks read TraitsProvider)
+        |--- @agent-assistant/coordination (optional: synthesizers read TraitsProvider)
+        |--- @agent-assistant/proactive  (optional: watch rules read traits, future)
 ```
 
-`@relay-assistant/traits` imports nothing from other SDK packages. It has no runtime dependencies. It is a `peerDependency`-free, zero-dep package in the SDK graph.
+`@agent-assistant/traits` imports nothing from other SDK packages. It has no runtime dependencies. It is a `peerDependency`-free, zero-dep package in the SDK graph.
 
 ---
 
@@ -305,7 +305,7 @@ These rules constrain how products express and consume traits. They are design r
 
 **Rule T-3:** The `voice` field governs register, not content. `voice: "technical"` does not mean "produce code." It means "speak in the register of the domain." Domain content is capability-governed.
 
-**Rule T-4:** `riskPosture` informs product code that decides how to handle ambiguous or high-impact actions. It is not a capability gate or a safety control. Policy and approval decisions belong in `@relay-assistant/policy`.
+**Rule T-4:** `riskPosture` informs product code that decides how to handle ambiguous or high-impact actions. It is not a capability gate or a safety control. Policy and approval decisions belong in `@agent-assistant/policy`.
 
 **Rule T-5:** `vocabulary` is a preference list for prompt injection, not a vocabulary filter. Products are responsible for including vocabulary terms in their persona prompts if they want the assistant to prefer those terms.
 
@@ -402,9 +402,9 @@ Minimum 25 tests covering:
 
 ## 13. Migration Path for Products
 
-Products currently define trait-like objects as local data. Migration when `@relay-assistant/traits` ships:
+Products currently define trait-like objects as local data. Migration when `@agent-assistant/traits` ships:
 
-1. `npm install @relay-assistant/traits`
+1. `npm install @agent-assistant/traits`
 2. Replace the local traits object with `createTraitsProvider(...)`.
 3. Pass the returned `TraitsProvider` on `AssistantDefinition.traits`.
 4. Update format hooks and synthesizer configs to read from `runtime.definition.traits` instead of closed-over local objects.
@@ -423,7 +423,7 @@ The data shape is identical. No product behavioral logic changes. Only the acces
 - [ ] 25+ tests covering creation, validation, immutability, error types, and surface formatting
 - [ ] Zero upstream SDK dependencies
 - [ ] No prompt generation, no persona logic, no product-specific behavior in the package
-- [ ] `@relay-assistant/core` `AssistantDefinition` gains `traits?: TraitsProvider` in the same implementation workflow
+- [ ] `@agent-assistant/core` `AssistantDefinition` gains `traits?: TraitsProvider` in the same implementation workflow
 
 ---
 

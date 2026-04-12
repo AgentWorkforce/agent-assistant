@@ -1,8 +1,8 @@
 /**
  * Proactive ↔ Policy integration proof tests.
  *
- * These tests prove that the boundary between @relay-assistant/proactive and
- * @relay-assistant/policy works as defined in:
+ * These tests prove that the boundary between @agent-assistant/proactive and
+ * @agent-assistant/policy works as defined in:
  *   docs/architecture/v1-proactive-policy-integration-contract.md
  *
  * Key invariants under test:

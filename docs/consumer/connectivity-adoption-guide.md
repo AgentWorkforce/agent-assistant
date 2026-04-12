@@ -4,7 +4,7 @@ Date: 2026-04-11
 
 ## Purpose
 
-This guide explains when and how product teams should adopt `@relay-assistant/connectivity`.
+This guide explains when and how product teams should adopt `@agent-assistant/connectivity`.
 
 Use it when a product has multiple active subsystems or specialists that need to coordinate efficiently under one assistant identity.
 

@@ -53,16 +53,16 @@ A package is **defer-later** if any of those conditions fail.
 
 | Package | Ready-now? | Gate |
 |---|---|---|
-| `@relay-assistant/core` | **Yes** | 31 tests passing, SPEC_RECONCILED |
-| `@relay-assistant/traits` | **Yes** | 32 tests passing, no downstream deps |
-| `@relay-assistant/policy` | **Yes** | 64 tests passing |
-| `@relay-assistant/proactive` | **Yes** | 45 tests passing |
-| `@relay-assistant/sessions` | **Yes** | 25 tests passing, v1 baseline |
-| `@relay-assistant/surfaces` | **Yes** | 28 tests passing, v1 baseline |
-| `@relay-assistant/memory` | **No** | Placeholder — `@agent-relay/memory` dep missing; v1.1 milestone |
-| `@relay-assistant/routing` | **No** | 12/40+ tests — DoD gap |
-| `@relay-assistant/coordination` | **No** | Tests blocked — connectivity import failure |
-| `@relay-assistant/connectivity` | **No** | Tests blocked — `nanoid` dep missing |
+| `@agent-assistant/core` | **Yes** | 31 tests passing, SPEC_RECONCILED |
+| `@agent-assistant/traits` | **Yes** | 32 tests passing, no downstream deps |
+| `@agent-assistant/policy` | **Yes** | 64 tests passing |
+| `@agent-assistant/proactive` | **Yes** | 45 tests passing |
+| `@agent-assistant/sessions` | **Yes** | 25 tests passing, v1 baseline |
+| `@agent-assistant/surfaces` | **Yes** | 28 tests passing, v1 baseline |
+| `@agent-assistant/memory` | **No** | Placeholder — `@agent-relay/memory` dep missing; v1.1 milestone |
+| `@agent-assistant/routing` | **No** | 12/40+ tests — DoD gap |
+| `@agent-assistant/coordination` | **No** | Tests blocked — connectivity import failure |
+| `@agent-assistant/connectivity` | **No** | Tests blocked — `nanoid` dep missing |
 
 ### Rule for consumers
 
@@ -81,7 +81,7 @@ A package is **defer-later** if any of those conditions fail.
 | Founder/CTO communication style and register | Highly personalized — not generalizable across products |
 | Specialist lineup and dispatch logic | NightCTO's internal agent roster is product-specific |
 | Client-tier policy rules and service agreements | Business rules that vary per client engagement |
-| Per-client memory and relationship continuity | Until `@relay-assistant/memory` ships; even then, client-tier scoping is NightCTO-owned |
+| Per-client memory and relationship continuity | Until `@agent-assistant/memory` ships; even then, client-tier scoping is NightCTO-owned |
 | Escalation routing and human-CTO notification | Product UX concern, not an SDK contract |
 | Monitoring window definitions | Domain-specific scheduling logic |
 
@@ -92,7 +92,7 @@ A package is **defer-later** if any of those conditions fail.
 | Workspace knowledge workflows and context shaping | Product domain — does not generalize |
 | Product-specific follow-up heuristics (conditions) | Sage product logic — delivered as `condition` functions on proactive rules |
 | Slack-specific behavior not general enough yet | May move to SDK later if MSD/NightCTO also need it |
-| Memory retrieval and workspace context assembly | Until `@relay-assistant/memory` ships in v1.1 |
+| Memory retrieval and workspace context assembly | Until `@agent-assistant/memory` ships in v1.1 |
 | Knowledge digest generation | Sage-specific output format |
 
 ### MSD — keeps local
@@ -100,7 +100,7 @@ A package is **defer-later** if any of those conditions fail.
 | Concern | Reason |
 |---|---|
 | Code review operations and PR workflow tools | MSD-specific domain — does not generalize |
-| Review-specific orchestration and delegation | Until `@relay-assistant/coordination` ships and only if the pattern generalizes |
+| Review-specific orchestration and delegation | Until `@agent-assistant/coordination` ships and only if the pattern generalizes |
 | Action risk classifier taxonomy | MSD's risk categories are domain-specific (merge, deploy, comment, approve) |
 | Review escalation chains | Business rules owned by MSD |
 | Coordinator/notifier/reviewer role dispatch | Product-specific multi-agent pattern — keep local until coordination package unblocks |
@@ -231,11 +231,11 @@ Do not claim "Demonstrated" for items that are only "Inspectable." The assembly 
 
 ### Stale guidance in existing docs
 
-The "Product-Specific Guidance" section in `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` (lines 54-104) recommends packages that the same document's v1 readiness table (lines 154-171) marks as not ready for adoption:
+The "Product-Specific Guidance" section in `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` (lines 54-104) recommends packages that the same document's v1 readiness table (lines 154-171) marks as not ready for adoption:
 - Sage starting with `memory` — memory is a placeholder, not ready
 - NightCTO starting with `coordination` and `memory` — both are blocked
 
-**This contract supersedes that stale guidance.** The ready-now classification in section 2 above is authoritative. The stale guidance should be reconciled in a follow-up edit to `how-products-should-adopt-relay-agent-assistant.md`.
+**This contract supersedes that stale guidance.** The ready-now classification in section 2 above is authoritative. The stale guidance should be reconciled in a follow-up edit to `how-products-should-adopt-agent-assistant-sdk.md`.
 
 ### Assembly review follow-ups
 

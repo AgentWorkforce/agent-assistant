@@ -11,16 +11,16 @@
 
 | Package | NightCTO | Sage | MSD |
 |---|---|---|---|
-| `@relay-assistant/core` | **Adopt now** | **Adopt now** | **Adopt now** |
-| `@relay-assistant/traits` | **Adopt now** | **Adopt now** | **Adopt now** |
-| `@relay-assistant/policy` | **Adopt now** | Defer to v1.2 | **Adopt now** |
-| `@relay-assistant/proactive` | **Adopt now** | **Adopt now** | Defer to v1.2 |
-| `@relay-assistant/sessions` | Available (v1 baseline) | Available (v1 baseline) | Available (v1 baseline) |
-| `@relay-assistant/surfaces` | Available (v1 baseline) | Available (v1 baseline) | Available (v1 baseline) |
-| `@relay-assistant/memory` | Do not adopt (blocked) | Do not adopt (blocked — evaluate `@agent-relay/memory` first) | Do not adopt (blocked) |
-| `@relay-assistant/coordination` | Do not adopt (blocked) | Do not adopt (blocked) | Do not adopt (blocked) |
-| `@relay-assistant/connectivity` | Do not adopt (blocked) | Do not adopt (blocked) | Do not adopt (blocked) |
-| `@relay-assistant/routing` | Do not adopt (DoD gap) | Do not adopt (DoD gap) | Do not adopt (DoD gap) |
+| `@agent-assistant/core` | **Adopt now** | **Adopt now** | **Adopt now** |
+| `@agent-assistant/traits` | **Adopt now** | **Adopt now** | **Adopt now** |
+| `@agent-assistant/policy` | **Adopt now** | Defer to v1.2 | **Adopt now** |
+| `@agent-assistant/proactive` | **Adopt now** | **Adopt now** | Defer to v1.2 |
+| `@agent-assistant/sessions` | Available (v1 baseline) | Available (v1 baseline) | Available (v1 baseline) |
+| `@agent-assistant/surfaces` | Available (v1 baseline) | Available (v1 baseline) | Available (v1 baseline) |
+| `@agent-assistant/memory` | Do not adopt (blocked) | Do not adopt (blocked — evaluate `@agent-relay/memory` first) | Do not adopt (blocked) |
+| `@agent-assistant/coordination` | Do not adopt (blocked) | Do not adopt (blocked) | Do not adopt (blocked) |
+| `@agent-assistant/connectivity` | Do not adopt (blocked) | Do not adopt (blocked) | Do not adopt (blocked) |
+| `@agent-assistant/routing` | Do not adopt (DoD gap) | Do not adopt (DoD gap) | Do not adopt (DoD gap) |
 
 **Package count (ready-now):** NightCTO 4/4 · Sage 3/4 · MSD 3/4
 
@@ -110,11 +110,11 @@
 
 | Package | NightCTO defer reason | Sage defer reason | MSD defer reason |
 |---|---|---|---|
-| `@relay-assistant/memory` | `@agent-relay/memory` dep blocked; v1.1 | Evaluate existing Relay memory first; v1.1 | `@agent-relay/memory` dep blocked; v1.1 |
-| `@relay-assistant/policy` | N/A — adopted now | v1.2 — when proactive needs gating | N/A — adopted now |
-| `@relay-assistant/proactive` | N/A — adopted now | N/A — adopted now | v1.2 — when PR follow-up prioritized |
-| `@relay-assistant/coordination` | v1.2 — nanoid/connectivity unblocked | v1.2 — lower priority for Sage | v1.2 — nanoid/connectivity unblocked |
-| `@relay-assistant/connectivity` | v1.2 — nanoid dep prerequisite | v1.2 — nanoid dep prerequisite | v1.2 — nanoid dep prerequisite |
+| `@agent-assistant/memory` | `@agent-relay/memory` dep blocked; v1.1 | Evaluate existing Relay memory first; v1.1 | `@agent-relay/memory` dep blocked; v1.1 |
+| `@agent-assistant/policy` | N/A — adopted now | v1.2 — when proactive needs gating | N/A — adopted now |
+| `@agent-assistant/proactive` | N/A — adopted now | N/A — adopted now | v1.2 — when PR follow-up prioritized |
+| `@agent-assistant/coordination` | v1.2 — nanoid/connectivity unblocked | v1.2 — lower priority for Sage | v1.2 — nanoid/connectivity unblocked |
+| `@agent-assistant/connectivity` | v1.2 — nanoid dep prerequisite | v1.2 — nanoid dep prerequisite | v1.2 — nanoid dep prerequisite |
 
 ---
 

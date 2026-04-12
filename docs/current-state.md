@@ -12,14 +12,14 @@ Run: `npx vitest run`
 
 | Package | Test File(s) | Tests | Result |
 | --- | --- | --- | --- |
-| `@relay-assistant/core` | `core.test.ts`, `core-sessions-surfaces.test.ts` | 31 + 6 integration | **PASS** |
-| `@relay-assistant/sessions` | `sessions.test.ts` | 25 | **PASS** |
-| `@relay-assistant/surfaces` | `surfaces.test.ts` | 28 | **PASS** |
-| `@relay-assistant/routing` | `routing.test.ts` | 12 | **PASS** (DoD gap — see below) |
-| `@relay-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
-| `@relay-assistant/connectivity` | `connectivity.test.ts` | — | **BLOCKED** — `nanoid` package missing |
-| `@relay-assistant/coordination` | `coordination.test.ts` | — | **BLOCKED** — depends on `@relay-assistant/connectivity` which cannot load |
-| `@relay-assistant/memory` | `memory.test.ts` | — | **BLOCKED** — `@agent-relay/memory` package missing |
+| `@agent-assistant/core` | `core.test.ts`, `core-sessions-surfaces.test.ts` | 31 + 6 integration | **PASS** |
+| `@agent-assistant/sessions` | `sessions.test.ts` | 25 | **PASS** |
+| `@agent-assistant/surfaces` | `surfaces.test.ts` | 28 | **PASS** |
+| `@agent-assistant/routing` | `routing.test.ts` | 12 | **PASS** (DoD gap — see below) |
+| `@agent-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
+| `@agent-assistant/connectivity` | `connectivity.test.ts` | — | **BLOCKED** — `nanoid` package missing |
+| `@agent-assistant/coordination` | `coordination.test.ts` | — | **BLOCKED** — depends on `@agent-assistant/connectivity` which cannot load |
+| `@agent-assistant/memory` | `memory.test.ts` | — | **BLOCKED** — `@agent-relay/memory` package missing |
 
 **Total verified passing: 128 tests (7 passing suites, 3 blocked suites)**
 
@@ -29,34 +29,34 @@ Run: `npx vitest run`
 
 | Package | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| `@relay-assistant/core` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
-| `@relay-assistant/sessions` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline |
-| `@relay-assistant/surfaces` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
-| `@relay-assistant/routing` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | DoD gap: 12 tests vs 40+ target. **Do not consume in products until resolved.** |
-| `@relay-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 87 tests claimed; blocked by missing `nanoid` dep. Resolve before consuming. |
-| `@relay-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 45 tests claimed; blocked by connectivity import failure. Resolve before consuming. |
-| `@relay-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — assistant identity traits, voice, style, behavioral defaults |
-| `@relay-assistant/memory` | **placeholder** | `IMPLEMENTATION_READY` | Spec at `docs/specs/v1-memory-spec.md`; roadmap: v1.1; blocked by `@agent-relay/memory` dep |
-| `@relay-assistant/proactive` | **placeholder** | none | No formal spec yet; roadmap: v1.2 |
-| `@relay-assistant/policy` | **placeholder** | none | No formal spec yet; roadmap: v2 |
-| `@relay-assistant/examples` | **placeholder** | N/A | Reference examples; not production code |
+| `@agent-assistant/core` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
+| `@agent-assistant/sessions` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline |
+| `@agent-assistant/surfaces` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
+| `@agent-assistant/routing` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | DoD gap: 12 tests vs 40+ target. **Do not consume in products until resolved.** |
+| `@agent-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 87 tests claimed; blocked by missing `nanoid` dep. Resolve before consuming. |
+| `@agent-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 45 tests claimed; blocked by connectivity import failure. Resolve before consuming. |
+| `@agent-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — assistant identity traits, voice, style, behavioral defaults |
+| `@agent-assistant/memory` | **placeholder** | `IMPLEMENTATION_READY` | Spec at `docs/specs/v1-memory-spec.md`; roadmap: v1.1; blocked by `@agent-relay/memory` dep |
+| `@agent-assistant/proactive` | **placeholder** | none | No formal spec yet; roadmap: v1.2 |
+| `@agent-assistant/policy` | **placeholder** | none | No formal spec yet; roadmap: v2 |
+| `@agent-assistant/examples` | **placeholder** | N/A | Reference examples; not production code |
 
 ---
 
 ## Known Blockers
 
 ### 1. `nanoid` missing from connectivity
-- **Impact:** `@relay-assistant/connectivity` tests cannot run; `@relay-assistant/coordination` tests also blocked as a result.
+- **Impact:** `@agent-assistant/connectivity` tests cannot run; `@agent-assistant/coordination` tests also blocked as a result.
 - **Resolution:** Install `nanoid` as a workspace dependency of `packages/connectivity`.
 - **Risk:** Do not consume connectivity or coordination in products until tests pass.
 
-### 2. `@relay-assistant/routing` DoD gap
+### 2. `@agent-assistant/routing` DoD gap
 - **Impact:** 12 tests pass but the target is 40+. The routing implementation is incomplete relative to spec.
 - **Resolution:** Implementation work required to bring routing tests to DoD target.
 - **Risk:** Do not wire routing into product integration until resolved.
 
 ### 3. `@agent-relay/memory` missing
-- **Impact:** `@relay-assistant/memory` package and tests cannot run.
+- **Impact:** `@agent-assistant/memory` package and tests cannot run.
 - **Resolution:** This is a placeholder package pending v1.1 milestone. Dependency on `@agent-relay/memory` must be resolved when that milestone begins.
 
 ---
@@ -64,10 +64,10 @@ Run: `npx vitest run`
 ## V1 Baseline (Safe for Product Use)
 
 These packages are stable and can be consumed by Sage, MSD, NightCTO:
-- `@relay-assistant/core`
-- `@relay-assistant/sessions`
-- `@relay-assistant/surfaces`
-- `@relay-assistant/traits`
+- `@agent-assistant/core`
+- `@agent-assistant/sessions`
+- `@agent-assistant/surfaces`
+- `@agent-assistant/traits`
 
 ---
 

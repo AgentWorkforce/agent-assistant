@@ -1,5 +1,7 @@
 # Canonical Spec Fix Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 Date: 2026-04-11
 Triggered by: `docs/architecture/spec-reconciliation-review-verdict.md` (FAIL verdict)
 Input documents:

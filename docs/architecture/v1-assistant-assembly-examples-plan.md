@@ -1,5 +1,7 @@
 # v1 Assistant Assembly Examples — Implementation Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Status:** COMPLETE
 **Date:** 2026-04-12
 **Contract:** `docs/architecture/v1-assistant-assembly-examples-contract.md`
@@ -27,7 +29,7 @@ Implement the five example files in `packages/examples/src/` defined by the v1 a
 | `packages/examples/tsconfig.json` | New | DONE |
 | `packages/examples/README.md` | New | DONE |
 | `docs/consumer/how-to-build-an-assistant.md` | Update | DONE |
-| `docs/consumer/how-products-should-adopt-relay-agent-assistant.md` | Update | DONE |
+| `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md` | Update | DONE |
 | `docs/consumer/v1-product-adoption-matrix.md` | New | DONE |
 
 ---
@@ -99,7 +101,7 @@ Update `docs/consumer/how-to-build-an-assistant.md`:
 - Provide four-package assembly sketch
 - Update product examples (Sage/MSD/NightCTO) to reference specific example files
 
-Update `docs/consumer/how-products-should-adopt-relay-agent-assistant.md`:
+Update `docs/consumer/how-products-should-adopt-agent-assistant-sdk.md`:
 - Add v1 package status table with adopt-now vs. defer guidance
 - Add Assembly Examples section pointing to the five example files
 

@@ -2,7 +2,7 @@
  * 02 — Traits-Aware Assistant
  *
  * Extends the minimal assembly with a TraitsProvider from
- * @relay-assistant/traits. Core stores and freezes the provider — it never
+ * @agent-assistant/traits. Core stores and freezes the provider — it never
  * interprets trait values. Capability handlers read traits as data and make
  * their own formatting decisions.
  *
@@ -11,14 +11,14 @@
  *   Interpretation happens in capability code, not in core.
  */
 
-import { createAssistant } from '@relay-assistant/core';
+import { createAssistant } from '@agent-assistant/core';
 import type {
   InboundMessage,
   RelayInboundAdapter,
   RelayOutboundAdapter,
   OutboundEvent,
-} from '@relay-assistant/core';
-import { createTraitsProvider } from '@relay-assistant/traits';
+} from '@agent-assistant/core';
+import { createTraitsProvider } from '@agent-assistant/traits';
 
 // --- Adapters (same thin wrappers as 01) ---------------------------------
 

@@ -1,5 +1,7 @@
 # v1 Memory Reconciliation Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Status:** IMPLEMENTATION_READY
 **Date:** 2026-04-11
 **Resolves:** Review verdict findings #1–#4 from `docs/architecture/v1-memory-review-verdict.md`

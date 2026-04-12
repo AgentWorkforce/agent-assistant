@@ -1,5 +1,7 @@
 # v1 Policy Package Review Verdict
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Verdict:** PASS_WITH_FOLLOWUPS
 **Date:** 2026-04-12
 **Scope reviewed:** `docs/architecture/v1-policy-contract-reconciliation.md`, `docs/specs/v1-policy-spec.md`, `docs/architecture/v1-policy-review-verdict.md`, `packages/policy/package.json`, `packages/policy/src/index.ts`, `packages/policy/src/types.ts`, `packages/policy/src/policy.ts`, `packages/policy/src/policy.test.ts`, `packages/policy/README.md`

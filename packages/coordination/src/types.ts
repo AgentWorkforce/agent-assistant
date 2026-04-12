@@ -1,8 +1,8 @@
 import type {
   ConnectivityLayer,
   ConnectivitySignal,
-} from '@relay-assistant/connectivity';
-import type { RequestedRoutingMode, RoutingMode } from '@relay-assistant/routing';
+} from '@agent-assistant/connectivity';
+import type { RequestedRoutingMode, RoutingMode } from '@agent-assistant/routing';
 
 export type SpecialistExecutionStatus = 'complete' | 'partial' | 'failed';
 export type SynthesisStrategy = 'concatenate' | 'last-wins' | 'custom';

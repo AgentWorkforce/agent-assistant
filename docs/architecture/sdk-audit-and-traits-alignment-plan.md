@@ -1,5 +1,7 @@
 # SDK Audit and Traits Alignment Plan
 
+> **Note:** This document was written when the project was named "RelayAssistant" with package scope `@relay-assistant/*`. The project has since been renamed to **Agent Assistant SDK** with scope `@agent-assistant/*`. References to the old name in this document are historical.
+
 **Date:** 2026-04-11
 **Scope:** Audit implemented vs. specified state, identify docs drift, define workforce persona ↔ assistant traits relationship, place a traits layer in the package map, and update workspace guidance for future workflows.
 
