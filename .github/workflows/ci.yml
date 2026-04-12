@@ -74,3 +74,16 @@ jobs:
       - name: Build — surfaces
         working-directory: packages/surfaces
         run: npm run build
+
+      - name: Verify no test artifacts in dist
+        run: |
+          FAIL=0
+          for pkg in traits core sessions surfaces; do
+            if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
+              echo "ERROR: test artifacts found in packages/$pkg/dist/"
+              find "packages/$pkg/dist" -name '*.test.*'
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" -eq 1 ]; then exit 1; fi
+          echo "No test artifacts in dist — OK"

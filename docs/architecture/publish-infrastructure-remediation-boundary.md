@@ -129,7 +129,28 @@ To:
 
 This matches the pattern already used by the other three publishable packages. No other tsconfig files are modified.
 
-### Verification gate
+### CI and publish verification gate
+
+In addition to fixing the tsconfig, add an automated verification step to both `ci.yml` and `publish.yml` (after the build steps, before artifact upload) that fails the job if any test artifacts appear in dist:
+
+```yaml
+- name: Verify no test artifacts in dist
+  run: |
+    FAIL=0
+    for pkg in traits core sessions surfaces; do
+      if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
+        echo "ERROR: test artifacts found in packages/$pkg/dist/"
+        find "packages/$pkg/dist" -name '*.test.*'
+        FAIL=1
+      fi
+    done
+    if [ "$FAIL" -eq 1 ]; then exit 1; fi
+    echo "No test artifacts in dist — OK"
+```
+
+This is belt-and-suspenders: the tsconfig exclude prevents compilation, the CI step catches regressions. Both are required.
+
+### Manual verification
 
 After this change, `npm run build --workspace=packages/surfaces && npm pack --dry-run --workspace=packages/surfaces` must show zero `*.test.js` or `*.test.d.ts` files in the tarball listing.
 
@@ -234,6 +255,28 @@ Concrete changes to `.github/workflows/publish.yml`:
        git push
    ```
 
+5. **Add a manifest validation step** in `create-release`, after all manifest downloads and before the commit step. This catches any artifact path errors before they corrupt the git history:
+
+   ```yaml
+   - name: Validate downloaded manifests
+     run: |
+       EXPECTED="${{ needs.build.outputs.new_version }}"
+       for pkg in traits core sessions surfaces; do
+         if [ ! -f "packages/$pkg/package.json" ]; then
+           echo "ERROR: packages/$pkg/package.json not found after artifact download"
+           exit 1
+         fi
+         VERSION=$(node -p "require('./packages/$pkg/package.json').version")
+         if [ "$VERSION" != "$EXPECTED" ]; then
+           echo "ERROR: packages/$pkg/package.json version $VERSION != expected $EXPECTED"
+           exit 1
+         fi
+       done
+       echo "All manifests validated at v${EXPECTED} — OK"
+   ```
+
+   This step is required, not optional. It is the primary defense against artifact path bugs reaching the git tag.
+
 ### What is NOT changed
 
 - The `dist-*` artifact upload/download pattern is already correct (one artifact per package, downloaded to the right path). No changes needed.
@@ -247,10 +290,11 @@ Concrete changes to `.github/workflows/publish.yml`:
 
 | File | Remediation | Finding |
 |------|-------------|---------|
-| `.github/workflows/publish.yml` | Remove single-package input; hardcode all-packages matrix; replace BLOCKER-WF-001 comments with workload-router attribution; split versioned-manifests into per-package artifacts; simplify create-release manifest handling | #1, #2, #4 |
+| `.github/workflows/publish.yml` | Remove single-package input; hardcode all-packages matrix; replace BLOCKER-WF-001 comments with workload-router attribution; split versioned-manifests into per-package artifacts; simplify create-release manifest handling; add dist verification step; add manifest validation step | #1, #2, #3, #4 |
 | `package.json` (root) | Add `devDependencies` with `@agentworkforce/workload-router: "^0.1.1"` | #2 |
 | `package-lock.json` (root) | Regenerated after adding devDependency | #2 |
 | `packages/surfaces/tsconfig.json` | Add `"exclude": ["src/**/*.test.ts"]` | #3 |
+| `.github/workflows/ci.yml` | Add dist verification step (no test artifacts in dist) | #3 |
 
 ### No new files
 
@@ -258,7 +302,6 @@ No new files are created by this remediation. This document is the only new arti
 
 ### No other files modified
 
-- `.github/workflows/ci.yml` is not changed (it has no publish path, no manifest artifacts, no version bumping).
 - The four publishable `package.json` files (`traits`, `core`, `sessions`, `surfaces`) are not changed (they already have `repository`, `publishConfig`, and `files` fields).
 - No docs are created or modified beyond this boundary document.
 
@@ -280,7 +323,11 @@ All checks must pass before the workflow is considered ready for manual publish 
 
 6. **Artifact download paths are direct.** The `create-release` job has no `cp` commands for manifest files. Manifests are downloaded directly to `packages/<pkg>/`.
 
-7. **Local validation still passes.** `npm ci && npm test --workspace=packages/traits --workspace=packages/core --workspace=packages/sessions --workspace=packages/surfaces` succeeds. `npm run build` for all four packages succeeds. `npm pack --dry-run` for all four packages shows clean tarballs.
+7. **Dist verification step exists in both workflows.** Both `publish.yml` (build job) and `ci.yml` contain a "Verify no test artifacts in dist" step that fails on any `*.test.*` files in any publishable package's `dist/` directory.
+
+8. **Manifest validation step exists in create-release.** The `create-release` job contains a "Validate downloaded manifests" step that checks all four `package.json` files exist at expected paths with the expected version before committing.
+
+9. **Local validation still passes.** `npm ci && npm test --workspace=packages/traits --workspace=packages/core --workspace=packages/sessions --workspace=packages/surfaces` succeeds. `npm run build` for all four packages succeeds. `npm pack --dry-run` for all four packages shows clean tarballs.
 
 ---
 

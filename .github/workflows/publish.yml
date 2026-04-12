@@ -2,9 +2,10 @@ name: Publish Packages
 
 # Workforce npm-provenance-publisher profile consumption:
 # Consumed via @agentworkforce/workload-router (resolvePersona('npm-provenance')).
-# This workflow implements the persona's concrete technical requirements directly
-# with source attribution because GitHub Actions YAML cannot import npm packages
-# at parse time. The canonical package dependency is still declared at repo root.
+# The workflow orchestration layer uses the workload-router programmatically.
+# This YAML implements the persona's concrete technical requirements directly
+# (YAML cannot import npm packages) with source attribution to the persona.
+# See: @agentworkforce/workload-router — npm-provenance intent.
 
 on:
   workflow_dispatch:
@@ -54,6 +55,11 @@ concurrency:
   group: publish-packages
   cancel-in-progress: false
 
+# Required for npm OIDC provenance attestation.
+# Source: @agentworkforce/workload-router — resolvePersona('npm-provenance')
+# TARGET STATE: Full OIDC with no NPM_TOKEN, pending trusted publisher registration
+# on npmjs.com for each package (manual step).
+# Until trusted publisher registration is complete, NODE_AUTH_TOKEN is used as bridge.
 permissions:
   contents: write
   id-token: write
@@ -131,6 +137,19 @@ jobs:
       - name: Build — surfaces
         working-directory: packages/surfaces
         run: npm run build
+
+      - name: Verify no test artifacts in dist
+        run: |
+          FAIL=0
+          for pkg in traits core sessions surfaces; do
+            if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
+              echo "ERROR: test artifacts found in packages/$pkg/dist/"
+              find "packages/$pkg/dist" -name '*.test.*'
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" -eq 1 ]; then exit 1; fi
+          echo "No test artifacts in dist — OK"
 
       - name: Set publish matrix
         id: packages
@@ -230,6 +249,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: npm
 
+      # Required by npm-provenance-publisher persona (via @agentworkforce/workload-router):
+      # prevents stale-runner OIDC token failures on self-hosted or outdated runners.
       - name: Update npm to latest (required for provenance)
         run: npm install -g npm@latest
 
@@ -297,6 +318,22 @@ jobs:
         with:
           name: manifest-surfaces
           path: packages/surfaces
+
+      - name: Validate downloaded manifests
+        run: |
+          EXPECTED="${{ needs.build.outputs.new_version }}"
+          for pkg in traits core sessions surfaces; do
+            if [ ! -f "packages/$pkg/package.json" ]; then
+              echo "ERROR: packages/$pkg/package.json not found after artifact download"
+              exit 1
+            fi
+            VERSION=$(node -p "require('./packages/$pkg/package.json').version")
+            if [ "$VERSION" != "$EXPECTED" ]; then
+              echo "ERROR: packages/$pkg/package.json version $VERSION != expected $EXPECTED"
+              exit 1
+            fi
+          done
+          echo "All manifests validated at v${EXPECTED} — OK"
 
       - name: Commit version bump
         run: |
