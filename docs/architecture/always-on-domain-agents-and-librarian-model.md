@@ -219,3 +219,57 @@ RelayAssistant should eventually support a system where:
 - the user still experiences one coherent assistant identity
 
 That is a stronger and more realistic architecture than pretending long-lived intelligence comes from one monolithic conversational loop.
+
+
+## Per-user personal agents, company agents, and privacy-scoped memory
+
+A practical deployment model is not one universal assistant with one flat memory. It is a network of assistant identities with overlapping but non-identical access patterns.
+
+Example shape:
+- each human user has a **personal agent** they can interact with privately over direct surfaces like Telegram or WhatsApp
+- an organization also has one or more **company agents** that users interact with in shared work surfaces like Slack
+- these agents may share some context and capabilities, but they should not share memory indiscriminately
+
+### Memory implications
+
+RelayAssistant memory should model at least these layers clearly:
+- **personal/private user memory** — only visible to that user's personal assistant context
+- **shared company memory** — relevant across company agents and shared work contexts
+- **session/thread memory** — local to a specific conversation or surface thread
+- **agent/library memory** — backstage memos, domain observations, and synthesis artifacts
+
+### Unification without privacy collapse
+
+The system should support unified identity where useful while still preserving privacy boundaries.
+
+Examples:
+- the same human can interact with a personal agent on Telegram and a company agent on Slack
+- both systems may know they refer to the same human identity
+- but the company agent should not automatically gain access to the person's private personal-memory room
+- selective promotion or projection from personal -> shared must be explicit and policy-controlled
+
+### Memory rooms / compartments
+
+A useful design metaphor is a memory palace or room model:
+- each user has private rooms
+- each company/workspace has shared rooms
+- conversations open temporary rooms
+- librarian/domain agents can move, summarize, or reference material across rooms only with the right scope and policy
+
+This maps well onto RelayAssistant's scope-oriented memory direction:
+- session scope
+- user/private scope
+- workspace/org scope
+- future backstage/library scopes
+
+The important principle is:
+**identity can be unified while memory visibility stays compartmentalized.**
+
+### Architectural consequence
+
+RelayAssistant should eventually support:
+- one human having multiple assistant touchpoints
+- scoped memories per touchpoint and trust domain
+- explicit promotion/bridging between private and shared memory spaces
+- policy-controlled privacy boundaries between personal and company assistants
+- librarian-aware compartmentalization rather than one flat memory pool
