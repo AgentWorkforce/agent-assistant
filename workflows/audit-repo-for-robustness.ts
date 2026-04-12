@@ -46,7 +46,7 @@ async function main() {
         'echo "" && echo "---DOCS TREE---"',
         'find docs -maxdepth 2 -type f | sort | sed -n "1,320p"',
         'echo "" && echo "---IMPORT SCAN: NON-CANONICAL HINTS---"',
-        "rg -n '\\.\\./\\.\\./relay/|packages/.*/dist/|src/\\.\\./|from \\\'\\.\\./\\.\\./|from \"\\.\\./\\.\\./' . || true",
+        'rg -n "\\.\\./\\.\\./relay/|packages/.*/dist/|src/\\.\\./" . || true',
         'echo "" && echo "---BUILD/TEST PACKAGE FILES---"',
         'find packages -maxdepth 2 \( -name package.json -o -name tsconfig.json -o -name README.md \) | sort',
       ].join(' && '),
