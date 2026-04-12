@@ -17,25 +17,27 @@ It exists to centralize assistant concerns that should not be reimplemented in e
 
 ## Current Status
 
-**6 packages implemented and passing tests. 4 packages are placeholder/README-only. 1 package (traits) is planned for v1.2.**
+**5 packages implemented with verified passing tests. 2 packages implemented but tests currently blocked by missing dependencies. 3 packages are placeholder/README-only.**
+
+See [docs/current-state.md](docs/current-state.md) for the authoritative per-package test results, verified counts, and blockers.
 
 Implementation vs specification status at a glance:
 
 | Package | Implementation | Spec | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| `@relay-assistant/core` | **IMPLEMENTED** | `SPEC_RECONCILED` | 44 pass | matches `v1-core-spec.md` |
+| `@relay-assistant/core` | **IMPLEMENTED** | `SPEC_RECONCILED` | 31 pass | matches `v1-core-spec.md` |
 | `@relay-assistant/sessions` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 25 pass | matches `v1-sessions-spec.md` |
 | `@relay-assistant/surfaces` | **IMPLEMENTED** | `SPEC_RECONCILED` | 28 pass | matches `v1-surfaces-spec.md` |
 | `@relay-assistant/routing` | **IMPLEMENTED** (DoD gap) | `IMPLEMENTATION_READY` | 12 pass | test count below 40+ DoD target — **do not consume in products until resolved** |
-| `@relay-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 87 pass | matches `v1-connectivity-spec.md` |
-| `@relay-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 45 pass | routing integration reviewed; escalation pipeline dormant (v1 known gap) |
+| `@relay-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 87 claimed (dep issue) | `nanoid` dependency missing; tests cannot run |
+| `@relay-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 45 claimed (dep issue) | import failure; tests cannot run |
 | `@relay-assistant/memory` | **placeholder** | `IMPLEMENTATION_READY` | — | spec exists at `docs/specs/v1-memory-spec.md`; roadmap: v1.1 |
 | `@relay-assistant/policy` | **placeholder** | none | — | no formal spec yet; roadmap: v2 |
 | `@relay-assistant/proactive` | **placeholder** | none | — | no formal spec yet; roadmap: v1.2 |
 | `@relay-assistant/examples` | **placeholder** | N/A | — | reference examples; not production code |
-| `@relay-assistant/traits` | **planned — v1.2** | none | — | assistant identity traits, voice, style, behavioral defaults — see [traits and persona layer](docs/architecture/traits-and-persona-layer.md) |
+| `@relay-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 32 pass | matches `v1-traits-spec.md`; assistant identity traits, voice, style, behavioral defaults — see [traits and persona layer](docs/architecture/traits-and-persona-layer.md) |
 
-**Total implemented: 241 tests, all passing.**
+**Total verified passing: 128 tests (core 31, sessions 25, surfaces 28, routing 12, traits 32). Connectivity (87 claimed) and coordination (45 claimed) blocked by missing dependencies.**
 
 **Blocking DoD failure:** `@relay-assistant/routing` has 12 tests against a 40+ target. Do not wire routing into product integration until resolved.
 
@@ -48,6 +50,7 @@ Products import focused SDK packages from this repo. The v1 baseline (stable for
 - `@relay-assistant/core`
 - `@relay-assistant/sessions`
 - `@relay-assistant/surfaces`
+- `@relay-assistant/traits`
 
 Beyond v1 (implemented, review before consuming):
 
@@ -58,7 +61,6 @@ Beyond v1 (implemented, review before consuming):
 Planned for future milestones:
 
 - `@relay-assistant/memory` — v1.1
-- `@relay-assistant/traits` — v1.2
 - `@relay-assistant/proactive` — v1.2
 - `@relay-assistant/policy` — v2
 
@@ -116,7 +118,7 @@ Keep these concerns in Sage, MSD, NightCTO, and future product repositories:
 | `@relay-assistant/routing` | Model-choice, latency/depth/cost routing, workload-router-aligned policy | **IMPLEMENTED** (DoD gap — see above) |
 | `@relay-assistant/connectivity` | Efficient inter-agent signaling, convergence, escalation, and communication contracts | **IMPLEMENTED** |
 | `@relay-assistant/coordination` | Coordinator/specialist orchestration and synthesis contracts | **IMPLEMENTED** |
-| `@relay-assistant/traits` | Assistant identity traits: voice, style, vocabulary, behavioral defaults, surface formatting preferences | **planned — v1.2** |
+| `@relay-assistant/traits` | Assistant identity traits: voice, style, vocabulary, behavioral defaults, surface formatting preferences | **IMPLEMENTED** |
 | `@relay-assistant/memory` | Memory scopes, stores, retrieval, promotion, compaction hooks | placeholder — v1.1 |
 | `@relay-assistant/proactive` | Follow-up engines, watch rules, scheduler bindings | placeholder — v1.2 |
 | `@relay-assistant/policy` | Approvals, external-action safeguards, audit hooks | placeholder — v2 |
@@ -127,6 +129,7 @@ Keep these concerns in Sage, MSD, NightCTO, and future product repositories:
 ## Read This First
 
 - [Docs index](docs/index.md)
+- [Current state](docs/current-state.md) — authoritative test results and blockers as of last tightening pass
 - [Package boundary map](docs/architecture/package-boundary-map.md)
 - [Traits and persona layer](docs/architecture/traits-and-persona-layer.md)
 - [SDK audit and alignment plan](docs/architecture/sdk-audit-and-traits-alignment-plan.md)

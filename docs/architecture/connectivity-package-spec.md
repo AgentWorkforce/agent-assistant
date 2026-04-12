@@ -1,3 +1,5 @@
+> **Note:** The canonical v1 spec is at `docs/specs/v1-connectivity-spec.md`. This document is the original architecture-level design that informed the spec.
+
 # Connectivity Package Spec
 
 Date: 2026-04-11
