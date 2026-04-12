@@ -1,0 +1,22 @@
+{
+  "name": "relay-agent-assistant-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/traits",
+    "packages/core",
+    "packages/sessions",
+    "packages/surfaces",
+    "packages/routing",
+    "packages/connectivity",
+    "packages/coordination",
+    "packages/memory",
+    "packages/proactive",
+    "packages/policy",
+    "packages/examples",
+    "packages/integration"
+  ],
+  "devDependencies": {
+    "@agentworkforce/workload-router": "^0.1.1"
+  }
+}
