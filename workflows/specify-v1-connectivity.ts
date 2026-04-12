@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-specify-v1-connectivity')
-    .description('Turn the connectivity research/docs into a true v1 implementation spec and implementation plan for the @relay-assistant/connectivity package.')
+  const result = await workflow('agent-assistant-sdk-specify-v1-connectivity')
+    .description('Turn the connectivity research/docs into a true v1 implementation spec and implementation plan for the @agent-assistant/connectivity package.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-spec-connectivity')
+    .channel('wf-agent-assistant-spec-connectivity')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

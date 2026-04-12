@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/connectivity",
+  "name": "@agent-assistant/connectivity",
   "version": "0.1.0",
-  "description": "Typed in-process connectivity signals for Relay Agent Assistant",
+  "description": "Typed in-process connectivity signals for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -25,7 +25,7 @@
     "nanoid": "^5.1.6"
   },
   "devDependencies": {
-    "@relay-assistant/routing": "file:../routing",
+    "@agent-assistant/routing": "file:../routing",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

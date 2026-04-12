@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-implement-v1-policy')
-    .description('Implement the v1 policy package for RelayAssistant from the reviewed scope/spec/plan, resolving review follow-ups before landing code.')
+  const result = await workflow('agent-assistant-implement-v1-policy')
+    .description('Implement the v1 policy package for Agent Assistant SDK from the reviewed scope/spec/plan, resolving review follow-ups before landing code.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-implement-policy')
+    .channel('wf-agent-assistant-implement-policy')
     .maxConcurrency(4)
     .timeout(5_400_000)
 
@@ -94,7 +94,7 @@ Required deliverables:
 - updated policy spec/plan wording only if required to match the reconciled contract
 
 Implementation requirements:
-- keep zero runtime dependency on other @relay-assistant packages
+- keep zero runtime dependency on other @agent-assistant packages
 - do not implement approval UX or hosted audit infrastructure
 - include an in-memory audit sink for tests/dev
 - keep the package bounded and reusable for v1

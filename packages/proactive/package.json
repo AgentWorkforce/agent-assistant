@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/proactive",
+  "name": "@agent-assistant/proactive",
   "version": "0.1.0",
-  "description": "Proactive decision engine for Relay Agent Assistant SDK",
+  "description": "Proactive decision engine for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

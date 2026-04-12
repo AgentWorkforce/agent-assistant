@@ -2,17 +2,17 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-specify-v1-consumer-adoption-paths')
-    .description('Define concrete SDK adoption paths for real consumers: NightCTO, Sage, and My Senior Dev. The goal is to turn the current RelayAssistant substrate into a practical product-adoption plan, not just generic guidance.')
+  const result = await workflow('agent-assistant-specify-v1-consumer-adoption-paths')
+    .description('Define concrete SDK adoption paths for real consumers: NightCTO, Sage, and My Senior Dev. The goal is to turn the current Agent Assistant SDK substrate into a practical product-adoption plan, not just generic guidance.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-consumer-adoption')
+    .channel('wf-agent-assistant-consumer-adoption')
     .maxConcurrency(4)
     .timeout(5_400_000)
 
     .agent('lead-claude', {
       cli: 'claude',
       model: ClaudeModels.OPUS,
-      role: 'Lead adoption architect for mapping RelayAssistant packages and integration patterns onto real consumer products.',
+      role: 'Lead adoption architect for mapping Agent Assistant SDK packages and integration patterns onto real consumer products.',
       retries: 1,
     })
     .agent('author-claude', {
@@ -38,7 +38,7 @@ async function main() {
         'echo "" && echo "---CURRENT STATE---"',
         'sed -n "1,260p" docs/current-state.md',
         'echo "" && echo "---PRODUCT ADOPTION DOC---"',
-        'sed -n "1,320p" docs/consumer/how-products-should-adopt-relay-agent-assistant.md',
+        'sed -n "1,320p" docs/consumer/how-products-should-adopt-agent-assistant-sdk.md',
         'echo "" && echo "---HOW TO BUILD AN ASSISTANT---"',
         'sed -n "1,320p" docs/consumer/how-to-build-an-assistant.md',
         'echo "" && echo "---ASSISTANT ASSEMBLY REVIEW---"',
@@ -84,7 +84,7 @@ End with V1_CONSUMER_ADOPTION_CONTRACT_READY.`,
 
 Read and follow:
 - docs/architecture/v1-consumer-adoption-contract.md
-- docs/consumer/how-products-should-adopt-relay-agent-assistant.md
+- docs/consumer/how-products-should-adopt-agent-assistant-sdk.md
 - docs/consumer/how-to-build-an-assistant.md
 - docs/current-state.md
 - docs/architecture/v1-assistant-assembly-examples-review-verdict.md

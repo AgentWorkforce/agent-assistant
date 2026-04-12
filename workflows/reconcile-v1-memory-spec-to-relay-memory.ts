@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-reconcile-v1-memory-spec-to-relay-memory')
+  const result = await workflow('agent-assistant-sdk-reconcile-v1-memory-spec-to-relay-memory')
     .description('Reconcile the v1 memory spec and implementation plan so they match the actual @agent-relay/memory surface before memory implementation begins.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-reconcile-memory')
+    .channel('wf-agent-assistant-reconcile-memory')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

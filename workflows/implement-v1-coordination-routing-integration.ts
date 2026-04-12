@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-implement-v1-coordination-routing-integration')
+  const result = await workflow('agent-assistant-sdk-implement-v1-coordination-routing-integration')
     .description('Implement the v1 coordination↔routing integration slice so coordination can request routing mode selection without taking ownership of routing internals.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-impl-coord-routing')
+    .channel('wf-agent-assistant-impl-coord-routing')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

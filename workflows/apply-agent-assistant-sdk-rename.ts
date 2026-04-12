@@ -42,7 +42,7 @@ async function main() {
         'echo "" && echo "---CURRENT STATE---"',
         'sed -n "1,260p" docs/current-state.md',
         'echo "" && echo "---NAME REFERENCES---"',
-        'rg -n "RelayAssistant|relay-assistant|@relay-assistant|relay-agent-assistant" README.md docs packages .github workflows || true',
+        'rg -n "Agent Assistant SDK|relay-assistant|agent-assistant-sdk" README.md docs packages .github workflows || true',
       ].join(' && '),
       captureOutput: true,
       failOnError: true,

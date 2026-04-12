@@ -1,17 +1,17 @@
 {
-  "name": "@relay-assistant/examples",
+  "name": "@agent-assistant/examples",
   "version": "0.1.0",
   "private": true,
-  "description": "Reference assembly examples for Relay Agent Assistant SDK",
+  "description": "Reference assembly examples for Agent Assistant SDK",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@relay-assistant/core": "file:../core",
-    "@relay-assistant/traits": "file:../traits",
-    "@relay-assistant/policy": "file:../policy",
-    "@relay-assistant/proactive": "file:../proactive",
+    "@agent-assistant/core": "file:../core",
+    "@agent-assistant/traits": "file:../traits",
+    "@agent-assistant/policy": "file:../policy",
+    "@agent-assistant/proactive": "file:../proactive",
     "typescript": "^5.9.3"
   }
 }

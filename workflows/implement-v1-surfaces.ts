@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-implement-v1-surfaces')
-    .description('Implement the v1 surfaces package for relay-agent-assistant from the reconciled canonical specs and workflow backlog.')
+  const result = await workflow('agent-assistant-sdk-implement-v1-surfaces')
+    .description('Implement the v1 surfaces package for agent-assistant-sdk from the reconciled canonical specs and workflow backlog.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-impl-surfaces')
+    .channel('wf-agent-assistant-impl-surfaces')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

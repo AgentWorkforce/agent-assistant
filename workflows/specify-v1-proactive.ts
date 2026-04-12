@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-specify-v1-proactive')
-    .description('Turn the proactive layer into a bounded v1 implementation-facing spec and implementation plan for RelayAssistant.')
+  const result = await workflow('agent-assistant-specify-v1-proactive')
+    .description('Turn the proactive layer into a bounded v1 implementation-facing spec and implementation plan for Agent Assistant SDK.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-spec-proactive')
+    .channel('wf-agent-assistant-spec-proactive')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
@@ -64,7 +64,7 @@ async function main() {
 Write docs/architecture/v1-proactive-scope.md.
 
 The scope doc must:
-1. define what proactive behavior belongs in RelayAssistant
+1. define what proactive behavior belongs in Agent Assistant SDK
 2. define how the package relates to relaycron without taking over scheduling infrastructure ownership
 3. define what belongs in v1 vs what is deferred
 4. define how proactive interacts with memory, coordination, routing, and surfaces

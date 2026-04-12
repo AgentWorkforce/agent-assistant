@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-specs-and-v1-program')
-    .description('Turn the strongest relay-agent-assistant docs into implementation-ready specs, a v1-style package/section plan, and an Agent Relay workflow backlog for weekend execution.')
+  const result = await workflow('agent-assistant-sdk-specs-and-v1-program')
+    .description('Turn the strongest agent-assistant-sdk docs into implementation-ready specs, a v1-style package/section plan, and an Agent Relay workflow backlog for weekend execution.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-specs-v1')
+    .channel('wf-agent-assistant-specs-v1')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
@@ -90,7 +90,7 @@ async function main() {
     .step('lead-plan', {
       agent: 'lead-claude',
       dependsOn: ['read-repo-context', 'read-architecture-context', 'read-consumer-context', 'read-connectivity-context'],
-      task: `Use the captured repo context below to define the next transformation of relay-agent-assistant.
+      task: `Use the captured repo context below to define the next transformation of agent-assistant-sdk.
 
 {{steps.read-repo-context.output}}
 
@@ -165,7 +165,7 @@ IMPORTANT: create the docs/workflows directory if it does not exist, write files
     .step('review-specs-and-program', {
       agent: 'review-codex',
       dependsOn: ['author-specs', 'author-v1-program'],
-      task: `Review the new spec and v1 program docs for relay-agent-assistant.
+      task: `Review the new spec and v1 program docs for agent-assistant-sdk.
 
 Read:
 - docs/architecture/spec-program-plan.md

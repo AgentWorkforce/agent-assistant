@@ -2,10 +2,10 @@ import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
-  const result = await workflow('relay-assistant-audit-repo-for-robustness')
-    .description('Run a repeatable robustness audit over the RelayAssistant repo to catch shortcuts, non-canonical imports, overstated proofs, weak integration claims, and implementation/doc drift.')
+  const result = await workflow('agent-assistant-audit-repo-for-robustness')
+    .description('Run a repeatable robustness audit over the Agent Assistant SDK repo to catch shortcuts, non-canonical imports, overstated proofs, weak integration claims, and implementation/doc drift.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-robustness-audit')
+    .channel('wf-agent-assistant-robustness-audit')
     .maxConcurrency(4)
     .timeout(5_400_000)
 
@@ -57,7 +57,7 @@ async function main() {
     .step('define-robustness-audit-standard', {
       agent: 'lead-claude',
       dependsOn: ['read-robustness-context'],
-      task: `Using the current repo context below, define a repeatable robustness-audit standard for RelayAssistant.
+      task: `Using the current repo context below, define a repeatable robustness-audit standard for Agent Assistant SDK.
 
 {{steps.read-robustness-context.output}}
 

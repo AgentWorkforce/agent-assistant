@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/policy",
+  "name": "@agent-assistant/policy",
   "version": "0.1.0",
-  "description": "Action classification, gating, and audit contracts for relay assistants",
+  "description": "Action classification, gating, and audit contracts for agent assistants",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

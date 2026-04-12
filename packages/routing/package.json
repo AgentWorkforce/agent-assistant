@@ -1,5 +1,5 @@
 {
-  "name": "@relay-assistant/routing",
+  "name": "@agent-assistant/routing",
   "version": "0.1.0",
   "description": "Assistant-level routing policy for cheap/fast/deep mode selection and abstract model recommendations",
   "type": "module",

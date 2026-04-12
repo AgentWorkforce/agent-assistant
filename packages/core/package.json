@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/core",
+  "name": "@agent-assistant/core",
   "version": "0.1.0",
-  "description": "Assistant definition, lifecycle, and runtime composition for Relay Agent Assistant SDK",
+  "description": "Assistant definition, lifecycle, and runtime composition for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,16 +20,16 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "@relay-assistant/traits": ">=0.1.0"
+    "@agent-assistant/traits": ">=0.1.0"
   },
   "devDependencies": {
-    "@relay-assistant/traits": "file:../traits",
+    "@agent-assistant/traits": "file:../traits",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/AgentWorkforce/relay-agent-assistant"
+    "url": "https://github.com/AgentWorkforce/agent-assistant-sdk"
   },
   "publishConfig": {
     "access": "public"

@@ -1,5 +1,5 @@
 {
-  "name": "@relay-assistant/memory",
+  "name": "@agent-assistant/memory",
   "version": "0.1.0",
   "description": "Assistant-scoped memory composition layer over @agent-relay/memory",
   "type": "module",

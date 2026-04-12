@@ -2,24 +2,24 @@ import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
-  const result = await workflow('relay-assistant-specify-publish-infrastructure')
-    .description('Define the RelayAssistant publish/release infrastructure using the established Relay-family publish patterns and requiring direct canonical consumption of the exported Workforce npm-provenance-publisher profile/package, not copied local persona data.')
+  const result = await workflow('agent-assistant-specify-publish-infrastructure')
+    .description('Define the Agent Assistant SDK publish/release infrastructure using the established Relay-family publish patterns and requiring direct canonical consumption of the exported Workforce npm-provenance-publisher profile/package, not copied local persona data.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-publish-infra')
+    .channel('wf-agent-assistant-publish-infra')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
     .agent('lead-claude', {
       cli: 'claude',
       model: ClaudeModels.OPUS,
-      role: 'Lead release-architecture author defining the canonical publish infrastructure for RelayAssistant with robust versioning, provenance, and reusable persona/profile integration.',
+      role: 'Lead release-architecture author defining the canonical publish infrastructure for Agent Assistant SDK with robust versioning, provenance, and reusable persona/profile integration.',
       retries: 1,
     })
     .agent('author-claude', {
       cli: 'claude',
       model: ClaudeModels.SONNET,
       preset: 'worker',
-      role: 'Authors the publish infrastructure contract, package readiness matrix, and implementation plan for RelayAssistant.',
+      role: 'Authors the publish infrastructure contract, package readiness matrix, and implementation plan for Agent Assistant SDK.',
       retries: 1,
     })
     .agent('review-codex', {
@@ -53,14 +53,14 @@ async function main() {
     .step('define-publish-contract', {
       agent: 'lead-claude',
       dependsOn: ['read-publish-context'],
-      task: `Using the Relay-family publish workflows, RelayAssistant package state, and the Workforce npm provenance publisher profile below, define the canonical publish infrastructure contract.
+      task: `Using the Relay-family publish workflows, Agent Assistant SDK package state, and the Workforce npm provenance publisher profile below, define the canonical publish infrastructure contract.
 
 {{steps.read-publish-context.output}}
 
 Write docs/architecture/publish-infrastructure-contract.md.
 
 The contract must define:
-1. which RelayAssistant packages are publishable now vs not yet
+1. which Agent Assistant SDK packages are publishable now vs not yet
 2. how the publish workflow should mirror relayfile/relayauth patterns
 3. the exact direct canonical consumption path for the Workforce npm-provenance-publisher profile/package
 4. versioning, tagging, and provenance expectations
@@ -81,7 +81,7 @@ End with PUBLISH_INFRASTRUCTURE_CONTRACT_READY.`,
     .step('author-publish-plan', {
       agent: 'author-claude',
       dependsOn: ['define-publish-contract'],
-      task: `Author the concrete RelayAssistant publish infrastructure plan.
+      task: `Author the concrete Agent Assistant SDK publish infrastructure plan.
 
 Read and follow:
 - docs/architecture/publish-infrastructure-contract.md
@@ -110,7 +110,7 @@ IMPORTANT:
     .step('review-publish-plan', {
       agent: 'review-codex',
       dependsOn: ['author-publish-plan'],
-      task: `Review the RelayAssistant publish infrastructure plan.
+      task: `Review the Agent Assistant SDK publish infrastructure plan.
 
 Read:
 - docs/architecture/publish-infrastructure-contract.md

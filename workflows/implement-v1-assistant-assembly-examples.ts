@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-implement-v1-assistant-assembly-examples')
-    .description('Create canonical assistant assembly examples that show how RelayAssistant packages compose into real product-facing assistants, with a strong focus on adoption readiness for NightCTO, Sage, and My Senior Dev.')
+  const result = await workflow('agent-assistant-implement-v1-assistant-assembly-examples')
+    .description('Create canonical assistant assembly examples that show how Agent Assistant SDK packages compose into real product-facing assistants, with a strong focus on adoption readiness for NightCTO, Sage, and My Senior Dev.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-assembly-examples')
+    .channel('wf-agent-assistant-assembly-examples')
     .maxConcurrency(4)
     .timeout(5_400_000)
 
@@ -40,7 +40,7 @@ async function main() {
         'echo "" && echo "---HOW TO BUILD AN ASSISTANT---"',
         'sed -n "1,320p" docs/consumer/how-to-build-an-assistant.md',
         'echo "" && echo "---HOW PRODUCTS SHOULD ADOPT---"',
-        'sed -n "1,320p" docs/consumer/how-products-should-adopt-relay-agent-assistant.md',
+        'sed -n "1,320p" docs/consumer/how-products-should-adopt-agent-assistant-sdk.md',
         'echo "" && echo "---PACKAGE BOUNDARY MAP---"',
         'sed -n "1,320p" docs/architecture/package-boundary-map.md',
         'echo "" && echo "---PROACTIVE POLICY INTEGRATION REVIEW---"',
@@ -90,7 +90,7 @@ End with V1_ASSISTANT_ASSEMBLY_EXAMPLES_CONTRACT_READY.`,
 Read and follow:
 - docs/architecture/v1-assistant-assembly-examples-contract.md
 - docs/consumer/how-to-build-an-assistant.md
-- docs/consumer/how-products-should-adopt-relay-agent-assistant.md
+- docs/consumer/how-products-should-adopt-agent-assistant-sdk.md
 - current package READMEs and integration review docs
 
 Required outputs:

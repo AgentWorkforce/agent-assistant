@@ -2,24 +2,24 @@ import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
-  const result = await workflow('relay-assistant-implement-publish-infrastructure')
-    .description('Implement RelayAssistant publish infrastructure modeled after relayfile/relayauth, using the Workforce npm-provenance-publisher package/profile path directly where applicable and only publishing packages that are actually ready.')
+  const result = await workflow('agent-assistant-implement-publish-infrastructure')
+    .description('Implement Agent Assistant SDK publish infrastructure modeled after relayfile/relayauth, using the Workforce npm-provenance-publisher package/profile path directly where applicable and only publishing packages that are actually ready.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-implement-publish-infra')
+    .channel('wf-agent-assistant-implement-publish-infra')
     .maxConcurrency(4)
     .timeout(5_400_000)
 
     .agent('lead-claude', {
       cli: 'claude',
       model: ClaudeModels.OPUS,
-      role: 'Lead release engineer defining the exact implementation boundary and canonical Workforce profile/harness consumption path for RelayAssistant publish infrastructure.',
+      role: 'Lead release engineer defining the exact implementation boundary and canonical Workforce profile/harness consumption path for Agent Assistant SDK publish infrastructure.',
       retries: 1,
     })
     .agent('implementer-claude', {
       cli: 'claude',
       model: ClaudeModels.SONNET,
       preset: 'worker',
-      role: 'Implements the RelayAssistant publish workflow, required package metadata updates, and supporting release docs without publishing unready packages.',
+      role: 'Implements the Agent Assistant SDK publish workflow, required package metadata updates, and supporting release docs without publishing unready packages.',
       retries: 1,
     })
     .agent('review-codex', {
@@ -57,7 +57,7 @@ async function main() {
     .step('define-publish-implementation-boundary', {
       agent: 'lead-claude',
       dependsOn: ['read-publish-implementation-context'],
-      task: `Using the publish planning docs and reference workflows below, define the exact implementation boundary for RelayAssistant publish infrastructure.
+      task: `Using the publish planning docs and reference workflows below, define the exact implementation boundary for Agent Assistant SDK publish infrastructure.
 
 {{steps.read-publish-implementation-context.output}}
 
@@ -82,7 +82,7 @@ End with PUBLISH_INFRA_IMPLEMENTATION_BOUNDARY_READY.`,
     .step('implement-publish-infrastructure', {
       agent: 'implementer-claude',
       dependsOn: ['define-publish-implementation-boundary'],
-      task: `Implement the RelayAssistant publish infrastructure.
+      task: `Implement the Agent Assistant SDK publish infrastructure.
 
 Read and follow:
 - docs/architecture/publish-infrastructure-implementation-boundary.md
@@ -113,7 +113,7 @@ IMPORTANT:
     .step('review-publish-implementation', {
       agent: 'review-codex',
       dependsOn: ['implement-publish-infrastructure'],
-      task: `Review the RelayAssistant publish infrastructure implementation.
+      task: `Review the Agent Assistant SDK publish infrastructure implementation.
 
 Read:
 - docs/architecture/publish-infrastructure-implementation-boundary.md

@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-specify-v1-policy')
-    .description('Define a bounded v1 policy package for RelayAssistant, covering approvals, action classes, audit hooks, and trust/risk boundaries without overreaching into product-specific policy.')
+  const result = await workflow('agent-assistant-specify-v1-policy')
+    .description('Define a bounded v1 policy package for Agent Assistant SDK, covering approvals, action classes, audit hooks, and trust/risk boundaries without overreaching into product-specific policy.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-spec-policy')
+    .channel('wf-agent-assistant-spec-policy')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
@@ -64,7 +64,7 @@ async function main() {
 Write docs/architecture/v1-policy-scope.md.
 
 The scope doc must:
-1. define what policy belongs in RelayAssistant
+1. define what policy belongs in Agent Assistant SDK
 2. define action/risk/approval concepts for v1
 3. define what stays product-specific or outside the package
 4. define how policy interacts with proactive, traits, coordination, and surfaces

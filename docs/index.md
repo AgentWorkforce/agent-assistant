@@ -1,4 +1,4 @@
-# Relay Agent Assistant Docs Index
+# Agent Assistant SDK Docs Index
 
 Start here. For current test results and blockers see [current-state.md](current-state.md).
 
@@ -23,9 +23,9 @@ Specs in `docs/specs/` are the canonical contracts. Plans and verdicts in `docs/
 See [README.md](../README.md) for the full implementation vs specification status table.
 See [current-state.md](current-state.md) for the authoritative per-package test results and blockers.
 
-**Blocking DoD failure:** `@relay-assistant/routing` has 12 tests against a 40+ target. Do not consume in products until resolved.
+**Blocking DoD failure:** `@agent-assistant/routing` has 12 tests against a 40+ target. Do not consume in products until resolved.
 
-**Workforce persona vs. assistant traits:** These are distinct. Workforce personas are runtime execution profiles (model, harness, system prompt, tier) — owned by Workforce, not this SDK. Assistant traits are identity/behavioral characteristics (voice, style, proactivity) — will live in `@relay-assistant/traits` at v1.2; in v1, products define them as local data objects. See [traits and persona layer](architecture/traits-and-persona-layer.md).
+**Workforce persona vs. assistant traits:** These are distinct. Workforce personas are runtime execution profiles (model, harness, system prompt, tier) — owned by Workforce, not this SDK. Assistant traits are identity/behavioral characteristics (voice, style, proactivity) — will live in `@agent-assistant/traits` at v1.2; in v1, products define them as local data objects. See [traits and persona layer](architecture/traits-and-persona-layer.md).
 
 ---
 
@@ -35,7 +35,7 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 
 - [Architecture draft](architecture/2026-04-11-relay-agent-assistant-architecture-draft.md)
 - [Package boundary map](architecture/package-boundary-map.md) — what belongs where; workforce persona vs traits; reuse-first rule
-- [Traits and persona layer](architecture/traits-and-persona-layer.md) — `@relay-assistant/traits` spec; workforce persona vs assistant traits distinction
+- [Traits and persona layer](architecture/traits-and-persona-layer.md) — `@agent-assistant/traits` spec; workforce persona vs assistant traits distinction
 - [SDK audit and traits alignment plan](architecture/sdk-audit-and-traits-alignment-plan.md) — implementation vs spec status audit; docs drift log; traits placement decision
 - [Connectivity package spec](architecture/connectivity-package-spec.md)
 - [Extraction roadmap](architecture/extraction-roadmap.md)
@@ -46,7 +46,7 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 ## Consumer docs
 
 - [How to build an assistant](consumer/how-to-build-an-assistant.md)
-- [How products should adopt relay-agent-assistant](consumer/how-products-should-adopt-relay-agent-assistant.md)
+- [How products should adopt agent-assistant-sdk](consumer/how-products-should-adopt-agent-assistant-sdk.md)
 - [Connectivity adoption guide](consumer/connectivity-adoption-guide.md)
 
 ## Workflows

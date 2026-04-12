@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-specify-v1-traits')
+  const result = await workflow('agent-assistant-specify-v1-traits')
     .description('Turn the newly clarified traits/persona layer into a bounded v1 implementation-facing spec and implementation plan for the future traits package.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-spec-traits')
+    .channel('wf-agent-assistant-spec-traits')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

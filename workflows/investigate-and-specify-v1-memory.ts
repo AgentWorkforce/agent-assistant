@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-investigate-and-specify-v1-memory')
+  const result = await workflow('agent-assistant-sdk-investigate-and-specify-v1-memory')
     .description('Investigate the existing @agent-relay/memory package and define the bounded v1 assistant-memory layer as a reuse-first adapter/composition package, not a greenfield memory engine.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-spec-memory')
+    .channel('wf-agent-assistant-spec-memory')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
@@ -90,7 +90,7 @@ Required files:
 - packages/memory/README.md
 
 Requirements:
-- make it explicit that @relay-assistant/memory is reuse-first over @agent-relay/memory
+- make it explicit that @agent-assistant/memory is reuse-first over @agent-relay/memory
 - define whether the assistant-memory package is an adapter, wrapper, composition layer, or thin extension in v1
 - identify exact relay memory pieces to reuse
 - define what assistant-facing memory contracts remain necessary

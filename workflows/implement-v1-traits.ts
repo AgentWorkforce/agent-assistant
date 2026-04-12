@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-implement-v1-traits')
-    .description('Implement the v1 traits package for RelayAssistant from the traits spec, traits scope, and current package landscape.')
+  const result = await workflow('agent-assistant-implement-v1-traits')
+    .description('Implement the v1 traits package for Agent Assistant SDK from the traits spec, traits scope, and current package landscape.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-impl-traits')
+    .channel('wf-agent-assistant-impl-traits')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

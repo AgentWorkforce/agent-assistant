@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-implement-v1-proactive-policy-integration')
+  const result = await workflow('agent-assistant-implement-v1-proactive-policy-integration')
     .description('Integrate the v1 proactive and v1 policy packages so proactive actions can be gated, approved, audited, and escalated with a clean assistant-runtime boundary.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-proactive-policy-integration')
+    .channel('wf-agent-assistant-proactive-policy-integration')
     .maxConcurrency(4)
     .timeout(5_400_000)
 

@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-implement-v1-foundation-integration')
+  const result = await workflow('agent-assistant-sdk-implement-v1-foundation-integration')
     .description('Implement the v1 foundation integration slice proving core, sessions, and surfaces work together as one coherent assistant runtime foundation.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-impl-foundation')
+    .channel('wf-agent-assistant-impl-foundation')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

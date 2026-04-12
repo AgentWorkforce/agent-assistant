@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-audit-sdk-and-traits-alignment')
-    .description('Audit the current relay-agent-assistant state, align docs with implemented reality, add explicit guidance and space for traits/persona, and update workspace guidance where future workflows should stay aligned.')
+  const result = await workflow('agent-assistant-sdk-audit-sdk-and-traits-alignment')
+    .description('Audit the current agent-assistant-sdk state, align docs with implemented reality, add explicit guidance and space for traits/persona, and update workspace guidance where future workflows should stay aligned.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-audit-traits')
+    .channel('wf-agent-assistant-audit-traits')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
@@ -19,7 +19,7 @@ async function main() {
       cli: 'claude',
       model: ClaudeModels.SONNET,
       preset: 'worker',
-      role: 'Updates relay-agent-assistant docs to reflect implemented state, package reality, reuse-first guidance, and the new traits/persona layer direction.',
+      role: 'Updates agent-assistant-sdk docs to reflect implemented state, package reality, reuse-first guidance, and the new traits/persona layer direction.',
       retries: 1,
     })
     .agent('review-codex', {
@@ -81,7 +81,7 @@ End the document with SDK_AUDIT_ALIGNMENT_PLAN_READY.`,
       dependsOn: ['lead-audit-plan'],
       task: `Apply the audit/alignment updates using docs/architecture/sdk-audit-and-traits-alignment-plan.md.
 
-Update the relay-agent-assistant repo docs so they reflect implemented reality and explicitly make space for traits/persona.
+Update the agent-assistant-sdk repo docs so they reflect implemented reality and explicitly make space for traits/persona.
 
 Required outputs/updates:
 - README.md

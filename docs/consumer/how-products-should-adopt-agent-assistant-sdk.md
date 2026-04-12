@@ -1,4 +1,4 @@
-# How Products Should Adopt Relay Agent Assistant
+# How Products Should Adopt Agent Assistant SDK
 
 Date: 2026-04-11
 
@@ -55,9 +55,9 @@ If the shared contract needs customization, implement the customization in the p
 
 Adopt first:
 
-- `@relay-assistant/memory`
-- `@relay-assistant/proactive`
-- `@relay-assistant/sessions`
+- `@agent-assistant/memory`
+- `@agent-assistant/proactive`
+- `@agent-assistant/sessions`
 
 Reason:
 
@@ -73,10 +73,10 @@ Keep in Sage:
 
 Adopt first:
 
-- `@relay-assistant/core`
-- `@relay-assistant/sessions`
-- `@relay-assistant/surfaces`
-- `@relay-assistant/policy`
+- `@agent-assistant/core`
+- `@agent-assistant/sessions`
+- `@agent-assistant/surfaces`
+- `@agent-assistant/policy`
 
 Reason:
 
@@ -92,10 +92,10 @@ Keep in MSD:
 
 Adopt first:
 
-- `@relay-assistant/coordination`
-- `@relay-assistant/policy`
-- `@relay-assistant/memory`
-- `@relay-assistant/proactive`
+- `@agent-assistant/coordination`
+- `@agent-assistant/policy`
+- `@agent-assistant/memory`
+- `@agent-assistant/proactive`
 
 Reason:
 
@@ -146,7 +146,7 @@ Products and implementation workflows should inspect the existing `relay` ecosys
 
 Important example:
 - for memory, start by evaluating and reusing `@agent-relay/memory`
-- do not assume `@relay-assistant/memory` must be a greenfield package
+- do not assume `@agent-assistant/memory` must be a greenfield package
 - prefer wrapping, composing, or adapting Relay memory where it already satisfies the needed assistant contract
 
 ---
@@ -157,16 +157,16 @@ As of 2026-04-12, these packages are implemented with passing test suites and ar
 
 | Package | Status | Tests | Adopt now? |
 |---|---|---|---|
-| `@relay-assistant/core` | SPEC_RECONCILED | 40 passing | Yes — universal starting point |
-| `@relay-assistant/traits` | IMPLEMENTATION_READY | 32 passing | Yes — lightweight, no downstream deps |
-| `@relay-assistant/policy` | implemented | 64 passing | Yes — MSD and NightCTO priority |
-| `@relay-assistant/proactive` | implemented | 45 passing | Yes — Sage and NightCTO priority |
-| `@relay-assistant/sessions` | v1 baseline | — | Yes — for session continuity |
-| `@relay-assistant/surfaces` | v1 baseline | — | Yes — for multi-surface fanout |
-| `@relay-assistant/memory` | placeholder | — | No — evaluate `@agent-relay/memory` first |
-| `@relay-assistant/routing` | DoD gap | 12/40+ | No — do not adopt until resolved |
-| `@relay-assistant/coordination` | tests blocked | — | No — dependency gap |
-| `@relay-assistant/connectivity` | tests blocked | — | No — dependency gap |
+| `@agent-assistant/core` | SPEC_RECONCILED | 40 passing | Yes — universal starting point |
+| `@agent-assistant/traits` | IMPLEMENTATION_READY | 32 passing | Yes — lightweight, no downstream deps |
+| `@agent-assistant/policy` | implemented | 64 passing | Yes — MSD and NightCTO priority |
+| `@agent-assistant/proactive` | implemented | 45 passing | Yes — Sage and NightCTO priority |
+| `@agent-assistant/sessions` | v1 baseline | — | Yes — for session continuity |
+| `@agent-assistant/surfaces` | v1 baseline | — | Yes — for multi-surface fanout |
+| `@agent-assistant/memory` | placeholder | — | No — evaluate `@agent-relay/memory` first |
+| `@agent-assistant/routing` | DoD gap | 12/40+ | No — do not adopt until resolved |
+| `@agent-assistant/coordination` | tests blocked | — | No — dependency gap |
+| `@agent-assistant/connectivity` | tests blocked | — | No — dependency gap |
 
 Products should adopt packages in the "Yes" rows now. Do not block on packages in the "No" rows.
 

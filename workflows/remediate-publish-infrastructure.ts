@@ -2,10 +2,10 @@ import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
-  const result = await workflow('relay-assistant-remediate-publish-infrastructure')
-    .description('Fix the blocking findings from the RelayAssistant publish infrastructure review so the publish path is actually safe, canonical, and ready for manual publish testing.')
+  const result = await workflow('agent-assistant-remediate-publish-infrastructure')
+    .description('Fix the blocking findings from the Agent Assistant SDK publish infrastructure review so the publish path is actually safe, canonical, and ready for manual publish testing.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-remediate-publish-infra')
+    .channel('wf-agent-assistant-remediate-publish-infra')
     .maxConcurrency(4)
     .timeout(5_400_000)
 
@@ -19,7 +19,7 @@ async function main() {
       cli: 'claude',
       model: ClaudeModels.SONNET,
       preset: 'worker',
-      role: 'Implements the targeted fixes needed to make the RelayAssistant publish infrastructure safe and canonical.',
+      role: 'Implements the targeted fixes needed to make the Agent Assistant SDK publish infrastructure safe and canonical.',
       retries: 1,
     })
     .agent('review-codex', {

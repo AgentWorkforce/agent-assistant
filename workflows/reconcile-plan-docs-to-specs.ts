@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-reconcile-plan-docs')
+  const result = await workflow('agent-assistant-sdk-reconcile-plan-docs')
     .description('Reconcile planning, backlog, and weekend-delivery docs so they exactly match the canonical v1 package specs.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-reconcile')
+    .channel('wf-agent-assistant-reconcile')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
@@ -142,7 +142,7 @@ IMPORTANT: write files to disk and exit when complete.`,
     .step('review-reconciliation', {
       agent: 'review-codex',
       dependsOn: ['reconcile-plan-docs', 'reconcile-examples-and-weekend-plan'],
-      task: `Review the reconciled docs for relay-agent-assistant.
+      task: `Review the reconciled docs for agent-assistant-sdk.
 
 Read:
 - docs/architecture/spec-reconciliation-rules.md

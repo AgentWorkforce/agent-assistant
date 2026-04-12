@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-connectivity-spike')
-    .description('Spike the @relay-assistant/connectivity package and author detailed docs/spec material for focused inter-agent signaling, convergence, and efficient assistant coordination.')
+  const result = await workflow('agent-assistant-sdk-connectivity-spike')
+    .description('Spike the @agent-assistant/connectivity package and author detailed docs/spec material for focused inter-agent signaling, convergence, and efficient assistant coordination.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-connectivity')
+    .channel('wf-agent-assistant-connectivity')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

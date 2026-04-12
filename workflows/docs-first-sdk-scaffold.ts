@@ -2,10 +2,10 @@ import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
-const result = await workflow('relay-agent-assistant-docs-first-scaffold')
-  .description('Design and author a tightly organized docs-first scaffold for the open-source Relay Agent Assistant SDK, including consumer usage guidance and a cloud adapter direction.')
+const result = await workflow('agent-assistant-sdk-docs-first-scaffold')
+  .description('Design and author a tightly organized docs-first scaffold for the open-source Agent Assistant SDK SDK, including consumer usage guidance and a cloud adapter direction.')
   .pattern('supervisor')
-  .channel('wf-relay-agent-assistant-docs')
+  .channel('wf-agent-assistant-sdk-docs')
   .maxConcurrency(4)
   .timeout(3_600_000)
 
@@ -46,7 +46,7 @@ const result = await workflow('relay-agent-assistant-docs-first-scaffold')
       'printf "\\n---LANDSCAPE---\\n"',
       'sed -n "1,260p" docs/research/2026-04-11-assistant-sdk-landscape.md',
       'printf "\\n---ARCHITECTURE---\\n"',
-      'sed -n "1,260p" docs/architecture/2026-04-11-relay-agent-assistant-architecture-draft.md',
+      'sed -n "1,260p" docs/architecture/2026-04-11-agent-assistant-sdk-architecture-draft.md',
       'printf "\\n---RELAY GATEWAY INDEX---\\n"',
       'sed -n "1,220p" ../relay/packages/gateway/src/index.ts',
       'printf "\\n---RELAY GATEWAY TYPES---\\n"',
@@ -65,15 +65,15 @@ const result = await workflow('relay-agent-assistant-docs-first-scaffold')
   .step('map-sdk-boundaries', {
     agent: 'research-codex',
     dependsOn: ['capture-context'],
-    task: `Using the captured context below, produce a concise but concrete boundary map for the Relay Agent Assistant SDK.
+    task: `Using the captured context below, produce a concise but concrete boundary map for the Agent Assistant SDK SDK.
 
 {{steps.capture-context.output}}
 
 Write your findings to docs/architecture/package-boundary-map.md.
 
 Required sections:
-1. What belongs in relay foundation vs relay-agent-assistant sdk vs product repos
-2. Mapping from existing sources (relay, sage, msd, nightcto) into proposed @relay-assistant/* packages
+1. What belongs in relay foundation vs agent-assistant-sdk sdk vs product repos
+2. Mapping from existing sources (relay, sage, msd, nightcto) into proposed @agent-assistant/* packages
 3. OSS core vs future cloud implementation split
 4. Recommended first extraction order
 
@@ -97,7 +97,7 @@ Required files to create or update:
 - docs/architecture/extraction-roadmap.md
 - docs/architecture/oss-vs-cloud-split.md
 - docs/consumer/how-to-build-an-assistant.md
-- docs/consumer/how-products-should-adopt-relay-agent-assistant.md
+- docs/consumer/how-products-should-adopt-agent-assistant-sdk.md
 - docs/research/internal-system-comparison.md
 - packages/core/README.md
 - packages/memory/README.md
@@ -123,7 +123,7 @@ IMPORTANT: write files to disk, do not print the docs to stdout. End README.md w
   .step('review-scaffold', {
     agent: 'review-claude',
     dependsOn: ['author-docs-scaffold'],
-    task: `Review the docs scaffold for the Relay Agent Assistant repo.
+    task: `Review the docs scaffold for the Agent Assistant SDK repo.
 
 Read these files:
 - README.md
@@ -131,7 +131,7 @@ Read these files:
 - docs/architecture/extraction-roadmap.md
 - docs/architecture/oss-vs-cloud-split.md
 - docs/consumer/how-to-build-an-assistant.md
-- docs/consumer/how-products-should-adopt-relay-agent-assistant.md
+- docs/consumer/how-products-should-adopt-agent-assistant-sdk.md
 - docs/research/internal-system-comparison.md
 - packages/core/README.md
 - packages/memory/README.md
@@ -165,7 +165,7 @@ End the file with REVIEW_COMPLETE.`,
       'test -f docs/architecture/oss-vs-cloud-split.md',
       'test -f docs/architecture/review-verdict.md',
       'test -f docs/consumer/how-to-build-an-assistant.md',
-      'test -f docs/consumer/how-products-should-adopt-relay-agent-assistant.md',
+      'test -f docs/consumer/how-products-should-adopt-agent-assistant-sdk.md',
       'test -f docs/research/internal-system-comparison.md',
       'test -f packages/core/README.md',
       'test -f packages/memory/README.md',

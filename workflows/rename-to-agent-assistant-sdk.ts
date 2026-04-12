@@ -2,8 +2,8 @@ import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function main() {
-  const result = await workflow('rename-relay-assistant-to-agent-assistant-sdk')
-    .description('Rename RelayAssistant to Agent Assistant SDK across the repo, package metadata, docs, publish infrastructure, and consumer materials, while also tightening the README and landing docs for open-source/public consumption.')
+  const result = await workflow('rename-to-agent-assistant-sdk')
+    .description('Rename Agent Assistant SDK to Agent Assistant SDK across the repo, package metadata, docs, publish infrastructure, and consumer materials, while also tightening the README and landing docs for open-source/public consumption.')
     .pattern('supervisor')
     .channel('wf-agent-assistant-rename')
     .maxConcurrency(4)
@@ -44,7 +44,7 @@ async function main() {
         'echo "" && echo "---PUBLISH WORKFLOW---"',
         'sed -n "1,320p" .github/workflows/publish.yml 2>/dev/null || true',
         'echo "" && echo "---NAME REFERENCES---"',
-        'rg -n "RelayAssistant|relay-assistant|@relay-assistant" README.md docs packages .github workflows || true',
+        'rg -n "Agent Assistant SDK|relay-assistant" README.md docs packages .github workflows || true',
       ].join(' && '),
       captureOutput: true,
       failOnError: true,
@@ -53,7 +53,7 @@ async function main() {
     .step('define-rename-boundary', {
       agent: 'lead-claude',
       dependsOn: ['read-rename-context'],
-      task: `Using the current repo/docs/package state below, define the exact rename boundary and public-facing positioning for renaming RelayAssistant to Agent Assistant SDK.
+      task: `Using the current repo/docs/package state below, define the exact rename boundary and public-facing positioning for renaming Agent Assistant SDK to Agent Assistant SDK.
 
 {{steps.read-rename-context.output}}
 
@@ -81,7 +81,7 @@ End with AGENT_ASSISTANT_RENAME_BOUNDARY_READY.`,
       task: `Apply the full rename and README/public-doc cleanup using docs/architecture/agent-assistant-sdk-rename-boundary.md.
 
 Required outcomes:
-- rename repo-facing/docs-facing/package-facing references from RelayAssistant to Agent Assistant SDK / agent-assistant as defined in the boundary
+- rename repo-facing/docs-facing/package-facing references from Agent Assistant SDK to Agent Assistant SDK / agent-assistant as defined in the boundary
 - update package metadata, docs, workflows, and publish infrastructure consistently
 - update README so it reads as a strong public/open-source landing page
 - update consumer/adoption docs as needed
@@ -115,7 +115,7 @@ Read:
 
 Assess:
 1. is the rename consistent and complete enough?
-2. are stale RelayAssistant references removed except where intentionally historical?
+2. are stale Agent Assistant SDK references removed except where intentionally historical?
 3. is the README/public positioning actually ready for open-source readers?
 4. is this strong enough to proceed with repo/package/public rename follow-through?
 

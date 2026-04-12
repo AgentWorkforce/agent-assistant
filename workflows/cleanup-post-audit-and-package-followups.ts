@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-cleanup-post-audit-and-package-followups')
+  const result = await workflow('agent-assistant-sdk-cleanup-post-audit-and-package-followups')
     .description('Apply a narrow cleanup sweep after the audit/alignment and recent package reviews, resolving small but repeated doc and package follow-ups before memory work begins.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-cleanup-followups')
+    .channel('wf-agent-assistant-cleanup-followups')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

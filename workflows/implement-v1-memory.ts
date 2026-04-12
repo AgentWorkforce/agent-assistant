@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-implement-v1-memory')
-    .description('Implement the v1 memory package for relay-agent-assistant as a reuse-first composition layer over @agent-relay/memory.')
+  const result = await workflow('agent-assistant-sdk-implement-v1-memory')
+    .description('Implement the v1 memory package for agent-assistant-sdk as a reuse-first composition layer over @agent-relay/memory.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-impl-memory')
+    .channel('wf-agent-assistant-impl-memory')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

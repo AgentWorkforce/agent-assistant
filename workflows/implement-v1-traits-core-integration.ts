@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-implement-v1-traits-core-integration')
+  const result = await workflow('agent-assistant-implement-v1-traits-core-integration')
     .description('Integrate the v1 traits package with core assistant composition so traits become a real first-class assembly input rather than a parallel isolated package.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-traits-core-integration')
+    .channel('wf-agent-assistant-traits-core-integration')
     .maxConcurrency(4)
     .timeout(5_400_000)
 

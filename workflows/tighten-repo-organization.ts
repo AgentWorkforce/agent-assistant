@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-assistant-tighten-repo-organization')
-    .description('Perform a repeatable repo-tightening pass for RelayAssistant: improve workflow discoverability, source-of-truth clarity, current-state reporting, and small naming/organization inconsistencies.')
+  const result = await workflow('agent-assistant-tighten-repo-organization')
+    .description('Perform a repeatable repo-tightening pass for Agent Assistant SDK: improve workflow discoverability, source-of-truth clarity, current-state reporting, and small naming/organization inconsistencies.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-tighten-repo')
+    .channel('wf-agent-assistant-tighten-repo')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

@@ -1,7 +1,7 @@
 {
-  "name": "@relay-assistant/coordination",
+  "name": "@agent-assistant/coordination",
   "version": "0.1.0",
-  "description": "Minimal coordinator, specialist registry, delegation, and synthesis runtime for Relay Agent Assistant",
+  "description": "Minimal coordinator, specialist registry, delegation, and synthesis runtime for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,11 +22,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@relay-assistant/connectivity": "file:../connectivity",
+    "@agent-assistant/connectivity": "file:../connectivity",
     "nanoid": "^5.1.6"
   },
   "devDependencies": {
-    "@relay-assistant/routing": "file:../routing",
+    "@agent-assistant/routing": "file:../routing",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

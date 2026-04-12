@@ -42,7 +42,7 @@ async function main() {
         'echo "" && echo "---README---"',
         'sed -n "1,260p" README.md',
         'echo "" && echo "---BROKEN NAME REFERENCES---"',
-        'rg -n "relay-assistant|RelayAssistant|how-products-should-adopt-relay-agent-assistant|wf-relay-assistant|relay-assistant-" README.md docs .github workflows packages || true',
+        'rg -n "relay-assistant|RelayAssistant|wf-relay-assistant|relay-assistant-" README.md docs .github workflows packages || true',
       ].join(' && '),
       captureOutput: true,
       failOnError: true,

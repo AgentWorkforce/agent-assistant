@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-reconcile-canonical-specs')
+  const result = await workflow('agent-assistant-sdk-reconcile-canonical-specs')
     .description('Reconcile the canonical v1 specs so they match the adopted reconciliation rules and unblock implementation workflows.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-reconcile-specs')
+    .channel('wf-agent-assistant-reconcile-specs')
     .maxConcurrency(4)
     .timeout(3_600_000)
 

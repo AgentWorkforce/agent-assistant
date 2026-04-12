@@ -2,10 +2,10 @@ const { workflow } = require('@agent-relay/sdk/workflows');
 const { ClaudeModels, CodexModels } = require('@agent-relay/config');
 
 async function main() {
-  const result = await workflow('relay-agent-assistant-harden-v1-connectivity')
+  const result = await workflow('agent-assistant-sdk-harden-v1-connectivity')
     .description('Harden the v1 connectivity package by addressing the highest-value review follow-ups before broader integration work proceeds.')
     .pattern('supervisor')
-    .channel('wf-relay-assistant-harden-connectivity')
+    .channel('wf-agent-assistant-harden-connectivity')
     .maxConcurrency(4)
     .timeout(3_600_000)
 
