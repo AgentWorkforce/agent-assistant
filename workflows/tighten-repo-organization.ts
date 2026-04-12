@@ -55,18 +55,24 @@ async function main() {
     .step('lead-tightening-plan', {
       agent: 'lead-claude',
       dependsOn: ['read-repo-organization-context'],
-      task: `Using the current repo state below, write a repeatable repo-tightening plan.
+      task: `Using the repo state below, write a concise repeatable repo-tightening plan.
 
 {{steps.read-repo-organization-context.output}}
 
 Write docs/architecture/repo-tightening-plan.md.
+
+Hard constraints:
+- do not do broad repo exploration beyond the provided context unless strictly necessary
+- do not inspect unrelated repos or historical artifacts outside this repo
+- keep the document to roughly 60-120 lines
+- optimize for decisiveness over completeness
 
 The plan must:
 1. define the minimal repeatable cleanup/organization outcomes
 2. define what navigation docs should exist
 3. define how source-of-truth hierarchy should be expressed
 4. define how current implemented vs specified state should be summarized
-5. identify any small naming/wording consistency fixes worth making now
+5. identify only the highest-value naming/wording consistency fixes worth making now
 6. keep the pass lightweight and repeatable for future reruns
 
 End the document with REPO_TIGHTENING_PLAN_READY.`,
@@ -90,12 +96,12 @@ Optional updates if clearly helpful:
 - small wording fixes around implemented/spec'd/deferred state
 - lightweight doc index improvements in architecture/workflow sections
 
-Requirements:
+Hard constraints:
 - keep the pass lightweight and repeatable
 - do not refactor the whole repo
-- make it easier for future humans or workflows to know where to look first
-- make source-of-truth hierarchy explicit
-- clearly summarize implemented vs specified vs deferred state
+- avoid broad exploratory reading outside the plan and touched docs
+- prefer minimal edits that improve navigation and clarity immediately
+- if a choice is ambiguous, document it rather than over-editing the repo
 
 IMPORTANT:
 - write files to disk
