@@ -375,3 +375,24 @@ Working concept:
 Architectural implication for current memory work:
 - memory data models should preserve enough provenance and confidence metadata to make future consolidation possible
 - do not flatten memory records too aggressively if that would erase future reconciliation signals
+
+
+## Future Memory and Policy Capability: Private/Shared Memory Compartments
+
+RelayAssistant should explicitly support a compartment model rather than one flat assistant memory pool.
+
+Target shape over time:
+- per-user private memory rooms for personal agents (for example Telegram/WhatsApp direct agents)
+- shared workspace/company memory rooms for team-facing agents (for example Slack agents)
+- session/thread rooms for local conversational context
+- backstage/library rooms for domain-agent memos and synthesis artifacts
+
+Key principle:
+- identity can be unified across assistants and surfaces
+- memory visibility must still remain compartmentalized
+
+This implies future support for:
+- private vs shared memory scopes
+- explicit promotion/projection from private -> shared only under policy control
+- scoped access decisions for personal agents, company agents, and librarian/background agents
+- policy-aware bridging rather than indiscriminate shared retrieval

@@ -328,3 +328,15 @@ V1_WORKFLOW_BACKLOG_UPDATED
 ## Future Capability Note — Librarian / Cross-Agent Consolidation
 
 A future **v5-v8 level** capability should add a librarian/night-crawler style system that consolidates memory across multiple agents. This is explicitly out of scope for the current v1 workflows, but current memory-related work should preserve provenance, confidence, and timestamp metadata so later consolidation remains possible.
+
+
+## Future Track — Private and Shared Memory Compartments
+
+A future workflow/spec track should define how RelayAssistant supports:
+- personal/private user agents
+- shared company/workspace agents
+- unified identity across surfaces
+- privacy-preserving memory compartments / rooms
+- explicit policy-controlled promotion between private and shared memory spaces
+
+This should be treated as a cross-cutting memory + policy capability, not just a storage detail.

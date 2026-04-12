@@ -211,3 +211,21 @@ A stronger and more honest claim is:
 - RelayAssistant provides a structured, provenance-aware memory substrate
 - it is designed around explicit trade-offs
 - and it leaves room for more advanced consolidation and evaluation layers over time
+
+
+## Compartmentalized memory and room models
+
+Another important design axis is whether memory is treated as one flat pool or as a set of rooms/compartments with different visibility rules.
+
+RelayAssistant should favor compartmentalized memory over a flat memory pool.
+
+Examples:
+- a user can have a private personal-memory room used by their direct agent on Telegram or WhatsApp
+- the same user can participate in a shared company-memory room through a Slack-facing company agent
+- backstage/librarian/domain-agent rooms can hold memos and synthesized observations that are not automatically visible to every assistant context
+
+This means a strong memory system needs not just retrieval and provenance, but also:
+- visibility boundaries
+- explicit promotion/projection across rooms
+- identity linkage without privacy collapse
+- policy-controlled access to compartmented memory
