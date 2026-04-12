@@ -21,7 +21,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-relay/hooks": "file:../../../relay/packages/hooks",
     "@agent-relay/memory": "file:../../../relay/packages/memory"
   },
   "devDependencies": {
