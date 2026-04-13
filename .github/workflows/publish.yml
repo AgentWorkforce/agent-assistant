@@ -1,11 +1,9 @@
 name: Publish Packages
 
-# Workforce npm-provenance-publisher profile consumption:
-# Consumed via @agentworkforce/workload-router (resolvePersona('npm-provenance')).
-# The workflow orchestration layer uses the workload-router programmatically.
-# This YAML implements the persona's concrete technical requirements directly
-# (YAML cannot import npm packages) with source attribution to the persona.
-# See: @agentworkforce/workload-router — npm-provenance intent.
+# Publish workflow for the initial public Agent Assistant SDK package wave.
+# This workflow implements the npm provenance requirements directly in YAML.
+# It intentionally avoids runtime dependency on @agentworkforce/workload-router
+# so publish remains deterministic in a clean GitHub Actions environment.
 
 on:
   workflow_dispatch:
@@ -56,7 +54,6 @@ concurrency:
   cancel-in-progress: false
 
 # Required for npm OIDC provenance attestation.
-# Source: @agentworkforce/workload-router — resolvePersona('npm-provenance')
 # TARGET STATE: Full OIDC with no NPM_TOKEN, pending trusted publisher registration
 # on npmjs.com for each package (manual step).
 # Until trusted publisher registration is complete, NODE_AUTH_TOKEN is used as bridge.
@@ -88,16 +85,10 @@ jobs:
 
       - run: npm ci
 
-      - name: Resolve publish persona via workload-router
+      - name: Confirm publish strategy
         run: |
-          node --input-type=module <<'EOF'
-          import { resolvePersona } from '@agentworkforce/workload-router';
-          const selection = resolvePersona('npm-provenance');
-          if (selection.personaId !== 'npm-provenance-publisher') {
-            throw new Error(`Unexpected persona: ${selection.personaId}`);
-          }
-          console.log(`Using persona ${selection.personaId} via ${selection.rationale.profileId}`);
-          EOF
+          echo "Publishing the initial public Agent Assistant SDK wave with npm provenance enabled."
+          echo "Packages: traits, core, sessions, surfaces, policy, proactive, sdk"
 
       - name: Run tests — traits
         working-directory: packages/traits
@@ -110,6 +101,12 @@ jobs:
         run: npx vitest run
       - name: Run tests — surfaces
         working-directory: packages/surfaces
+        run: npx vitest run
+      - name: Run tests — policy
+        working-directory: packages/policy
+        run: npx vitest run
+      - name: Run tests — proactive
+        working-directory: packages/proactive
         run: npx vitest run
 
       - name: Typecheck — traits
@@ -124,6 +121,15 @@ jobs:
       - name: Typecheck — surfaces
         working-directory: packages/surfaces
         run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — policy
+        working-directory: packages/policy
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — proactive
+        working-directory: packages/proactive
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — sdk
+        working-directory: packages/sdk
+        run: npx tsc --noEmit -p tsconfig.json
 
       - name: Build — traits
         working-directory: packages/traits
@@ -137,11 +143,20 @@ jobs:
       - name: Build — surfaces
         working-directory: packages/surfaces
         run: npm run build
+      - name: Build — policy
+        working-directory: packages/policy
+        run: npm run build
+      - name: Build — proactive
+        working-directory: packages/proactive
+        run: npm run build
+      - name: Build — sdk
+        working-directory: packages/sdk
+        run: npm run build
 
       - name: Verify no test artifacts in dist
         run: |
           FAIL=0
-          for pkg in traits core sessions surfaces; do
+          for pkg in traits core sessions surfaces policy proactive sdk; do
             if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
               echo "ERROR: test artifacts found in packages/$pkg/dist/"
               find "packages/$pkg/dist" -name '*.test.*'
@@ -153,7 +168,7 @@ jobs:
 
       - name: Set publish matrix
         id: packages
-        run: echo 'matrix=["traits","core","sessions","surfaces"]' >> "$GITHUB_OUTPUT"
+        run: echo 'matrix=["traits","core","sessions","surfaces","policy","proactive","sdk"]' >> "$GITHUB_OUTPUT"
 
       - name: Version all publishable packages
         id: version
@@ -174,7 +189,7 @@ jobs:
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           cd ../..
 
-          for pkg in core sessions surfaces; do
+          for pkg in core sessions surfaces policy proactive sdk; do
             cd "packages/$pkg"
             npm version "$NEW_VERSION" --no-git-tag-version
             cd ../..
@@ -204,6 +219,24 @@ jobs:
           name: dist-surfaces
           path: packages/surfaces/dist
           retention-days: 1
+      - name: Upload build artifact — policy
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-policy
+          path: packages/policy/dist
+          retention-days: 1
+      - name: Upload build artifact — proactive
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-proactive
+          path: packages/proactive/dist
+          retention-days: 1
+      - name: Upload build artifact — sdk
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-sdk
+          path: packages/sdk/dist
+          retention-days: 1
 
       - name: Upload manifest — traits
         uses: actions/upload-artifact@v4
@@ -229,6 +262,24 @@ jobs:
           name: manifest-surfaces
           path: packages/surfaces/package.json
           retention-days: 1
+      - name: Upload manifest — policy
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-policy
+          path: packages/policy/package.json
+          retention-days: 1
+      - name: Upload manifest — proactive
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-proactive
+          path: packages/proactive/package.json
+          retention-days: 1
+      - name: Upload manifest — sdk
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-sdk
+          path: packages/sdk/package.json
+          retention-days: 1
 
   publish:
     name: Publish ${{ matrix.package }}
@@ -249,8 +300,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: npm
 
-      # Required by npm-provenance-publisher persona (via @agentworkforce/workload-router):
-      # prevents stale-runner OIDC token failures on self-hosted or outdated runners.
+      # Update npm to latest to reduce provenance/OIDC issues on stale runners.
       - name: Update npm to latest (required for provenance)
         run: npm install -g npm@latest
 
@@ -318,11 +368,26 @@ jobs:
         with:
           name: manifest-surfaces
           path: packages/surfaces
+      - name: Download manifest — policy
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest-policy
+          path: packages/policy
+      - name: Download manifest — proactive
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest-proactive
+          path: packages/proactive
+      - name: Download manifest — sdk
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest-sdk
+          path: packages/sdk
 
       - name: Validate downloaded manifests
         run: |
           EXPECTED="${{ needs.build.outputs.new_version }}"
-          for pkg in traits core sessions surfaces; do
+          for pkg in traits core sessions surfaces policy proactive sdk; do
             if [ ! -f "packages/$pkg/package.json" ]; then
               echo "ERROR: packages/$pkg/package.json not found after artifact download"
               exit 1
@@ -338,7 +403,7 @@ jobs:
       - name: Commit version bump
         run: |
           NEW_VERSION="${{ needs.build.outputs.new_version }}"
-          git add packages/traits/package.json packages/core/package.json packages/sessions/package.json packages/surfaces/package.json
+          git add packages/traits/package.json packages/core/package.json packages/sessions/package.json packages/surfaces/package.json packages/policy/package.json packages/proactive/package.json packages/sdk/package.json
           git commit -m "chore: bump version to v${NEW_VERSION}" || echo "No changes to commit"
           git push
 
