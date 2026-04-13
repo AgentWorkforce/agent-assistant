@@ -1,13 +1,19 @@
 name: Publish Packages
 
-# Publish workflow for the initial public Agent Assistant SDK package wave.
-# This workflow implements the npm provenance requirements directly in YAML.
-# It intentionally avoids runtime dependency on @agentworkforce/workload-router
-# so publish remains deterministic in a clean GitHub Actions environment.
+# Publish workflow for Agent Assistant runtime package waves.
+# Uses a centralized package-group resolver so validation, versioning,
+# artifacts, and publish jobs stay aligned as the package surface grows.
 
 on:
   workflow_dispatch:
     inputs:
+      package_group:
+        description: "Package group to publish"
+        required: true
+        type: choice
+        options:
+          - runtime-core
+        default: runtime-core
       version:
         description: "Version bump type"
         required: true
@@ -53,21 +59,50 @@ concurrency:
   group: publish-packages
   cancel-in-progress: false
 
-# Required for npm OIDC provenance attestation.
-# TARGET STATE: Full OIDC with no NPM_TOKEN, pending trusted publisher registration
-# on npmjs.com for each package (manual step).
-# Until trusted publisher registration is complete, NODE_AUTH_TOKEN is used as bridge.
 permissions:
   contents: write
   id-token: write
 
+env:
+  NODE_VERSION: "22.14.0"
+  NPM_REGISTRY_URL: "https://registry.npmjs.org"
+
 jobs:
-  build:
-    name: Build & Version
+  resolve-packages:
+    name: Resolve package group
     runs-on: ubuntu-latest
     outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+      first_package: ${{ steps.resolve.outputs.first_package }}
+      package_list: ${{ steps.resolve.outputs.package_list }}
+    steps:
+      - name: Resolve publish matrix
+        id: resolve
+        run: |
+          case "${{ github.event.inputs.package_group }}" in
+            runtime-core)
+              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","turn-context","sdk"]'
+              FIRST='traits'
+              ;;
+            *)
+              echo "Unsupported package group: ${{ github.event.inputs.package_group }}" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "matrix=${PACKAGES}" >> "$GITHUB_OUTPUT"
+          echo "first_package=${FIRST}" >> "$GITHUB_OUTPUT"
+          echo "package_list=$(echo "$PACKAGES" | tr -d '[]\"')" >> "$GITHUB_OUTPUT"
+          echo "Publishing package group: ${{ github.event.inputs.package_group }}"
+          echo "Packages: $PACKAGES"
+
+  build:
+    name: Build, validate, and version
+    runs-on: ubuntu-latest
+    needs: resolve-packages
+    outputs:
       new_version: ${{ steps.version.outputs.new_version }}
-      matrix: ${{ steps.packages.outputs.matrix }}
+      matrix: ${{ needs.resolve-packages.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,8 +111,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.14.0"
-          registry-url: "https://registry.npmjs.org"
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: ${{ env.NPM_REGISTRY_URL }}
           cache: npm
 
       - name: Update npm to latest (required for provenance)
@@ -87,94 +122,52 @@ jobs:
 
       - name: Confirm publish strategy
         run: |
-          echo "Publishing the initial public Agent Assistant SDK wave with npm provenance enabled."
-          echo "Packages: traits, core, sessions, surfaces, policy, proactive, harness, turn-context, sdk"
+          echo "Publishing Agent Assistant package group: ${{ github.event.inputs.package_group }}"
+          echo "Packages: ${{ needs.resolve-packages.outputs.package_list }}"
 
-      - name: Run tests — traits
-        working-directory: packages/traits
-        run: npx vitest run
-      - name: Run tests — core
-        working-directory: packages/core
-        run: npx vitest run
-      - name: Run tests — sessions
-        working-directory: packages/sessions
-        run: npx vitest run
-      - name: Run tests — surfaces
-        working-directory: packages/surfaces
-        run: npx vitest run
-      - name: Run tests — policy
-        working-directory: packages/policy
-        run: npx vitest run
-      - name: Run tests — proactive
-        working-directory: packages/proactive
-        run: npx vitest run
-      - name: Run tests — harness
-        working-directory: packages/harness
-        run: npx vitest run
-      - name: Run tests — turn-context
-        working-directory: packages/turn-context
-        run: npx vitest run
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ -f "packages/$pkg/package.json" ] && jq -e '.scripts.test' "packages/$pkg/package.json" >/dev/null; then
+              echo "==> Testing $pkg"
+              npm test -w "@agent-assistant/$pkg"
+            fi
+          done
 
-      - name: Build — traits
-        working-directory: packages/traits
-        run: npm run build
-      - name: Build — core
-        working-directory: packages/core
-        run: npm run build
-      - name: Build — sessions
-        working-directory: packages/sessions
-        run: npm run build
-      - name: Build — surfaces
-        working-directory: packages/surfaces
-        run: npm run build
-      - name: Build — policy
-        working-directory: packages/policy
-        run: npm run build
-      - name: Build — proactive
-        working-directory: packages/proactive
-        run: npm run build
-      - name: Build — harness
-        working-directory: packages/harness
-        run: npm run build
-      - name: Build — turn-context
-        working-directory: packages/turn-context
-        run: npm run build
-      - name: Build — sdk
-        working-directory: packages/sdk
-        run: npm run build
+      - name: Build packages in dependency-aware order
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORDER=(traits core sessions surfaces policy proactive harness turn-context sdk)
+          for pkg in "${ORDER[@]}"; do
+            if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
+              echo "==> Building $pkg"
+              npm run build -w "@agent-assistant/$pkg"
+            fi
+          done
 
-      - name: Typecheck — traits
-        working-directory: packages/traits
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — core
-        working-directory: packages/core
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — sessions
-        working-directory: packages/sessions
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — surfaces
-        working-directory: packages/surfaces
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — policy
-        working-directory: packages/policy
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — proactive
-        working-directory: packages/proactive
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — harness
-        working-directory: packages/harness
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — turn-context
-        working-directory: packages/turn-context
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — sdk
-        working-directory: packages/sdk
-        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ -f "packages/$pkg/package.json" ] && jq -e '.scripts.typecheck' "packages/$pkg/package.json" >/dev/null; then
+              echo "==> Typechecking $pkg"
+              npm run typecheck -w "@agent-assistant/$pkg"
+            else
+              echo "==> Typechecking $pkg via tsc"
+              (cd "packages/$pkg" && npx tsc --noEmit -p tsconfig.json)
+            fi
+          done
 
       - name: Verify no test artifacts in dist
+        shell: bash
         run: |
+          set -euo pipefail
           FAIL=0
-          for pkg in traits core sessions surfaces policy proactive harness turn-context sdk; do
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
             if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
               echo "ERROR: test artifacts found in packages/$pkg/dist/"
               find "packages/$pkg/dist" -name '*.test.*'
@@ -184,18 +177,17 @@ jobs:
           if [ "$FAIL" -eq 1 ]; then exit 1; fi
           echo "No test artifacts in dist — OK"
 
-      - name: Set publish matrix
-        id: packages
-        run: echo 'matrix=["traits","core","sessions","surfaces","policy","proactive","harness","turn-context","sdk"]' >> "$GITHUB_OUTPUT"
-
       - name: Version all publishable packages
         id: version
+        shell: bash
         run: |
+          set -euo pipefail
           CUSTOM="${{ github.event.inputs.custom_version }}"
           BUMP="${{ github.event.inputs.version }}"
           PREID="${{ github.event.inputs.preid }}"
+          FIRST="${{ needs.resolve-packages.outputs.first_package }}"
 
-          cd packages/traits
+          cd "packages/$FIRST"
           if [ -n "$CUSTOM" ]; then
             npm version "$CUSTOM" --no-git-tag-version
           elif [[ "$BUMP" == pre* ]]; then
@@ -207,130 +199,38 @@ jobs:
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           cd ../..
 
-          for pkg in core sessions surfaces policy proactive harness turn-context sdk; do
-            cd "packages/$pkg"
-            npm version "$NEW_VERSION" --no-git-tag-version
-            cd ../..
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ "$pkg" = "$FIRST" ]; then
+              continue
+            fi
+            (cd "packages/$pkg" && npm version "$NEW_VERSION" --no-git-tag-version)
           done
 
-      - name: Upload build artifact — traits
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-traits
-          path: packages/traits/dist
-          retention-days: 1
-      - name: Upload build artifact — core
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-core
-          path: packages/core/dist
-          retention-days: 1
-      - name: Upload build artifact — sessions
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-sessions
-          path: packages/sessions/dist
-          retention-days: 1
-      - name: Upload build artifact — surfaces
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-surfaces
-          path: packages/surfaces/dist
-          retention-days: 1
-      - name: Upload build artifact — policy
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-policy
-          path: packages/policy/dist
-          retention-days: 1
-      - name: Upload build artifact — proactive
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-proactive
-          path: packages/proactive/dist
-          retention-days: 1
-      - name: Upload build artifact — harness
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-harness
-          path: packages/harness/dist
-          retention-days: 1
-      - name: Upload build artifact — turn-context
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-turn-context
-          path: packages/turn-context/dist
-          retention-days: 1
-      - name: Upload build artifact — sdk
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-sdk
-          path: packages/sdk/dist
-          retention-days: 1
+      - name: Upload build artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/publish-artifacts
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            cp -R "packages/$pkg/dist" "/tmp/publish-artifacts/dist-$pkg"
+            cp "packages/$pkg/package.json" "/tmp/publish-artifacts/manifest-$pkg.json"
+          done
 
-      - name: Upload manifest — traits
+      - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: manifest-traits
-          path: packages/traits/package.json
-          retention-days: 1
-      - name: Upload manifest — core
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-core
-          path: packages/core/package.json
-          retention-days: 1
-      - name: Upload manifest — sessions
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-sessions
-          path: packages/sessions/package.json
-          retention-days: 1
-      - name: Upload manifest — surfaces
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-surfaces
-          path: packages/surfaces/package.json
-          retention-days: 1
-      - name: Upload manifest — policy
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-policy
-          path: packages/policy/package.json
-          retention-days: 1
-      - name: Upload manifest — proactive
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-proactive
-          path: packages/proactive/package.json
-          retention-days: 1
-      - name: Upload manifest — harness
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-harness
-          path: packages/harness/package.json
-          retention-days: 1
-      - name: Upload manifest — turn-context
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-turn-context
-          path: packages/turn-context/package.json
-          retention-days: 1
-      - name: Upload manifest — sdk
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-sdk
-          path: packages/sdk/package.json
+          name: publish-artifacts
+          path: /tmp/publish-artifacts
           retention-days: 1
 
   publish:
     name: Publish ${{ matrix.package }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [resolve-packages, build]
     strategy:
       max-parallel: 1
       matrix:
-        package: ${{ fromJson(needs.build.outputs.matrix) }}
+        package: ${{ fromJson(needs.resolve-packages.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -338,126 +238,69 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.14.0"
-          registry-url: "https://registry.npmjs.org"
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: ${{ env.NPM_REGISTRY_URL }}
           cache: npm
 
-      # Update npm to latest to reduce provenance/OIDC issues on stale runners.
       - name: Update npm to latest (required for provenance)
         run: npm install -g npm@latest
 
       - run: npm ci
 
-      - name: Download build artifact — ${{ matrix.package }}
+      - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
-          name: dist-${{ matrix.package }}
-          path: packages/${{ matrix.package }}/dist
+          name: publish-artifacts
+          path: /tmp/publish-artifacts
 
-      - name: Download manifest — ${{ matrix.package }}
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-${{ matrix.package }}
-          path: packages/${{ matrix.package }}
+      - name: Restore package artifacts
+        run: |
+          rm -rf "packages/${{ matrix.package }}/dist"
+          cp -R "/tmp/publish-artifacts/dist-${{ matrix.package }}" "packages/${{ matrix.package }}/dist"
+          cp "/tmp/publish-artifacts/manifest-${{ matrix.package }}.json" "packages/${{ matrix.package }}/package.json"
 
-      - name: Publish @agent-assistant/${{ matrix.package }}
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+      - name: Publish package
         working-directory: packages/${{ matrix.package }}
-        run: npm publish --access public --provenance --tag ${{ github.event.inputs.tag }} --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            npm publish --provenance --access public --tag "${{ github.event.inputs.tag }}" --dry-run
+          else
+            npm publish --provenance --access public --tag "${{ github.event.inputs.tag }}"
+          fi
 
-      - name: Dry run publish — @agent-assistant/${{ matrix.package }}
-        if: ${{ github.event.inputs.dry_run == 'true' }}
-        working-directory: packages/${{ matrix.package }}
-        run: npm publish --access public --dry-run --ignore-scripts
-
-  create-release:
-    name: Create GitHub Release
+  commit-version-bumps:
+    name: Commit version bumps
     runs-on: ubuntu-latest
-    needs: [build, publish]
-    if: ${{ github.event.inputs.dry_run != 'true' }}
-    permissions:
-      contents: write
+    needs: [resolve-packages, build, publish]
+    if: github.event.inputs.dry_run != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Configure git
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: publish-artifacts
+          path: /tmp/publish-artifacts
+
+      - name: Restore package manifests
+        run: |
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            cp "/tmp/publish-artifacts/manifest-$pkg.json" "packages/$pkg/package.json"
+          done
+
+      - name: Commit and push version bumps
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Download manifest — traits
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-traits
-          path: packages/traits
-      - name: Download manifest — core
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-core
-          path: packages/core
-      - name: Download manifest — sessions
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-sessions
-          path: packages/sessions
-      - name: Download manifest — surfaces
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-surfaces
-          path: packages/surfaces
-      - name: Download manifest — policy
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-policy
-          path: packages/policy
-      - name: Download manifest — proactive
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-proactive
-          path: packages/proactive
-      - name: Download manifest — sdk
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-sdk
-          path: packages/sdk
-
-      - name: Validate downloaded manifests
-        run: |
-          EXPECTED="${{ needs.build.outputs.new_version }}"
-          for pkg in traits core sessions surfaces policy proactive harness turn-context sdk; do
-            if [ ! -f "packages/$pkg/package.json" ]; then
-              echo "ERROR: packages/$pkg/package.json not found after artifact download"
-              exit 1
-            fi
-            VERSION=$(node -p "require('./packages/$pkg/package.json').version")
-            if [ "$VERSION" != "$EXPECTED" ]; then
-              echo "ERROR: packages/$pkg/package.json version $VERSION != expected $EXPECTED"
-              exit 1
-            fi
-          done
-          echo "All manifests validated at v${EXPECTED} — OK"
-
-      - name: Commit version bump
-        run: |
-          NEW_VERSION="${{ needs.build.outputs.new_version }}"
-          git add packages/traits/package.json packages/core/package.json packages/sessions/package.json packages/surfaces/package.json packages/policy/package.json packages/proactive/package.json packages/sdk/package.json
-          git commit -m "chore: bump version to v${NEW_VERSION}" || echo "No changes to commit"
-          git push
-
-      - name: Create version tag
-        run: |
-          NEW_VERSION="${{ needs.build.outputs.new_version }}"
-          git tag "v${NEW_VERSION}"
-          git push origin "v${NEW_VERSION}"
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.build.outputs.new_version }}
-          name: v${{ needs.build.outputs.new_version }}
-          generate_release_notes: true
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $(for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do echo "packages/$pkg/package.json"; done)
+          if git diff --cached --quiet; then
+            echo "No version changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(release): publish ${{ github.event.inputs.package_group }} v${{ needs.build.outputs.new_version }}"
+          git push origin main
