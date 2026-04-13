@@ -32,6 +32,19 @@ It exists to solve a specific product-grade gap between a thin assistant runtime
 - specialist orchestration (→ `@agent-assistant/coordination`)
 - action-policy ownership (→ `@agent-assistant/policy`)
 - workforce persona definitions (model, harness, prompt, tier)
+### Design principle — character is composable, not just prompted
+
+The harness must be implemented so that consuming products can express assistant individuality through more than a system prompt.
+
+This means the package design must remain compatible with future structured inputs for:
+- base identity / traits
+- behavioral shaping (for example humor, warmth, directness, initiative, explanation style)
+- runtime enrichment from supporting agents and integrations
+- guardrail layers that preserve coherence and appropriateness
+
+The implementation does **not** need to ship a full character-composition subsystem in v1. But the public contracts, hooks, and runtime assumptions must not trap the SDK in a prompt-only customization model.
+
+Runtime enrichment signals may later include cultural/reference context from integrations (for example short-form culture/trend sources) or supporting-agent contributions. These inputs should inform expression, not replace the assistant's core identity.
 
 ---
 

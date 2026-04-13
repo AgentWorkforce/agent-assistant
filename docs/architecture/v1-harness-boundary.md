@@ -22,6 +22,58 @@ Without this layer, product code tends to hand-roll brittle pipelines such as:
 That pipeline fails structurally when the initial plan is wrong, partial, or blocked. The missing primitive is a bounded assistant harness, not a giant autonomy framework.
 
 ---
+## 1.1 Design principle — character is composable, not just prompted
+
+The harness must support **deep assistant individuality** as a first-class runtime concern.
+
+A consuming product should not be limited to swapping a system prompt and calling that a unique assistant. Products like Sage, MSD, and NightCTO need to feel genuinely distinct because they combine:
+- stable product-defined identity
+- behavioral preferences
+- humor/tone defaults
+- domain-specific reasoning style
+- supporting-agent input
+- live contextual/cultural signals
+- guardrails that keep the assistant coherent and appropriate
+
+### Principle statement
+
+> The harness must allow a consuming product to define a stable assistant character, while also allowing runtime enrichment from supporting agents and integrations so the assistant can feel uniquely tailored beyond the system prompt.
+
+### What this means in practice
+
+The harness must eventually expose structured seams for:
+1. **Base identity** — stable assistant traits, voice, boundaries, and product-specific defaults
+2. **Behavioral shaping** — directness, warmth, humor, curiosity, initiative, explanation style, pacing, and response texture
+3. **Runtime enrichment** — supporting-agent contributions, domain/context signals, cultural/reference integrations (for example trend/culture inputs like TikTok-informed reference context), and situational cues
+4. **Guardrails** — policy, brand, user/session appropriateness, and coherence with the assistant's core identity
+
+### Important rule
+
+Runtime enrichment must **inform** the assistant's expression, not replace its core identity.
+- Sage must still feel like Sage
+- MSD must still feel like MSD
+- NightCTO must still feel like NightCTO
+
+The goal is not to let a random integration hijack the assistant personality. The goal is to let integrations and supporting agents make the assistant feel more current, more tailored, and more pleasurable to interact with while preserving product identity.
+
+### Boundary impact on v1
+
+This principle does **not** require v1 to fully implement a rich character-composition subsystem immediately. But it does impose a design constraint on the harness:
+- do not hard-code the harness around a single prompt string as the only personality seam
+- do not design the runtime so that consumer individuality can only be expressed in ad hoc prompt text
+- leave explicit room for future structured character composition and runtime enrichment hooks
+
+### Why this belongs in the harness boundary
+
+If the harness only solves control flow and ignores character expression, every consumer will eventually re-implement personality, humor, and style layering in inconsistent product-specific glue. That would make the runtime technically reusable but experientially flat.
+
+The harness should therefore be designed as a runtime substrate that can carry both:
+- bounded assistant execution
+- and the structured ingredients of assistant uniqueness
+
+This is a paid-product requirement, not cosmetic polish.
+
+---
 
 ## 2. Placement recommendation
 
