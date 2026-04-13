@@ -8,10 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@agent-assistant/core": "file:../core",
-    "@agent-assistant/traits": "file:../traits",
-    "@agent-assistant/policy": "file:../policy",
-    "@agent-assistant/proactive": "file:../proactive",
+    "@agent-assistant/sdk": "file:../sdk",
     "typescript": "^5.9.3"
   }
 }

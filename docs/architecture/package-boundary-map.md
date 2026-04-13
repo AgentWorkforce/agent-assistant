@@ -39,7 +39,7 @@ These are distinct concerns that solve different problems. Do not conflate them.
 
 Personas answer: **"What runtime configuration should this agent use to execute a task?"**
 
-**Assistant traits** are identity and behavioral characteristics owned by this SDK (future `@agent-assistant/traits` package). Traits define:
+**Assistant traits** are identity and behavioral characteristics owned by this SDK (`@agent-assistant/traits`). Traits define:
 - voice and communication style
 - domain vocabulary and framing
 - behavioral defaults (proactivity level, formality, risk tolerance)
@@ -120,6 +120,19 @@ Examples:
 
 ## Package Responsibilities
 
+### `@agent-assistant/sdk` (facade)
+
+**Implementation status: facade — no logic, no tests**
+
+Re-exports the stable v1-baseline API surface from six constituent packages. Owns nothing. Adds no behavior.
+
+The facade gate: a package is included here only when it reaches v1-baseline (passing tests at DoD target, spec reconciled). Packages below that bar remain direct-import only.
+
+Current facade members: `core`, `traits`, `sessions`, `surfaces`, `policy`, `proactive`
+Excluded (direct-import only): `routing` (DoD gap), `connectivity` (advanced), `coordination` (advanced), `memory` (blocked)
+
+---
+
 ### `@agent-assistant/core`
 
 **Implementation status: IMPLEMENTED — 44 tests passing, `SPEC_RECONCILED`**
@@ -130,11 +143,12 @@ Owns:
 - runtime lifecycle and capability registration
 - assistant identity fields: `id`, `name`, `description?`
 - lightweight composition entrypoints and shared cross-package types
+- optional `traits` attachment for assistant-facing identity and behavioral defaults
 
 Identity scope note:
 - `core` owns `id`, `name`, `description?` — the minimum identity fields needed to run an assistant
-- Behavioral identity (voice, style, vocabulary, proactivity) will live in `@agent-assistant/traits` when extracted
-- `AssistantDefinition` does **not** have a `traits` field yet. When `@agent-assistant/traits` ships in v1.2, a `traits?: TraitsProvider` optional field will be added. Do not add it prematurely — the current types.ts has no such field and that is correct.
+- Behavioral identity (voice, style, vocabulary, proactivity) lives in `@agent-assistant/traits`
+- `AssistantDefinition` now supports a `traits?: TraitsProvider` optional field as part of the stable facade baseline
 
 Composition note:
 - `core` should not become a heavy package that hard-depends on every other package by default
@@ -147,9 +161,9 @@ Must not own:
 - product workflows
 - workforce persona definitions
 
-### `@agent-assistant/traits` (planned — v1.2)
+### `@agent-assistant/traits`
 
-**Implementation status: NOT IMPLEMENTED — no spec, no types, no placeholder**
+**Implementation status: IMPLEMENTED — stable facade baseline package**
 
 Owns:
 

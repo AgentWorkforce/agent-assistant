@@ -10,13 +10,13 @@
     "packages/routing",
     "packages/connectivity",
     "packages/coordination",
-    "packages/memory",
     "packages/proactive",
     "packages/policy",
-    "packages/examples",
-    "packages/integration"
+    "packages/integration",
+    "packages/sdk",
+    "packages/examples"
   ],
-  "devDependencies": {
-    "@agentworkforce/workload-router": "^0.1.1"
+  "scripts": {
+    "build:sdk": "npm run build -w @agent-assistant/sdk"
   }
 }

@@ -14,12 +14,11 @@ A focused, open-source SDK for building production-grade AI assistants with iden
 ## Quick Start
 
 ```bash
-npm install @agent-assistant/core @agent-assistant/traits
+npm install @agent-assistant/sdk
 ```
 
 ```typescript
-import { createAssistant } from '@agent-assistant/core';
-import { createTraitsProvider } from '@agent-assistant/traits';
+import { createAssistant, createTraitsProvider } from '@agent-assistant/sdk';
 
 const traits = createTraitsProvider(
   { voice: 'concise', formality: 'professional', proactivity: 'medium', riskPosture: 'moderate', domain: 'engineering' },
@@ -46,12 +45,15 @@ const runtime = createAssistant(
 await runtime.start();
 ```
 
-See [packages/examples/src/](packages/examples/src/) for more complete assembly examples.
+`@agent-assistant/sdk` is a single-package entry point that re-exports the stable v1-baseline API from all six core packages. See [docs/consumer/top-level-sdk-adoption-guide.md](docs/consumer/top-level-sdk-adoption-guide.md) for full usage and migration guidance.
+
+See [packages/examples/src/](packages/examples/src/) for complete assembly examples.
 
 ## Package Map
 
 | Package | Purpose | Status |
 | --- | --- | --- |
+| `@agent-assistant/sdk` | Top-level facade — one install for all v1-baseline packages | **NEW — facade only** |
 | `@agent-assistant/core` | Assistant definition, lifecycle, shared runtime composition | **IMPLEMENTED** |
 | `@agent-assistant/sessions` | Cross-surface session identity, resume, attachment rules | **IMPLEMENTED** |
 | `@agent-assistant/surfaces` | Assistant-facing surface abstractions above the transport layer | **IMPLEMENTED** |
@@ -59,22 +61,27 @@ See [packages/examples/src/](packages/examples/src/) for more complete assembly 
 | `@agent-assistant/connectivity` | Efficient inter-agent signaling, convergence, and escalation contracts | **IMPLEMENTED** |
 | `@agent-assistant/coordination` | Coordinator/specialist orchestration and synthesis contracts | **IMPLEMENTED** |
 | `@agent-assistant/traits` | Assistant identity traits: voice, style, vocabulary, behavioral defaults | **IMPLEMENTED** |
-| `@agent-assistant/memory` | Memory scopes, stores, retrieval, promotion, compaction hooks | placeholder — v1.1 |
-| `@agent-assistant/proactive` | Follow-up engines, watch rules, scheduler bindings | placeholder — v1.2 |
-| `@agent-assistant/policy` | Approvals, external-action safeguards, audit hooks | placeholder — v2 |
-| `@agent-assistant/examples` | Reference adoption examples | placeholder |
+| `@agent-assistant/memory` | Memory scopes, stores, retrieval, promotion, compaction hooks | placeholder (private — requires relay foundation backend) |
+| `@agent-assistant/proactive` | Follow-up engines, watch rules, scheduler bindings | **IMPLEMENTED** |
+| `@agent-assistant/policy` | Approvals, external-action safeguards, audit hooks | **IMPLEMENTED** |
+| `@agent-assistant/examples` | Reference adoption examples | reference package |
 
 ## Current Status
 
-**7 packages implemented. 128 tests verified passing. 3 packages are placeholder/README-only.**
+**9 packages implemented. 245 tests verified passing. 1 package is placeholder (memory).**
 
-- `@agent-assistant/core`: 31 pass
+- `@agent-assistant/core`: 31 + 6 integration pass
 - `@agent-assistant/sessions`: 25 pass
 - `@agent-assistant/surfaces`: 28 pass
 - `@agent-assistant/traits`: 32 pass
 - `@agent-assistant/routing`: 12 pass (DoD gap — 40+ target; do not consume in products until resolved)
-- `@agent-assistant/connectivity`: 87 claimed — blocked by missing `nanoid` dep
-- `@agent-assistant/coordination`: 45 claimed — blocked by connectivity import failure
+- `@agent-assistant/proactive`: 53 pass
+- `@agent-assistant/policy`: 64 pass
+- `@agent-assistant/connectivity`: ~30 actual — blocked by missing `node_modules` (workspace install required)
+- `@agent-assistant/coordination`: ~39 actual — blocked by connectivity import failure
+- `@agent-assistant/examples` is a reference package, not a placeholder
+
+`@agent-assistant/memory` is not yet installable. It depends on `@agent-relay/memory` (relay foundation infrastructure) which is not publicly available. The memory package is excluded from the workspace install graph. When the relay memory package is published, memory will be re-enabled.
 
 See [docs/current-state.md](docs/current-state.md) for authoritative per-package test results and blockers.
 

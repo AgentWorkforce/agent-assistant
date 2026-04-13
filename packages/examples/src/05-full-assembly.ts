@@ -26,32 +26,28 @@
  *   └──────────────────────────────────┘
  */
 
-import { createAssistant } from '@agent-assistant/core';
+import {
+  createAssistant,
+  createTraitsProvider,
+  createActionPolicy,
+  InMemoryAuditSink,
+  createProactiveEngine,
+  InMemorySchedulerBinding,
+} from '@agent-assistant/sdk';
 import type {
   InboundMessage,
   AssistantRuntime,
-  RelayInboundAdapter,
-  RelayOutboundAdapter,
   OutboundEvent,
-} from '@agent-assistant/core';
-import { createTraitsProvider } from '@agent-assistant/traits';
-import {
-  createActionPolicy,
-  InMemoryAuditSink,
-  type PolicyEngine,
-  type PolicyRule,
-  type Action,
-  type RiskLevel,
-  type PolicyEvaluationContext,
-} from '@agent-assistant/policy';
-import {
-  createProactiveEngine,
-  InMemorySchedulerBinding,
-  type ProactiveEngine,
-  type FollowUpRule,
-  type FollowUpDecision,
-  type WatchTrigger,
-} from '@agent-assistant/proactive';
+  PolicyEngine,
+  PolicyRule,
+  Action,
+  RiskLevel,
+  ProactiveEngine,
+  FollowUpRule,
+} from '@agent-assistant/sdk';
+import type { RelayInboundAdapter, RelayOutboundAdapter } from '@agent-assistant/core';
+import type { PolicyEvaluationContext } from '@agent-assistant/policy';
+import type { FollowUpDecision, WatchTrigger } from '@agent-assistant/proactive';
 
 // --- Integration helpers -------------------------------------------------
 // In a real repo these would come from a shared integration package.

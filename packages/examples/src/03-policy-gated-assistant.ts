@@ -11,21 +11,14 @@
  *   on the decision before emitting a response.
  */
 
-import { createAssistant } from '@agent-assistant/core';
-import type {
-  InboundMessage,
-  RelayInboundAdapter,
-  RelayOutboundAdapter,
-  OutboundEvent,
-} from '@agent-assistant/core';
 import {
+  createAssistant,
   createActionPolicy,
   InMemoryAuditSink,
-  type PolicyRule,
-  type Action,
-  type RiskLevel,
-  type PolicyEvaluationContext,
-} from '@agent-assistant/policy';
+} from '@agent-assistant/sdk';
+import type { InboundMessage, OutboundEvent, PolicyRule, Action, RiskLevel } from '@agent-assistant/sdk';
+import type { RelayInboundAdapter, RelayOutboundAdapter } from '@agent-assistant/core';
+import type { PolicyEvaluationContext } from '@agent-assistant/policy';
 
 // --- Adapters ------------------------------------------------------------
 

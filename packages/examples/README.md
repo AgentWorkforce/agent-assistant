@@ -8,7 +8,7 @@
 
 ## What These Examples Are
 
-Five TypeScript files showing how products compose the implemented SDK packages into working assistants. They are progressively richer, each adding one package to the previous foundation.
+Six TypeScript files showing how products compose the implemented SDK packages into working assistants. They start with a facade-first hello-world path, then progressively show deeper composition patterns.
 
 These examples are adoption-oriented — they show real wiring patterns, make the product/SDK ownership boundary explicit, and provide realistic proof scenarios. They are not toy demos and not fake product implementations.
 
@@ -18,34 +18,32 @@ These examples are adoption-oriented — they show real wiring patterns, make th
 
 | # | File | Packages | What It Shows |
 |---|---|---|---|
-| 01 | `src/01-minimal-assistant.ts` | `core` | Smallest possible assembly. Single `reply` capability, in-memory adapter stubs, full lifecycle. Universal starting point. |
-| 02 | `src/02-traits-assistant.ts` | `core` + `traits` | Personality and formatting traits attached at definition time. Core stores and freezes — never interprets. Handlers read traits as data. |
-| 03 | `src/03-policy-gated-assistant.ts` | `core` + `policy` | Every reply gated through policy evaluation. Risk classification, rule priority order, all four decision branches (`allow`/`deny`/`require_approval`/`escalate`), audit trail. |
-| 04 | `src/04-proactive-assistant.ts` | `core` + `proactive` | Proactive engine as a registered subsystem. Follow-up rules (idle re-engagement), watch rules (condition monitors), scheduler binding, engine retrieval from registry. |
-| 05 | `src/05-full-assembly.ts` | `core` + `traits` + `policy` + `proactive` | All four packages composed. Traits-aware formatting, policy-gated replies, proactive decisions bridged to policy via `followUpToAction`, unified audit trail. Canonical composition reference. |
+| 00 | `src/00-hello-world.ts` | `sdk` | Smallest facade-first install/import path. One package, one import surface, minimal assistant assembly. |
+| 01 | `src/01-minimal-assistant.ts` | `sdk` | Smallest practical assembly using the top-level facade. Single `reply` capability, in-memory adapter stubs, full lifecycle. |
+| 02 | `src/02-traits-assistant.ts` | `sdk` | Personality and formatting traits attached at definition time. Handlers read traits as data through the facade surface. |
+| 03 | `src/03-policy-gated-assistant.ts` | `sdk` | Every reply gated through policy evaluation. Risk classification, rule priority order, all four decision branches (`allow`/`deny`/`require_approval`/`escalate`), audit trail. |
+| 04 | `src/04-proactive-assistant.ts` | `sdk` | Proactive engine as a registered subsystem. Follow-up rules, watch rules, scheduler binding, engine retrieval from registry. |
+| 05 | `src/05-full-assembly.ts` | `sdk` (+ direct imports only for excluded packages when needed) | Full facade-first assembly across the stable baseline packages. |
 
 ---
 
 ## Build Order
 
-Examples depend on compiled output from all four packages. Build them first:
+Examples now validate against the top-level facade package. Build the facade and its constituent packages first:
 
 ```bash
-# Step 1: leaf packages (no upstream deps in this repo)
-cd packages/traits    && npm run build
-cd packages/policy    && npm run build
-cd packages/proactive && npm run build
-
-# Step 2: core (depends on traits types)
-cd packages/core      && npm run build
-
-# Step 3: typecheck examples (no build output — noEmit)
-cd packages/examples
 npm install
-npm run typecheck
+npm run build -w packages/core
+npm run build -w packages/traits
+npm run build -w packages/sessions
+npm run build -w packages/surfaces
+npm run build -w packages/policy
+npm run build -w packages/proactive
+npm run build -w packages/sdk
+npm run typecheck -w packages/examples
 ```
 
-Steps 1 and 3 (traits/policy/proactive) can run in parallel. Examples typecheck against the built `dist/` of all four packages.
+The key consumer proof is that examples compile against `@agent-assistant/sdk` as the primary entrypoint.
 
 ---
 

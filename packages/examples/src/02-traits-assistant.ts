@@ -11,14 +11,9 @@
  *   Interpretation happens in capability code, not in core.
  */
 
-import { createAssistant } from '@agent-assistant/core';
-import type {
-  InboundMessage,
-  RelayInboundAdapter,
-  RelayOutboundAdapter,
-  OutboundEvent,
-} from '@agent-assistant/core';
-import { createTraitsProvider } from '@agent-assistant/traits';
+import { createAssistant, createTraitsProvider } from '@agent-assistant/sdk';
+import type { InboundMessage, OutboundEvent } from '@agent-assistant/sdk';
+import type { RelayInboundAdapter, RelayOutboundAdapter } from '@agent-assistant/core';
 
 // --- Adapters (same thin wrappers as 01) ---------------------------------
 

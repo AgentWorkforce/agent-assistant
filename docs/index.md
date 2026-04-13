@@ -2,6 +2,8 @@
 
 Start here. For current test results and blockers see [current-state.md](current-state.md).
 
+> **Note for new contributors:** Architecture docs in `docs/architecture/` contain references to `@relay-assistant/*` and `RelayAssistant`. These are historical records from before the rename to `@agent-assistant/*` / Agent Assistant SDK. Each carries a header note. Active code and packages use `@agent-assistant/*` exclusively.
+
 ## How this repo works
 
 Development follows a **spec → implement → review** flow:
@@ -18,18 +20,20 @@ Specs in `docs/specs/` are the canonical contracts. Plans and verdicts in `docs/
 
 ## Status
 
-**7 packages implemented (128 tests verified passing; connectivity and coordination tests blocked by missing dependencies). 3 packages are placeholder/README-only.**
+**9 packages implemented (245 tests verified passing; connectivity and coordination tests blocked by missing dependencies). 1 package is placeholder (memory — requires relay foundation backend).**
 
 See [README.md](../README.md) for the full implementation vs specification status table.
 See [current-state.md](current-state.md) for the authoritative per-package test results and blockers.
 
 **Blocking DoD failure:** `@agent-assistant/routing` has 12 tests against a 40+ target. Do not consume in products until resolved.
 
-**Workforce persona vs. assistant traits:** These are distinct. Workforce personas are runtime execution profiles (model, harness, system prompt, tier) — owned by Workforce, not this SDK. Assistant traits are identity/behavioral characteristics (voice, style, proactivity) — will live in `@agent-assistant/traits` at v1.2; in v1, products define them as local data objects. See [traits and persona layer](architecture/traits-and-persona-layer.md).
+**Workforce persona vs. assistant traits:** These are distinct. Workforce personas are runtime execution profiles (model, harness, system prompt, tier) — owned by Workforce, not this SDK. Assistant traits are identity/behavioral characteristics (voice, style, proactivity) — they now live in `@agent-assistant/traits` as part of the stable facade baseline. See [traits and persona layer](architecture/traits-and-persona-layer.md).
 
 ---
 
 ## Architecture
+- [Top-level SDK facade spec](architecture/top-level-sdk-facade-spec.md) — exact public surface of `@agent-assistant/sdk`
+- [Top-level SDK facade implementation plan](architecture/top-level-sdk-facade-implementation-plan.md) — implementation rationale and checklist
 - [Source of truth](architecture/source-of-truth.md) — precedence hierarchy; canonical vs. duplicate spec pointers
 - [Assistant cloud interface](architecture/assistant-cloud-interface.md)
 
@@ -45,6 +49,7 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 
 ## Consumer docs
 
+- [Top-level SDK adoption guide](consumer/top-level-sdk-adoption-guide.md) — one-install quick start for new consumers
 - [How to build an assistant](consumer/how-to-build-an-assistant.md)
 - [How products should adopt agent-assistant-sdk](consumer/how-products-should-adopt-agent-assistant-sdk.md)
 - [Connectivity adoption guide](consumer/connectivity-adoption-guide.md)

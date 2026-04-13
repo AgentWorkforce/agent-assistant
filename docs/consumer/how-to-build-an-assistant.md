@@ -24,6 +24,9 @@ The external user experience should remain one coherent assistant even if multip
 
 ## Expected Package Imports
 
+> **Facade path:** All imports shown below can also be sourced from a single `@agent-assistant/sdk` install.
+> See [top-level-sdk-adoption-guide.md](top-level-sdk-adoption-guide.md) for the one-install equivalent.
+
 Consumers should expect to import only the packages they need.
 
 Canonical import shape for v1 packages (core, sessions, surfaces):

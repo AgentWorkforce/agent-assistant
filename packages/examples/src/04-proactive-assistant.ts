@@ -13,20 +13,19 @@
  *   capabilities or emit path.
  */
 
-import { createAssistant } from '@agent-assistant/core';
-import type {
-  InboundMessage,
-  RelayInboundAdapter,
-  RelayOutboundAdapter,
-  OutboundEvent,
-} from '@agent-assistant/core';
 import {
+  createAssistant,
   createProactiveEngine,
   InMemorySchedulerBinding,
-  type FollowUpRule,
-  type WatchRule,
-  type ProactiveEngine,
-} from '@agent-assistant/proactive';
+} from '@agent-assistant/sdk';
+import type {
+  InboundMessage,
+  OutboundEvent,
+  FollowUpRule,
+  WatchRule,
+  ProactiveEngine,
+} from '@agent-assistant/sdk';
+import type { RelayInboundAdapter, RelayOutboundAdapter } from '@agent-assistant/core';
 
 // --- Adapters ------------------------------------------------------------
 

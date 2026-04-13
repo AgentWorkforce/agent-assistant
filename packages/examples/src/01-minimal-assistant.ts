@@ -9,15 +9,9 @@
  *   inbound adapter → dispatch → "reply" capability → emit → outbound adapter
  */
 
-import {
-  createAssistant,
-  type InboundMessage,
-} from '@agent-assistant/core';
-import type {
-  RelayInboundAdapter,
-  RelayOutboundAdapter,
-  OutboundEvent,
-} from '@agent-assistant/core';
+import { createAssistant } from '@agent-assistant/sdk';
+import type { InboundMessage, OutboundEvent } from '@agent-assistant/sdk';
+import type { RelayInboundAdapter, RelayOutboundAdapter } from '@agent-assistant/core';
 
 // --- Adapters (product-owned) -------------------------------------------
 
