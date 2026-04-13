@@ -1,6 +1,6 @@
 # Agent Assistant SDK
 
-A focused, open-source SDK for building production-grade AI assistants with identity, memory, sessions, proactive behavior, multi-agent coordination, and policy.
+A focused, open-source SDK for building production-grade AI assistants with identity, memory, sessions, proactive behavior, multi-agent coordination, policy, and bounded harness execution.
 
 ## What This SDK Does
 
@@ -61,6 +61,7 @@ See [packages/examples/src/](packages/examples/src/) for complete assembly examp
 | `@agent-assistant/connectivity` | Efficient inter-agent signaling, convergence, and escalation contracts | **IMPLEMENTED** |
 | `@agent-assistant/coordination` | Coordinator/specialist orchestration and synthesis contracts | **IMPLEMENTED** |
 | `@agent-assistant/traits` | Assistant identity traits: voice, style, vocabulary, behavioral defaults | **IMPLEMENTED** |
+| `@agent-assistant/harness` | Bounded iterative assistant-turn runtime with tool use, continuation, and truthful stop semantics | **IMPLEMENTED** |
 | `@agent-assistant/memory` | Memory scopes, stores, retrieval, promotion, compaction hooks | placeholder (private — requires relay foundation backend) |
 | `@agent-assistant/proactive` | Follow-up engines, watch rules, scheduler bindings | **IMPLEMENTED** |
 | `@agent-assistant/policy` | Approvals, external-action safeguards, audit hooks | **IMPLEMENTED** |
@@ -68,7 +69,7 @@ See [packages/examples/src/](packages/examples/src/) for complete assembly examp
 
 ## Current Status
 
-**9 packages implemented. 285 tests verified passing. 1 package is placeholder (memory).**
+**10 packages implemented. 368 tests verified passing. 1 package is placeholder (memory).**
 
 - `@agent-assistant/core`: 31 + 6 integration pass
 - `@agent-assistant/sessions`: 25 pass
@@ -77,6 +78,7 @@ See [packages/examples/src/](packages/examples/src/) for complete assembly examp
 - `@agent-assistant/routing`: 52 pass (routing hardening complete; READY_FOR_WAVE_2 within package boundary)
 - `@agent-assistant/proactive`: 53 pass
 - `@agent-assistant/policy`: 64 pass
+- `@agent-assistant/harness`: 14 pass
 - `@agent-assistant/connectivity`: ~30 actual — blocked by missing `node_modules` (workspace install required)
 - `@agent-assistant/coordination`: ~39 actual — blocked by connectivity import failure
 - `@agent-assistant/examples` is a reference package, not a placeholder
@@ -102,6 +104,7 @@ Reusable assistant behavior built on top of the foundation:
 - proactive engines and watch rules
 - assistant session models
 - assistant-facing surface contracts
+- bounded iterative assistant-turn harnesses
 - specialist coordination
 - action policy and audit integration
 

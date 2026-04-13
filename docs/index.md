@@ -20,7 +20,7 @@ Specs in `docs/specs/` are the canonical contracts. Plans and verdicts in `docs/
 
 ## Status
 
-**9 packages implemented (285 tests verified passing; connectivity and coordination tests blocked by missing dependencies). 1 package is placeholder (memory — requires relay foundation backend).**
+**10 packages implemented (368 tests verified passing; coordination remains blocked outside harness scope). 1 package is placeholder (memory — requires relay foundation backend).**
 
 See [README.md](../README.md) for the full implementation vs specification status table.
 See [current-state.md](current-state.md) for the authoritative per-package test results and blockers.
@@ -42,6 +42,7 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 - [Traits and persona layer](architecture/traits-and-persona-layer.md) — `@agent-assistant/traits` spec; workforce persona vs assistant traits distinction
 - [v1 harness boundary](architecture/v1-harness-boundary.md) — bounded iterative assistant-turn runtime scope, non-goals, and package placement
 - [v1 harness review verdict](architecture/v1-harness-review-verdict.md) — judgment on whether the harness boundary is strong enough to implement
+- [v1 harness implementation review verdict](architecture/v1-harness-implementation-review-verdict.md) — implementation assessment for the new `@agent-assistant/harness` package
 - [SDK audit and traits alignment plan](architecture/sdk-audit-and-traits-alignment-plan.md) — implementation vs spec status audit; docs drift log; traits placement decision
 - [Connectivity package spec](architecture/connectivity-package-spec.md)
 - [Extraction roadmap](architecture/extraction-roadmap.md)

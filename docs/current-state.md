@@ -21,11 +21,12 @@ Run: `npx vitest run`
 | `@agent-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
 | `@agent-assistant/proactive` | `proactive.test.ts` | 53 | **PASS** |
 | `@agent-assistant/policy` | `policy.test.ts` | 64 | **PASS** |
+| `@agent-assistant/harness` | `harness.test.ts` | 14 | **PASS** |
 | `@agent-assistant/connectivity` | `connectivity.test.ts` | 30 | **PASS** |
 | `@agent-assistant/coordination` | `coordination.test.ts` | ~39 actual (blocked by connectivity) | **BLOCKED** — depends on `@agent-assistant/connectivity` which cannot load |
 | `@agent-assistant/memory` | `memory.test.ts` | — | **BLOCKED** — `@agent-relay/memory` package missing; package excluded from workspace install (private) |
 
-**Total verified passing: 354 tests (11 passing suites, 1 blocked suite)**
+**Total verified passing: 368 tests (12 passing suites, 1 blocked suite)**
 
 ---
 
@@ -42,6 +43,7 @@ Run: `npx vitest run`
 | `@agent-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — assistant identity traits, voice, style, behavioral defaults |
 | `@agent-assistant/proactive` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-proactive-spec.md` |
 | `@agent-assistant/policy` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-policy-spec.md` |
+| `@agent-assistant/harness` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Bounded turn runtime with iterative model/tool/model execution, truthful stop semantics, continuation payloads, and trace hooks |
 | `@agent-assistant/memory` | **placeholder (private — excluded from workspace install)** | `IMPLEMENTATION_READY` | Spec at `docs/specs/v1-memory-spec.md`; blocked by `@agent-relay/memory` dep (relay foundation infrastructure, not yet publicly available) |
 | `@agent-assistant/examples` | reference package | N/A | Reference adoption examples; not production code |
 
@@ -77,6 +79,7 @@ These packages are stable and can be consumed in products:
 - `@agent-assistant/traits`
 - `@agent-assistant/proactive`
 - `@agent-assistant/policy`
+- `@agent-assistant/harness`
 
 ---
 

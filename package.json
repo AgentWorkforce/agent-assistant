@@ -5,6 +5,7 @@
   "workspaces": [
     "packages/traits",
     "packages/core",
+    "packages/harness",
     "packages/sessions",
     "packages/surfaces",
     "packages/routing",
