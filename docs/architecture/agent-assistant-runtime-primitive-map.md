@@ -42,6 +42,104 @@ That reframes “harness” from **the assistant runtime** to **one primitive in
 
 ---
 
+## Design principle — product identity is canonical, execution harnesses are replaceable, Relay remains the coordination fabric
+
+Agent Assistant must be designed so that a consuming product can preserve its own identity, behavior, and Relay-native collaboration model even when the underlying execution harness is not the default Agent Assistant harness.
+
+### Principle statement
+
+> Product identity is canonical. Execution harnesses are replaceable. Relay remains the coordination and collaboration fabric.
+
+This means a product like Sage, MSD, or NightCTO should be able to:
+- preserve its assistant identity, tone, humor, traits, and behavioral shaping
+- preserve product-specific intelligence such as superpowers, g-stack logic, business heuristics, and UX decisions
+- preserve Relay-native primitives such as relayauth, relayfile, relaycron, channel messaging, shared context exchange, and multi-agent coordination
+- while optionally allowing the actual execution engine for some turns or sub-tasks to be backed by a user-selected external harness such as Claude, Codex, or other supported providers
+
+### What remains canonical on the Agent Assistant / product side
+
+The following must remain owned by Agent Assistant and/or the consuming product, not outsourced to the backing harness:
+- assistant identity and stable traits
+- turn-context assembly and expression shaping
+- product-owned prompts, heuristics, superpowers, and domain logic
+- policy and guardrail intent, even if enforcement may need adapter support
+- continuation/follow-up semantics
+- Relay-native coordination, messaging, scheduling, auth, and shared file/context primitives
+- result normalization and user-facing behavior expectations
+
+### What is replaceable
+
+The execution harness may be replaceable. This includes:
+- model/tool-loop implementation details
+- provider-native execution semantics
+- user-owned subscription/billing path for Claude/Codex/etc.
+- some provider-specific runtime affordances
+
+The replacement boundary is the execution plane, not the assistant’s identity or the overall collaboration substrate.
+
+### Architectural model
+
+The intended architecture should be understood as:
+- **Product / Agent Assistant runtime** = identity, shaping, coordination, policy intent, continuation semantics, and normalized UX
+- **Relay primitives** = coordination/control plane and collaboration fabric
+- **Execution harness adapters** = bridge from canonical assistant/runtime intent into a specific execution backend
+- **External harnesses** = pluggable execution planes
+
+This is not “bring your own assistant.” It is “bring your own execution backend while keeping the assistant and collaboration model canonical.”
+
+### Relay-native collaboration must survive external harness support
+
+Support for external harnesses must not flatten the system into a single provider call. Agent Assistant should retain its Relay-native differentiators, including:
+- multiple backing agents collaborating through Relay channels
+- shared file/context exchange via relayfile
+- authenticated collaboration and capability boundaries via relayauth
+- scheduled follow-up / wake-up patterns via relaycron
+- explicit runtime coordination semantics that are richer than a single external harness loop
+
+External harnesses should participate in this fabric where possible, not replace it.
+
+### Capability negotiation and graceful degradation
+
+Because not all backing harnesses will support the same execution semantics, Agent Assistant should eventually model harness capabilities explicitly. At minimum, the architecture should anticipate capability differences around:
+- iterative tool use
+- structured tool invocation contracts
+- continuation/resume support
+- trace/telemetry depth
+- approval/interrupt hooks
+- result shape and error semantics
+
+The runtime should preserve product identity strongly and degrade functionality explicitly and honestly where a selected harness lacks support.
+
+### Tone and individuality requirement
+
+A user-selected execution harness must not erase assistant individuality. Sage must still feel like Sage; MSD must still feel like MSD; NightCTO must still feel like NightCTO.
+
+That means the canonical product/runtime layers must own:
+- tone
+- humor
+- expression shaping
+- domain posture
+- runtime-enrichment rules
+- product-specific interaction feel
+
+External harnesses execute work; they do not define who the assistant is.
+
+### Practical consequence for future package design
+
+This principle implies a future need for a clean execution-backend adapter layer or harness-provider adapter model. That layer should connect:
+- canonical turn-context + product shaping + policy/continuation intent
+- to a specific execution harness implementation
+
+without collapsing the rest of the runtime stack into harness-specific assumptions.
+
+### Why this principle is important
+
+Without this rule, Agent Assistant risks drifting into one of two bad states:
+1. assuming the first-party harness is the only meaningful execution substrate
+2. letting external harnesses overwrite product identity and dissolve Relay-native coordination advantages
+
+Both would weaken the product. The correct design preserves canonical assistant identity and Relay-native collaboration while allowing execution backends to be swapped or user-supplied.
+
 ## 1. What is currently overloaded into “harness”
 
 The existing boundary/spec docs for harness are directionally strong, but the word is still carrying several different layers at once.
