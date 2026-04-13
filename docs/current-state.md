@@ -2,6 +2,8 @@
 
 Date: 2026-04-13
 
+> Public release note: the repo is now public and wave-1 packages have been published to npm. A post-publish external smoke test found that the published baseline packages are missing `dist/` artifacts in the installed tarballs for at least `@agent-assistant/core`, so the npm install story is not yet healthy despite successful local `npm pack --dry-run` verification.
+
 Authoritative snapshot of package implementation status, test results, and known blockers. Derived from `npx vitest run` output and code inspection. This document is a status record, not a design doc — see `docs/index.md` for navigation and `docs/specs/` for canonical contracts.
 
 ---
@@ -47,17 +49,24 @@ Run: `npx vitest run`
 
 ## Known Blockers
 
-### 1. `@agent-assistant/connectivity` workspace not installed
+### 1. Published npm packages missing runtime build artifacts
+- **Impact:** A clean npm-only install of `@agent-assistant/sdk@0.1.0` currently fails at runtime because installed dependency packages such as `@agent-assistant/core` do not contain `dist/index.js` even though their manifests export it.
+- **Evidence:** external smoke test in `/tmp/agent-assistant-smoke` failed with `ERR_MODULE_NOT_FOUND` for `node_modules/@agent-assistant/core/dist/index.js`; installed package contents contained only `README.md` and `package.json`.
+- **Likely cause:** packages were published from repo state where `dist/` was not actually present in the published tarball, despite later local `npm pack --dry-run` checks passing.
+- **Resolution:** inspect the published npm tarballs, republish/fix the affected wave-1 packages, then rerun the npm-only smoke test.
+- **Risk:** treat the current npm release as needing immediate remediation before external adoption.
+
+### 2. `@agent-assistant/connectivity` workspace not installed
 - **Impact:** `@agent-assistant/connectivity` tests cannot run; `@agent-assistant/coordination` tests also blocked as a result.
 - **Resolution:** Run `npm install` from repo root. Then verify: `cd packages/connectivity && npx vitest run`.
 - **Risk:** Do not consume connectivity or coordination in products until tests pass.
 
-### 2. `@agent-assistant/routing` DoD gap
+### 3. `@agent-assistant/routing` DoD gap
 - **Impact:** 12 tests pass but the target is 40+. The routing implementation is incomplete relative to spec.
 - **Resolution:** Implementation work required to bring routing tests to DoD target.
 - **Risk:** Do not wire routing into product integration until resolved.
 
-### 3. `@agent-relay/memory` missing
+### 4. `@agent-relay/memory` missing
 - **Impact:** `@agent-assistant/memory` package and tests cannot run.
 - **Status:** Memory is marked `"private": true` and excluded from the workspace install graph. It will be re-enabled when `@agent-relay/memory` is published publicly.
 - **Note:** `@agent-assistant/memory` is not yet installable. It depends on `@agent-relay/memory` (relay foundation infrastructure) which is not publicly available.
@@ -73,6 +82,17 @@ These packages are stable and can be consumed in products:
 - `@agent-assistant/traits`
 - `@agent-assistant/proactive`
 - `@agent-assistant/policy`
+
+---
+
+## Deferred Publish Tracking (Wave 2+)
+
+| Package | Current blocker | Publish gate |
+| --- | --- | --- |
+| `@agent-assistant/routing` | DoD gap: 12 tests vs 40+ target | reach DoD threshold and re-review |
+| `@agent-assistant/connectivity` | blocked test verification + publish boundary cleanup | unblock/install tests, verify export/dependency hygiene |
+| `@agent-assistant/coordination` | depends on connectivity readiness | connectivity green + dependency cleanup + review |
+| `@agent-assistant/memory` | blocked on `@agent-relay/memory` public installability | publish/install `@agent-relay/memory`, then re-enable and validate |
 
 ---
 
