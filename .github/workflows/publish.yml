@@ -109,28 +109,6 @@ jobs:
         working-directory: packages/proactive
         run: npx vitest run
 
-      - name: Typecheck — traits
-        working-directory: packages/traits
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — core
-        working-directory: packages/core
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — sessions
-        working-directory: packages/sessions
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — surfaces
-        working-directory: packages/surfaces
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — policy
-        working-directory: packages/policy
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — proactive
-        working-directory: packages/proactive
-        run: npx tsc --noEmit -p tsconfig.json
-      - name: Typecheck — sdk
-        working-directory: packages/sdk
-        run: npx tsc --noEmit -p tsconfig.json
-
       - name: Build — traits
         working-directory: packages/traits
         run: npm run build
@@ -152,6 +130,28 @@ jobs:
       - name: Build — sdk
         working-directory: packages/sdk
         run: npm run build
+
+      - name: Typecheck — traits
+        working-directory: packages/traits
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — core
+        working-directory: packages/core
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — sessions
+        working-directory: packages/sessions
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — surfaces
+        working-directory: packages/surfaces
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — policy
+        working-directory: packages/policy
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — proactive
+        working-directory: packages/proactive
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — sdk
+        working-directory: packages/sdk
+        run: npx tsc --noEmit -p tsconfig.json
 
       - name: Verify no test artifacts in dist
         run: |
