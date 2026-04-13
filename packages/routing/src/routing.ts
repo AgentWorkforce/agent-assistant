@@ -205,7 +205,7 @@ function resolveDecisionCandidate(
     return {
       mode: policy.modeCeiling,
       reason: 'hard_constraint',
-      escalated: candidate.escalated || MODE_DEPTH[candidate.mode] > MODE_DEPTH[policy.modeCeiling],
+      escalated: candidate.escalated,
     };
   }
 

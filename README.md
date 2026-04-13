@@ -57,7 +57,7 @@ See [packages/examples/src/](packages/examples/src/) for complete assembly examp
 | `@agent-assistant/core` | Assistant definition, lifecycle, shared runtime composition | **IMPLEMENTED** |
 | `@agent-assistant/sessions` | Cross-surface session identity, resume, attachment rules | **IMPLEMENTED** |
 | `@agent-assistant/surfaces` | Assistant-facing surface abstractions above the transport layer | **IMPLEMENTED** |
-| `@agent-assistant/routing` | Model-choice, latency/depth/cost routing policy | **IMPLEMENTED** (DoD gap — see below) |
+| `@agent-assistant/routing` | Model-choice, latency/depth/cost routing policy | **IMPLEMENTED** |
 | `@agent-assistant/connectivity` | Efficient inter-agent signaling, convergence, and escalation contracts | **IMPLEMENTED** |
 | `@agent-assistant/coordination` | Coordinator/specialist orchestration and synthesis contracts | **IMPLEMENTED** |
 | `@agent-assistant/traits` | Assistant identity traits: voice, style, vocabulary, behavioral defaults | **IMPLEMENTED** |
@@ -68,13 +68,13 @@ See [packages/examples/src/](packages/examples/src/) for complete assembly examp
 
 ## Current Status
 
-**9 packages implemented. 245 tests verified passing. 1 package is placeholder (memory).**
+**9 packages implemented. 285 tests verified passing. 1 package is placeholder (memory).**
 
 - `@agent-assistant/core`: 31 + 6 integration pass
 - `@agent-assistant/sessions`: 25 pass
 - `@agent-assistant/surfaces`: 28 pass
 - `@agent-assistant/traits`: 32 pass
-- `@agent-assistant/routing`: 12 pass (DoD gap — 40+ target; do not consume in products until resolved)
+- `@agent-assistant/routing`: 52 pass (routing hardening complete; READY_FOR_WAVE_2 within package boundary)
 - `@agent-assistant/proactive`: 53 pass
 - `@agent-assistant/policy`: 64 pass
 - `@agent-assistant/connectivity`: ~30 actual — blocked by missing `node_modules` (workspace install required)

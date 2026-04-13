@@ -17,7 +17,7 @@ Run: `npx vitest run`
 | `@agent-assistant/core` | `core.test.ts`, `core-sessions-surfaces.test.ts` | 31 + 6 integration | **PASS** |
 | `@agent-assistant/sessions` | `sessions.test.ts` | 25 | **PASS** |
 | `@agent-assistant/surfaces` | `surfaces.test.ts` | 28 | **PASS** |
-| `@agent-assistant/routing` | `routing.test.ts` | 12 | **PASS** (DoD gap — see below) |
+| `@agent-assistant/routing` | `routing.test.ts` | 52 | **PASS** |
 | `@agent-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
 | `@agent-assistant/proactive` | `proactive.test.ts` | 53 | **PASS** |
 | `@agent-assistant/policy` | `policy.test.ts` | 64 | **PASS** |
@@ -25,7 +25,7 @@ Run: `npx vitest run`
 | `@agent-assistant/coordination` | `coordination.test.ts` | ~39 actual (blocked by connectivity) | **BLOCKED** — depends on `@agent-assistant/connectivity` which cannot load |
 | `@agent-assistant/memory` | `memory.test.ts` | — | **BLOCKED** — `@agent-relay/memory` package missing; package excluded from workspace install (private) |
 
-**Total verified passing: 245 tests (9 passing suites, 3 blocked suites)**
+**Total verified passing: 285 tests (9 passing suites, 3 blocked suites)**
 
 ---
 
@@ -36,7 +36,7 @@ Run: `npx vitest run`
 | `@agent-assistant/core` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
 | `@agent-assistant/sessions` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline |
 | `@agent-assistant/surfaces` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
-| `@agent-assistant/routing` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | DoD gap: 12 tests vs 40+ target. **Do not consume in products until resolved.** |
+| `@agent-assistant/routing` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Routing hardening complete: 52 tests passing; READY_FOR_WAVE_2 within package boundary. |
 | `@agent-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | ~30 tests actual; blocked by missing `node_modules`. Resolve before consuming. |
 | `@agent-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | ~39 tests actual; blocked by connectivity import failure. Resolve before consuming. |
 | `@agent-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — assistant identity traits, voice, style, behavioral defaults |
@@ -61,12 +61,7 @@ Run: `npx vitest run`
 - **Resolution:** Run `npm install` from repo root. Then verify: `cd packages/connectivity && npx vitest run`.
 - **Risk:** Do not consume connectivity or coordination in products until tests pass.
 
-### 3. `@agent-assistant/routing` DoD gap
-- **Impact:** 12 tests pass but the target is 40+. The routing implementation is incomplete relative to spec.
-- **Resolution:** Implementation work required to bring routing tests to DoD target.
-- **Risk:** Do not wire routing into product integration until resolved.
-
-### 4. `@agent-relay/memory` missing
+### 3. `@agent-relay/memory` missing
 - **Impact:** `@agent-assistant/memory` package and tests cannot run.
 - **Status:** Memory is marked `"private": true` and excluded from the workspace install graph. It will be re-enabled when `@agent-relay/memory` is published publicly.
 - **Note:** `@agent-assistant/memory` is not yet installable. It depends on `@agent-relay/memory` (relay foundation infrastructure) which is not publicly available.
@@ -89,7 +84,7 @@ These packages are stable and can be consumed in products:
 
 | Package | Current blocker | Publish gate |
 | --- | --- | --- |
-| `@agent-assistant/routing` | DoD gap: 12 tests vs 40+ target | reach DoD threshold and re-review |
+| `@agent-assistant/routing` | no current package-local blocker; broader wave-2 publish sequencing still applies | package-local hardening complete |
 | `@agent-assistant/connectivity` | blocked test verification + publish boundary cleanup | unblock/install tests, verify export/dependency hygiene |
 | `@agent-assistant/coordination` | depends on connectivity readiness | connectivity green + dependency cleanup + review |
 | `@agent-assistant/memory` | blocked on `@agent-relay/memory` public installability | publish/install `@agent-relay/memory`, then re-enable and validate |

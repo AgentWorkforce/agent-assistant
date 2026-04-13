@@ -150,15 +150,15 @@ The package includes unit coverage for:
 
 - default routing
 - caller and capability overrides
-- hard ceiling enforcement
-- cost envelope downgrade
-- escalation-driven routing
+- hard ceiling enforcement and `escalated` flag correctness
+- cost envelope downgrade and edge conditions
+- escalation-driven routing, priority ordering, and tiebreak behavior
 - latency constraint selection
 - model-spec merging
 - cost tracking
 - connectivity hook behavior
 
-Current coverage is 12 tests. The package remains gated from product consumption until the broader 40+ test DoD is met.
+Current coverage is 52 tests. The routing package hardening slice closed the explicit 40+ test DoD gap and fixed the `hard_constraint`/`escalated` correctness bug. See `docs/architecture/v1-routing-hardening-boundary.md` and `docs/architecture/v1-routing-hardening-review-verdict.md`.
 
 Run:
 

@@ -18,7 +18,7 @@ Revised: 2026-04-11 (sdk-audit-and-traits-alignment-plan — implementation stat
 | WF-6: Multi-surface session fanout | core + sessions + surfaces | **COMPLETE** — `packages/core/src/core-sessions-surfaces.test.ts` (WF-6 label, line 99) covers multi-surface session attachment, fanout, targeted send, and detach behavior |
 | WF-7: End-to-end assembly | core + sessions + surfaces | **OPEN** — no assembly test in `packages/examples/src/` (directory not yet created); core/sessions/surfaces READMEs are substantive (not placeholders) |
 
-**Blocking DoD failure (not cleared):** `@agent-assistant/routing` has 12 tests against a required 40+ target. Routing is implemented but is gated from product consumption until this is resolved. See `docs/architecture/v1-routing-review-verdict.md` for F-1 (test count) and F-2 (escalated flag) details.
+**Routing update:** the former routing DoD failure is cleared. `@agent-assistant/routing` now has 52 passing tests, the `hard_constraint`/`escalated` bug is fixed, and the package-local hardening verdict is `READY_FOR_WAVE_2`. See `docs/architecture/v1-routing-hardening-review-verdict.md`.
 
 **Additional implemented packages (beyond WF-1 through WF-5 scope):**
 - `@agent-assistant/connectivity` — 87 tests passing
@@ -244,15 +244,15 @@ Three cross-package contradictions identified in `docs/architecture/spec-reconci
 
 ---
 
-## Open Routing Issues (gates product consumption of `@agent-assistant/routing`)
+## Routing follow-ups
 
-These must be resolved before routing is consumed by any product:
+Routing hardening closed the former blocking issues F-1 and F-2:
 
 | Issue | File | Status |
 | --- | --- | --- |
-| F-1: routing test count is 12, DoD requires 40+ | `packages/routing/src/routing.test.ts` | **OPEN — blocking** |
-| F-2: `escalated` flag incorrect on hard-constraint caps | `packages/routing/src/routing.ts` | **OPEN — blocking** |
-| OQ-5: escalation tiebreaker (deepest mode wins) undocumented | `docs/specs/v1-routing-spec.md` | OPEN — moderate |
+| F-1: routing test count cleared 40+ DoD target (52 passing) | `packages/routing/src/routing.test.ts` | **CLOSED** |
+| F-2: `escalated` flag corrected on hard-constraint caps | `packages/routing/src/routing.ts` | **CLOSED** |
+| OQ-5: escalation tiebreaker (deepest mode wins) documented | `docs/specs/v1-routing-spec.md` | **CLOSED** |
 
 ---
 

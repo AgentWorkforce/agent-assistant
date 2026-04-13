@@ -20,12 +20,12 @@ Specs in `docs/specs/` are the canonical contracts. Plans and verdicts in `docs/
 
 ## Status
 
-**9 packages implemented (245 tests verified passing; connectivity and coordination tests blocked by missing dependencies). 1 package is placeholder (memory — requires relay foundation backend).**
+**9 packages implemented (285 tests verified passing; connectivity and coordination tests blocked by missing dependencies). 1 package is placeholder (memory — requires relay foundation backend).**
 
 See [README.md](../README.md) for the full implementation vs specification status table.
 See [current-state.md](current-state.md) for the authoritative per-package test results and blockers.
 
-**Blocking DoD failure:** `@agent-assistant/routing` has 12 tests against a 40+ target. Do not consume in products until resolved.
+**Routing status update:** `@agent-assistant/routing` hardening is complete at 52 passing tests and now has a package-local verdict of `READY_FOR_WAVE_2`. See `docs/architecture/v1-routing-hardening-review-verdict.md`.
 
 **Workforce persona vs. assistant traits:** These are distinct. Workforce personas are runtime execution profiles (model, harness, system prompt, tier) — owned by Workforce, not this SDK. Assistant traits are identity/behavioral characteristics (voice, style, proactivity) — they now live in `@agent-assistant/traits` as part of the stable facade baseline. See [traits and persona layer](architecture/traits-and-persona-layer.md).
 
@@ -57,7 +57,7 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 ## Workflows
 
 - [Workflow index](workflows/README.md) — directory overview and status summary
-- [V1 workflow backlog](workflows/v1-workflow-backlog.md) — WF-1 through WF-6 COMPLETE; WF-7 OPEN; routing DoD gap noted
+- [V1 workflow backlog](workflows/v1-workflow-backlog.md) — WF-1 through WF-6 COMPLETE; WF-7 OPEN; routing hardening complete
 - [Weekend delivery plan](workflows/weekend-delivery-plan.md) — updated with implementation status; workspace:* gap documented
 
 ## Research

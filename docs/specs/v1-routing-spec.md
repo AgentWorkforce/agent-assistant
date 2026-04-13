@@ -340,7 +340,7 @@ export type RequestedRoutingMode = 'cheap' | 'fast' | 'deep';
 
 4. **Cost envelope** — if `context.accumulatedCost` exceeds `policy.costEnvelopeLimit`, use `'cheap'`. Reason: `'cost_envelope_exceeded'`.
 
-5. **Escalation signals** — if `context.activeEscalations` contains signals that map to a mode in `policy.escalationModeMap`, use the highest-priority mapped mode. Reason: `'escalation_signal'`. Mark `escalated: true`.
+5. **Escalation signals** — if `context.activeEscalations` contains signals that map to a mode in `policy.escalationModeMap`, use the highest-priority mapped mode. Reason: `'escalation_signal'`. Mark `escalated: true`. When multiple mapped signals share the same priority, the deeper mode wins as the tiebreaker.
 
 6. **Latency constraint** — if `context.requestedMaxLatencyMs` is set and `'deep'` cannot meet it (per modeModelSpecs), prefer `'fast'` or `'cheap'`. Reason: `'latency_constraint'`.
 
