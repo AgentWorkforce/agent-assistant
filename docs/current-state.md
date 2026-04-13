@@ -21,11 +21,11 @@ Run: `npx vitest run`
 | `@agent-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
 | `@agent-assistant/proactive` | `proactive.test.ts` | 53 | **PASS** |
 | `@agent-assistant/policy` | `policy.test.ts` | 64 | **PASS** |
-| `@agent-assistant/connectivity` | `connectivity.test.ts` | ~30 actual (blocked by missing `node_modules`) | **BLOCKED** — workspace not installed |
+| `@agent-assistant/connectivity` | `connectivity.test.ts` | 30 | **PASS** |
 | `@agent-assistant/coordination` | `coordination.test.ts` | ~39 actual (blocked by connectivity) | **BLOCKED** — depends on `@agent-assistant/connectivity` which cannot load |
 | `@agent-assistant/memory` | `memory.test.ts` | — | **BLOCKED** — `@agent-relay/memory` package missing; package excluded from workspace install (private) |
 
-**Total verified passing: 285 tests (9 passing suites, 3 blocked suites)**
+**Total verified passing: 354 tests (11 passing suites, 1 blocked suite)**
 
 ---
 
@@ -37,8 +37,8 @@ Run: `npx vitest run`
 | `@agent-assistant/sessions` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline |
 | `@agent-assistant/surfaces` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
 | `@agent-assistant/routing` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Routing hardening complete: 52 tests passing; READY_FOR_WAVE_2 within package boundary. |
-| `@agent-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | ~30 tests actual; blocked by missing `node_modules`. Resolve before consuming. |
-| `@agent-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | ~39 tests actual; blocked by connectivity import failure. Resolve before consuming. |
+| `@agent-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 30 tests passing; package-local publishability/export hygiene cleanup complete; READY_FOR_WAVE_2 within package boundary. |
+| `@agent-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 39 tests passing locally; broader publish/dependency cleanup still applies outside connectivity scope. |
 | `@agent-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — assistant identity traits, voice, style, behavioral defaults |
 | `@agent-assistant/proactive` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-proactive-spec.md` |
 | `@agent-assistant/policy` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-policy-spec.md` |
@@ -56,10 +56,10 @@ Run: `npx vitest run`
 - **Resolution:** inspect the published npm tarballs, republish/fix the affected wave-1 packages, then rerun the npm-only smoke test.
 - **Risk:** treat the current npm release as needing immediate remediation before external adoption.
 
-### 2. `@agent-assistant/connectivity` workspace not installed
-- **Impact:** `@agent-assistant/connectivity` tests cannot run; `@agent-assistant/coordination` tests also blocked as a result.
-- **Resolution:** Run `npm install` from repo root. Then verify: `cd packages/connectivity && npx vitest run`.
-- **Risk:** Do not consume connectivity or coordination in products until tests pass.
+### 2. `@agent-assistant/connectivity` had a public type leak to routing (resolved)
+- **Impact:** external TypeScript consumers of the packed connectivity package could fail to typecheck because emitted `.d.ts` files referenced `@agent-assistant/routing`, which was not a declared runtime dependency.
+- **Resolution:** connectivity now defines `RequestedRoutingMode` and `RoutingEscalationHook` locally, removes the unnecessary routing coupling from scripts/devDependencies, and passes npm-only install + typecheck smoke validation.
+- **Risk:** package-local blocker cleared; broader repo publish sequencing still applies.
 
 ### 3. `@agent-relay/memory` missing
 - **Impact:** `@agent-assistant/memory` package and tests cannot run.
@@ -85,7 +85,7 @@ These packages are stable and can be consumed in products:
 | Package | Current blocker | Publish gate |
 | --- | --- | --- |
 | `@agent-assistant/routing` | no current package-local blocker; broader wave-2 publish sequencing still applies | package-local hardening complete |
-| `@agent-assistant/connectivity` | blocked test verification + publish boundary cleanup | unblock/install tests, verify export/dependency hygiene |
+| `@agent-assistant/connectivity` | no current package-local blocker | package-local cleanup complete; proceed within wave-2 sequencing |
 | `@agent-assistant/coordination` | depends on connectivity readiness | connectivity green + dependency cleanup + review |
 | `@agent-assistant/memory` | blocked on `@agent-relay/memory` public installability | publish/install `@agent-relay/memory`, then re-enable and validate |
 

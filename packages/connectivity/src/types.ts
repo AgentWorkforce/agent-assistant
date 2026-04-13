@@ -1,5 +1,3 @@
-import type { RoutingEscalationHook } from '@agent-assistant/routing';
-
 export type SignalAudience = 'self' | 'coordinator' | 'selected' | 'all';
 
 export type MessageClass =
@@ -25,10 +23,7 @@ export type SignalClass =
 export type SignalPriority = 'low' | 'normal' | 'high' | 'critical';
 export type SignalState = 'emitted' | 'active' | 'superseded' | 'expired' | 'resolved';
 export type SignalEvent = 'emitted' | 'superseded' | 'resolved' | 'expired';
-export type {
-  RequestedRoutingMode,
-  RoutingEscalationHook,
-} from '@agent-assistant/routing';
+export type RequestedRoutingMode = 'cheap' | 'fast' | 'deep';
 
 export interface ConnectivitySignal {
   id: string;
@@ -77,6 +72,10 @@ export interface SignalQuery {
 export interface SuppressionConfig {
   basis: 'step' | 'time';
   windowMs?: number;
+}
+
+export interface RoutingEscalationHook {
+  onEscalation(signal: ConnectivitySignal): RequestedRoutingMode | void;
 }
 
 export type SelectedAudienceResolver = (signal: ConnectivitySignal) => string[];

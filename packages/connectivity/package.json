@@ -15,17 +15,15 @@
     "dist"
   ],
   "scripts": {
-    "prebuild": "npm --prefix ../routing run build",
     "build": "tsc -p tsconfig.json",
-    "pretest": "npm --prefix ../routing run build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "nanoid": "^5.1.6"
   },
   "devDependencies": {
-    "@agent-assistant/routing": "file:../routing",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

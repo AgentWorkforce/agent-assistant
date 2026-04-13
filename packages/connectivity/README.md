@@ -172,7 +172,7 @@ Supported suppression modes:
 
 ## Routing Boundary
 
-Connectivity exposes a routing hook interface only:
+Connectivity exposes a local routing hook interface only:
 
 ```ts
 interface RoutingEscalationHook {
@@ -180,7 +180,7 @@ interface RoutingEscalationHook {
 }
 ```
 
-Connectivity does not store the returned mode, does not choose routing modes, and does not import a routing implementation. The hook exists so routing can react to escalation signals without blurring package ownership.
+The hook type is defined by `@agent-assistant/connectivity` itself so published consumers do not need `@agent-assistant/routing` installed just to typecheck this package. Routing can still implement the same structural contract. Connectivity does not store the returned mode, does not choose routing modes, and does not import a routing implementation. The hook exists so routing can react to escalation signals without blurring package ownership.
 
 ## Example
 
