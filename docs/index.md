@@ -40,6 +40,8 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 - [Architecture draft](architecture/2026-04-11-relay-agent-assistant-architecture-draft.md)
 - [Package boundary map](architecture/package-boundary-map.md) — what belongs where; workforce persona vs traits; reuse-first rule
 - [Traits and persona layer](architecture/traits-and-persona-layer.md) — `@agent-assistant/traits` spec; workforce persona vs assistant traits distinction
+- [v1 harness boundary](architecture/v1-harness-boundary.md) — bounded iterative assistant-turn runtime scope, non-goals, and package placement
+- [v1 harness review verdict](architecture/v1-harness-review-verdict.md) — judgment on whether the harness boundary is strong enough to implement
 - [SDK audit and traits alignment plan](architecture/sdk-audit-and-traits-alignment-plan.md) — implementation vs spec status audit; docs drift log; traits placement decision
 - [Connectivity package spec](architecture/connectivity-package-spec.md)
 - [Extraction roadmap](architecture/extraction-roadmap.md)
@@ -131,6 +133,7 @@ Plans and review verdicts from completed implementation work. These are historic
 - [Foundation integration review verdict](architecture/v1-foundation-integration-review-verdict.md)
 
 ### Cross-cutting
+- [v1 harness spec](specs/v1-harness-spec.md)
 - [Sectioning and priorities](architecture/v1-sectioning-and-priorities.md)
 - [Spec reconciliation rules](architecture/spec-reconciliation-rules.md)
 - [Spec reconciliation review verdict](architecture/spec-reconciliation-review-verdict.md)
