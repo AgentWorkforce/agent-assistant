@@ -88,7 +88,7 @@ jobs:
       - name: Confirm publish strategy
         run: |
           echo "Publishing the initial public Agent Assistant SDK wave with npm provenance enabled."
-          echo "Packages: traits, core, sessions, surfaces, policy, proactive, sdk"
+          echo "Packages: traits, core, sessions, surfaces, policy, proactive, harness, turn-context, sdk"
 
       - name: Run tests — traits
         working-directory: packages/traits
@@ -108,6 +108,12 @@ jobs:
       - name: Run tests — proactive
         working-directory: packages/proactive
         run: npx vitest run
+      - name: Run tests — harness
+        working-directory: packages/harness
+        run: npx vitest run
+      - name: Run tests — turn-context
+        working-directory: packages/turn-context
+        run: npx vitest run
 
       - name: Build — traits
         working-directory: packages/traits
@@ -126,6 +132,12 @@ jobs:
         run: npm run build
       - name: Build — proactive
         working-directory: packages/proactive
+        run: npm run build
+      - name: Build — harness
+        working-directory: packages/harness
+        run: npm run build
+      - name: Build — turn-context
+        working-directory: packages/turn-context
         run: npm run build
       - name: Build — sdk
         working-directory: packages/sdk
@@ -149,6 +161,12 @@ jobs:
       - name: Typecheck — proactive
         working-directory: packages/proactive
         run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — harness
+        working-directory: packages/harness
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Typecheck — turn-context
+        working-directory: packages/turn-context
+        run: npx tsc --noEmit -p tsconfig.json
       - name: Typecheck — sdk
         working-directory: packages/sdk
         run: npx tsc --noEmit -p tsconfig.json
@@ -156,7 +174,7 @@ jobs:
       - name: Verify no test artifacts in dist
         run: |
           FAIL=0
-          for pkg in traits core sessions surfaces policy proactive sdk; do
+          for pkg in traits core sessions surfaces policy proactive harness turn-context sdk; do
             if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
               echo "ERROR: test artifacts found in packages/$pkg/dist/"
               find "packages/$pkg/dist" -name '*.test.*'
@@ -168,7 +186,7 @@ jobs:
 
       - name: Set publish matrix
         id: packages
-        run: echo 'matrix=["traits","core","sessions","surfaces","policy","proactive","sdk"]' >> "$GITHUB_OUTPUT"
+        run: echo 'matrix=["traits","core","sessions","surfaces","policy","proactive","harness","turn-context","sdk"]' >> "$GITHUB_OUTPUT"
 
       - name: Version all publishable packages
         id: version
@@ -189,7 +207,7 @@ jobs:
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           cd ../..
 
-          for pkg in core sessions surfaces policy proactive sdk; do
+          for pkg in core sessions surfaces policy proactive harness turn-context sdk; do
             cd "packages/$pkg"
             npm version "$NEW_VERSION" --no-git-tag-version
             cd ../..
@@ -230,6 +248,18 @@ jobs:
         with:
           name: dist-proactive
           path: packages/proactive/dist
+          retention-days: 1
+      - name: Upload build artifact — harness
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-harness
+          path: packages/harness/dist
+          retention-days: 1
+      - name: Upload build artifact — turn-context
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-turn-context
+          path: packages/turn-context/dist
           retention-days: 1
       - name: Upload build artifact — sdk
         uses: actions/upload-artifact@v4
@@ -273,6 +303,18 @@ jobs:
         with:
           name: manifest-proactive
           path: packages/proactive/package.json
+          retention-days: 1
+      - name: Upload manifest — harness
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-harness
+          path: packages/harness/package.json
+          retention-days: 1
+      - name: Upload manifest — turn-context
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-turn-context
+          path: packages/turn-context/package.json
           retention-days: 1
       - name: Upload manifest — sdk
         uses: actions/upload-artifact@v4
@@ -387,7 +429,7 @@ jobs:
       - name: Validate downloaded manifests
         run: |
           EXPECTED="${{ needs.build.outputs.new_version }}"
-          for pkg in traits core sessions surfaces policy proactive sdk; do
+          for pkg in traits core sessions surfaces policy proactive harness turn-context sdk; do
             if [ ! -f "packages/$pkg/package.json" ]; then
               echo "ERROR: packages/$pkg/package.json not found after artifact download"
               exit 1
