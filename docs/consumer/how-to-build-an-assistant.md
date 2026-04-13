@@ -116,6 +116,23 @@ Use this repo for assistant runtime contracts and reusable assistant behavior.
 
 Use the product repo for the actual product experience.
 
+## Runtime primitive mental model
+
+Do not treat `@agent-assistant/harness` as shorthand for the whole runtime.
+
+- `@agent-assistant/traits` provides the stable identity floor
+- `@agent-assistant/turn-context` defines the turn-scoped assembly seam for one visible assistant turn
+- `@agent-assistant/harness` executes that prepared turn honestly and within bounds
+- product code owns prompts, heuristics, workflow logic, and other product intelligence
+
+In practice, the flow is:
+
+1. product code selects product/runtime configuration
+2. traits provide stable identity defaults
+3. turn-context assembly combines identity + turn-scoped shaping + continuity/enrichment inputs
+4. harness executes the bounded turn
+5. product code decides how to persist, route, or operationalize the result
+
 ## Basic Assembly Pattern
 
 A typical product assembles an assistant in five steps:
@@ -127,6 +144,8 @@ A typical product assembles an assistant in five steps:
 5. call `runtime.register("sessions", sessionStore)` then `runtime.start()`
 
 Future subsystems (memory, proactive, coordination, policy) are also registered on the runtime via `runtime.register(name, subsystem)`.
+
+If a product uses `@agent-assistant/harness`, treat it as a runtime primitive inside this assembly, not as the place where product prompts or turn-shaping logic should accumulate. That preparation belongs in product code today and in `@agent-assistant/turn-context` as that primitive matures.
 
 ## Skeletal Assembly Example
 

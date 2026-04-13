@@ -6,6 +6,8 @@ Date: 2026-04-13
 
 Authoritative snapshot of package implementation status, test results, and known blockers. Derived from `npx vitest run` output and code inspection. This document is a status record, not a design doc — see `docs/index.md` for navigation and `docs/specs/` for canonical contracts.
 
+Current architecture framing reminder: `@agent-assistant/harness` is the bounded turn executor, not the umbrella runtime concept. The turn-scoped assembly seam now lives in the specified `@agent-assistant/turn-context` primitive, while `@agent-assistant/traits` remains the stable identity floor and product intelligence remains product-owned.
+
 ---
 
 ## Test Results (2026-04-13)
@@ -44,6 +46,7 @@ Run: `npx vitest run`
 | `@agent-assistant/proactive` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-proactive-spec.md` |
 | `@agent-assistant/policy` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-policy-spec.md` |
 | `@agent-assistant/harness` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Bounded turn runtime with iterative model/tool/model execution, truthful stop semantics, continuation payloads, and trace hooks |
+| `@agent-assistant/turn-context` | **SPECIFIED** | boundary/spec defined | Turn-scoped identity/context assembly primitive above harness; not yet implemented |
 | `@agent-assistant/memory` | **placeholder (private — excluded from workspace install)** | `IMPLEMENTATION_READY` | Spec at `docs/specs/v1-memory-spec.md`; blocked by `@agent-relay/memory` dep (relay foundation infrastructure, not yet publicly available) |
 | `@agent-assistant/examples` | reference package | N/A | Reference adoption examples; not production code |
 
@@ -80,6 +83,8 @@ These packages are stable and can be consumed in products:
 - `@agent-assistant/proactive`
 - `@agent-assistant/policy`
 - `@agent-assistant/harness`
+
+This baseline should be read as a stack of adjacent primitives, not as "the harness plus extras." In particular, products should keep turn-shaping and product intelligence out of harness-owned code paths.
 
 ---
 

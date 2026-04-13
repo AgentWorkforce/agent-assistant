@@ -34,6 +34,19 @@ This document states the precedence hierarchy for this repository. When document
 
 For all other packages, `docs/specs/v1-{package}-spec.md` is the sole canonical contract.
 
+For current runtime framing and cross-package ownership language, use these current architecture anchors before older harness-era wording in plans/verdicts:
+
+1. `docs/architecture/agent-assistant-runtime-primitive-map.md`
+2. `docs/architecture/runtime-primitives-vs-product-intelligence.md`
+3. `docs/architecture/v1-turn-context-enrichment-boundary.md`
+4. `docs/specs/v1-turn-context-enrichment-spec.md`
+
+These documents clarify that:
+- harness = bounded turn executor
+- turn-context = turn-scoped assembly primitive above harness
+- traits = stable identity floor
+- product intelligence remains product-owned
+
 ---
 
 ## When to Update This Document

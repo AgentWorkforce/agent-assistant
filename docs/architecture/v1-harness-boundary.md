@@ -2,11 +2,13 @@
 
 **Date:** 2026-04-13
 **Proposed package:** `@agent-assistant/harness`
-**Purpose:** Define a bounded, product-grade assistant harness/runtime capability that adds iterative tool-use, clarification, continuation, and truthful stop semantics without expanding the SDK into a general autonomous agent framework.
+**Purpose:** Define a bounded, product-grade assistant turn-execution capability that adds iterative tool-use, clarification, continuation, and truthful stop semantics without expanding the SDK into a general autonomous agent framework.
 
 ---
 
 ## 1. Why this boundary exists
+
+> **Placement clarification:** This document is the package-boundary doc for `@agent-assistant/harness`, not the umbrella architecture doc for the whole runtime stack. For current runtime decomposition, see `agent-assistant-runtime-primitive-map.md` and `v1-turn-context-enrichment-boundary.md`.
 
 The current SDK has strong foundational packages for assistant assembly (`core`, `sessions`, `surfaces`, `traits`, `policy`, `proactive`) plus deeper packages for routing/coordination. What it does **not** yet provide is the reusable assistant-turn runtime that many real products need once a simple one-shot plan is no longer enough.
 
@@ -24,7 +26,7 @@ That pipeline fails structurally when the initial plan is wrong, partial, or blo
 ---
 ## 1.1 Design principle — character is composable, not just prompted
 
-The harness must support **deep assistant individuality** as a first-class runtime concern.
+The broader runtime stack must support **deep assistant individuality** as a first-class concern, and the harness must remain compatible with that composition model.
 
 A consuming product should not be limited to swapping a system prompt and calling that a unique assistant. Products like Sage, MSD, and NightCTO need to feel genuinely distinct because they combine:
 - stable product-defined identity
@@ -37,11 +39,11 @@ A consuming product should not be limited to swapping a system prompt and callin
 
 ### Principle statement
 
-> The harness must allow a consuming product to define a stable assistant character, while also allowing runtime enrichment from supporting agents and integrations so the assistant can feel uniquely tailored beyond the system prompt.
+> The runtime stack must allow a consuming product to define a stable assistant character, while also allowing runtime enrichment from supporting agents and integrations so the assistant can feel uniquely tailored beyond the system prompt. The harness must consume that prepared individuality without collapsing ownership of it into the harness package.
 
 ### What this means in practice
 
-The harness must eventually expose structured seams for:
+The runtime stack must eventually expose structured seams for:
 1. **Base identity** — stable assistant traits, voice, boundaries, and product-specific defaults
 2. **Behavioral shaping** — directness, warmth, humor, curiosity, initiative, explanation style, pacing, and response texture
 3. **Runtime enrichment** — supporting-agent contributions, domain/context signals, cultural/reference integrations (for example trend/culture inputs like TikTok-informed reference context), and situational cues
@@ -63,13 +65,11 @@ This principle does **not** require v1 to fully implement a rich character-compo
 - do not design the runtime so that consumer individuality can only be expressed in ad hoc prompt text
 - leave explicit room for future structured character composition and runtime enrichment hooks
 
-### Why this belongs in the harness boundary
+### Why this matters to the harness boundary
 
-If the harness only solves control flow and ignores character expression, every consumer will eventually re-implement personality, humor, and style layering in inconsistent product-specific glue. That would make the runtime technically reusable but experientially flat.
+If the harness were designed as though control flow were the only runtime seam that mattered, every consumer would eventually re-implement personality, humor, and style layering in inconsistent product-specific glue. That would make the executor technically reusable but experientially flat.
 
-The harness should therefore be designed as a runtime substrate that can carry both:
-- bounded assistant execution
-- and the structured ingredients of assistant uniqueness
+The harness should therefore be designed to consume structured turn inputs that can carry both bounded assistant execution needs and the structured ingredients of assistant uniqueness.
 
 This is a paid-product requirement, not cosmetic polish.
 

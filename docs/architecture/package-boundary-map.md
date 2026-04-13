@@ -1,7 +1,7 @@
 # Package Boundary Map
 
 Date: 2026-04-11
-Revised: 2026-04-11 (sdk-audit-and-traits-alignment-plan — traits/persona layer added; implementation status reflected; reuse-first rule made explicit)
+Revised: 2026-04-13 (runtime primitive map / turn-context clarification pass)
 
 ## Purpose
 
@@ -12,6 +12,12 @@ This document defines what belongs in:
 - product repositories such as Sage, MSD, and NightCTO
 
 The goal is to prevent duplicate assistant-runtime work while avoiding leakage of transport infrastructure or product-specific behavior into the wrong layer.
+
+This document should be read with the current primitive split in mind:
+- `@agent-assistant/traits` = stable identity floor
+- `@agent-assistant/turn-context` = turn-scoped identity/context assembly
+- `@agent-assistant/harness` = bounded turn executor
+- product intelligence = product-owned behavior above the SDK primitives
 
 ## Boundary Rule
 
@@ -82,6 +88,7 @@ This repo should own reusable assistant-runtime behavior:
 
 - assistant definition and capability registration
 - assistant identity traits (voice, style, behavioral defaults) — see `@agent-assistant/traits`
+- turn-scoped assistant context assembly and harness projection seams — see `@agent-assistant/turn-context`
 - memory scopes, retrieval, persistence contracts, promotion, compaction
 - proactive engines, watch rules, reminders, scheduler bindings
 - assistant session continuity across surfaces
@@ -103,6 +110,7 @@ Examples that should land here:
 Product repos should continue to own:
 
 - workforce persona definitions (model, harness, system prompt, tier)
+- turn-shaping heuristics and prompt composition that express product intelligence
 - prompts and persona behavior beyond baseline assistant identity fields
 - product-specific tools and workflows
 - domain-specific watcher rules
@@ -184,6 +192,28 @@ Must not own:
 Dependency direction: traits has zero upstream dependencies on other SDK packages. It is a leaf data package.
 
 See [traits-and-persona-layer.md](traits-and-persona-layer.md) for full spec.
+
+### `@agent-assistant/turn-context`
+
+**Implementation status: specified boundary/spec — not yet implemented**
+
+Owns:
+
+- the turn-scoped assembly contract that prepares the visible assistant's effective character + context for one bounded turn
+- composition of stable identity (`traits`), product-supplied turn shaping, continuity inputs, enrichment inputs, and guardrail overlays into a single turn bundle
+- deterministic projection into harness-ready instructions and prepared context
+- provenance of what was applied during turn assembly
+
+Must not own:
+
+- the bounded execution loop itself — that belongs to `@agent-assistant/harness`
+- stable identity defaults themselves — that belongs to `@agent-assistant/traits`
+- workforce persona systems, prompt libraries, or product heuristics — those stay product-owned
+- durable memory storage, routing policy ownership, or coordination ownership
+
+Dependency direction: turn-context sits above traits and upstream of harness. It exists to stop harness from becoming the umbrella abstraction for identity, enrichment, and product shaping.
+
+See [v1-turn-context-enrichment-boundary.md](v1-turn-context-enrichment-boundary.md) and [../specs/v1-turn-context-enrichment-spec.md](../specs/v1-turn-context-enrichment-spec.md).
 
 ### `@agent-assistant/memory`
 

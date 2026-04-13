@@ -1,6 +1,6 @@
 # Agent Assistant SDK
 
-A focused, open-source SDK for building production-grade AI assistants with identity, memory, sessions, proactive behavior, multi-agent coordination, policy, and bounded harness execution.
+A focused, open-source SDK for building production-grade AI assistants from explicit runtime primitives: stable identity (`@agent-assistant/traits`), turn-scoped context assembly (`@agent-assistant/turn-context`, specified), bounded turn execution (`@agent-assistant/harness`), sessions, surfaces, policy, proactive behavior, memory, and multi-agent coordination.
 
 ## What This SDK Does
 
@@ -91,6 +91,20 @@ See [docs/current-state.md](docs/current-state.md) for authoritative per-package
 
 This SDK sits between the underlying messaging and runtime infrastructure and product-specific assistant logic.
 
+### Runtime primitive map
+
+The repo should no longer be read as if "the harness" were the umbrella runtime concept.
+
+- `@agent-assistant/harness` = the bounded turn executor only
+- `@agent-assistant/turn-context` = the turn-scoped assembly primitive that prepares effective assistant-facing instructions/context for one turn
+- `@agent-assistant/traits` = the stable identity floor
+- product intelligence = product-owned prompts, heuristics, workflow logic, and domain behavior
+
+See:
+- [Runtime primitive map](docs/architecture/agent-assistant-runtime-primitive-map.md)
+- [Runtime primitives vs. product intelligence](docs/architecture/runtime-primitives-vs-product-intelligence.md)
+- [Turn-context enrichment boundary](docs/architecture/v1-turn-context-enrichment-boundary.md)
+
 ### Foundation layer (not this repo)
 
 The underlying messaging and runtime infrastructure (transport adapters, webhook verification, normalized message primitives, channel/session transport substrate, auth and connection wiring, scheduler and wake-up infrastructure) lives in the Relay foundation repos.
@@ -100,6 +114,8 @@ The underlying messaging and runtime infrastructure (transport adapters, webhook
 Reusable assistant behavior built on top of the foundation:
 
 - assistant construction and lifecycle
+- stable assistant identity traits
+- turn-context assembly contracts
 - memory scopes and adapters
 - proactive engines and watch rules
 - assistant session models
@@ -112,13 +128,13 @@ Reusable assistant behavior built on top of the foundation:
 
 Product-specific concerns stay in each product's own repository:
 
-- prompts, workforce persona definitions, and persona behavior
+- prompts, workforce persona definitions, turn-shaping logic, and persona behavior
 - product-specific workflows and tools
 - domain-specific watchers and automations
 - product UX and dashboards
 - pricing, tiering, escalation, and customer policy
 
-> **Workforce persona vs. assistant traits:** Workforce personas are runtime execution profiles (model, harness, system prompt, tier). Assistant traits are identity and behavioral characteristics (voice, style, vocabulary, proactivity). These are distinct. See [traits and persona layer](docs/architecture/traits-and-persona-layer.md).
+> **Primitive split:** Workforce personas are product/runtime execution profiles (model, harness choice, system prompt, tier). Assistant traits are stable identity data. Turn-context assembly expresses that identity plus turn-scoped shaping for one turn. The harness then executes that prepared turn. Product intelligence stays above all three.
 
 ## Consumer Docs
 

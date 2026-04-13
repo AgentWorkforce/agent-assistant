@@ -18,6 +18,11 @@ A package being "specified" does not mean it is implemented. A package being "im
 When documents conflict: source code > specs > READMEs > index/status docs > plans > verdicts.
 Specs in `docs/specs/` are the canonical contracts. Plans and verdicts in `docs/architecture/` are historical records.
 
+For current runtime decomposition, treat the primitive-map docs as the architecture anchor rather than using "harness" as umbrella shorthand:
+- [agent-assistant-runtime-primitive-map.md](architecture/agent-assistant-runtime-primitive-map.md)
+- [runtime-primitives-vs-product-intelligence.md](architecture/runtime-primitives-vs-product-intelligence.md)
+- [v1-turn-context-enrichment-boundary.md](architecture/v1-turn-context-enrichment-boundary.md)
+
 ## Status
 
 **10 packages implemented (368 tests verified passing; coordination remains blocked outside harness scope). 1 package is placeholder (memory — requires relay foundation backend).**
@@ -27,7 +32,7 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 
 **Routing status update:** `@agent-assistant/routing` hardening is complete at 52 passing tests and now has a package-local verdict of `READY_FOR_WAVE_2`. See `docs/architecture/v1-routing-hardening-review-verdict.md`.
 
-**Workforce persona vs. assistant traits:** These are distinct. Workforce personas are runtime execution profiles (model, harness, system prompt, tier) — owned by Workforce, not this SDK. Assistant traits are identity/behavioral characteristics (voice, style, proactivity) — they now live in `@agent-assistant/traits` as part of the stable facade baseline. See [traits and persona layer](architecture/traits-and-persona-layer.md).
+**Current runtime primitive framing:** Harness is not the umbrella runtime concept. `@agent-assistant/harness` owns bounded turn execution. `@agent-assistant/turn-context` defines the turn-scoped assembly seam above it. `@agent-assistant/traits` provides the stable identity floor. Product intelligence remains product-owned.
 
 ---
 
@@ -38,9 +43,13 @@ See [current-state.md](current-state.md) for the authoritative per-package test 
 - [Assistant cloud interface](architecture/assistant-cloud-interface.md)
 
 - [Architecture draft](architecture/2026-04-11-relay-agent-assistant-architecture-draft.md)
+- [Runtime primitive map](architecture/agent-assistant-runtime-primitive-map.md) — primary runtime decomposition; what is and is not "harness"
+- [Runtime primitives vs. product intelligence](architecture/runtime-primitives-vs-product-intelligence.md) — SDK/runtime ownership seam vs product-owned behavior
 - [Package boundary map](architecture/package-boundary-map.md) — what belongs where; workforce persona vs traits; reuse-first rule
+- [Turn-context enrichment boundary](architecture/v1-turn-context-enrichment-boundary.md) — missing turn-context primitive above harness
+- [Turn-context enrichment review verdict](architecture/v1-turn-context-enrichment-review-verdict.md) — review of the turn-context primitive boundary
 - [Traits and persona layer](architecture/traits-and-persona-layer.md) — `@agent-assistant/traits` spec; workforce persona vs assistant traits distinction
-- [v1 harness boundary](architecture/v1-harness-boundary.md) — bounded iterative assistant-turn runtime scope, non-goals, and package placement
+- [v1 harness boundary](architecture/v1-harness-boundary.md) — bounded iterative assistant-turn executor scope, non-goals, and package placement
 - [v1 harness review verdict](architecture/v1-harness-review-verdict.md) — judgment on whether the harness boundary is strong enough to implement
 - [v1 harness implementation review verdict](architecture/v1-harness-implementation-review-verdict.md) — implementation assessment for the new `@agent-assistant/harness` package
 - [SDK audit and traits alignment plan](architecture/sdk-audit-and-traits-alignment-plan.md) — implementation vs spec status audit; docs drift log; traits placement decision
