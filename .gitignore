@@ -2,3 +2,4 @@
 .overnight/
 .relay/
 node_modules
+dist/
