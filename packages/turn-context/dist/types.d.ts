@@ -69,6 +69,16 @@ export interface TurnSessionInput {
 export interface TurnMemoryInput {
     candidates?: TurnMemoryCandidate[];
 }
+export interface TurnMemoryRetrievalInput {
+    assistantId: string;
+    turnId: string;
+    sessionId?: string;
+    userId?: string;
+    threadId?: string;
+    query?: string;
+    limit?: number;
+    metadata?: Record<string, unknown>;
+}
 export interface TurnMemoryCandidate {
     id: string;
     text: string;
@@ -166,6 +176,9 @@ export interface TurnContextProvenance {
 }
 export interface TurnMemoryProjector {
     project(input: TurnMemoryInput, context: TurnContextInput): Promise<TurnPreparedContextBlock[]>;
+}
+export interface TurnMemoryRetriever {
+    retrieve(input: TurnMemoryRetrievalInput): Promise<TurnMemoryCandidate[]>;
 }
 export interface TurnEnrichmentProjector {
     project(input: TurnEnrichmentInput, context: TurnContextInput): Promise<{
