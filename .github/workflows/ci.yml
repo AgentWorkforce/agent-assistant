@@ -41,39 +41,38 @@ jobs:
         working-directory: packages/surfaces
         run: npx vitest run
 
-      # Typecheck — publishable packages only
-      - name: Typecheck — traits
-        working-directory: packages/traits
-        run: npx tsc --noEmit -p tsconfig.json
-
-      - name: Typecheck — core
-        working-directory: packages/core
-        run: npx tsc --noEmit -p tsconfig.json
-
-      - name: Typecheck — sessions
-        working-directory: packages/sessions
-        run: npx tsc --noEmit -p tsconfig.json
-
-      - name: Typecheck — surfaces
-        working-directory: packages/surfaces
-        run: npx tsc --noEmit -p tsconfig.json
-
-      # Build — DAG order: traits → core → sessions, surfaces
+      # Build/typecheck in dependency order so downstream workspace imports resolve
       - name: Build — traits
         working-directory: packages/traits
         run: npm run build
+
+      - name: Typecheck — traits
+        working-directory: packages/traits
+        run: npx tsc --noEmit -p tsconfig.json
 
       - name: Build — core
         working-directory: packages/core
         run: npm run build
 
+      - name: Typecheck — core
+        working-directory: packages/core
+        run: npx tsc --noEmit -p tsconfig.json
+
       - name: Build — sessions
         working-directory: packages/sessions
         run: npm run build
 
+      - name: Typecheck — sessions
+        working-directory: packages/sessions
+        run: npx tsc --noEmit -p tsconfig.json
+
       - name: Build — surfaces
         working-directory: packages/surfaces
         run: npm run build
+
+      - name: Typecheck — surfaces
+        working-directory: packages/surfaces
+        run: npx tsc --noEmit -p tsconfig.json
 
       - name: Verify no test artifacts in dist
         run: |
