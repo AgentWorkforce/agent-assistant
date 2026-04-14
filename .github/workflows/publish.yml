@@ -81,7 +81,7 @@ jobs:
         run: |
           case "${{ github.event.inputs.package_group }}" in
             runtime-core)
-              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","turn-context","sdk", "continuation"]'
+              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","memory","turn-context","continuation","sdk"]'
               FIRST='traits'
               ;;
             *)
@@ -140,7 +140,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORDER=(traits core sessions surfaces policy proactive harness turn-context sdk)
+          ORDER=(traits core sessions surfaces policy proactive harness memory turn-context continuation sdk)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
@@ -205,6 +205,35 @@ jobs:
             fi
             (cd "packages/$pkg" && npm version "$NEW_VERSION" --no-git-tag-version)
           done
+
+          export NEW_VERSION
+          export PACKAGES='${{ needs.resolve-packages.outputs.matrix }}'
+          node <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+
+          const version = process.env.NEW_VERSION;
+          const packages = JSON.parse(process.env.PACKAGES);
+          const packageNames = new Set(packages.map((pkg) => `@agent-assistant/${pkg}`));
+
+          for (const pkg of packages) {
+            const packageJsonPath = path.join('packages', pkg, 'package.json');
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+            for (const depField of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
+              const deps = packageJson[depField];
+              if (!deps) continue;
+              for (const [name, value] of Object.entries(deps)) {
+                if (packageNames.has(name) && String(value).startsWith('file:')) {
+                  deps[name] = `^${version}`;
+                }
+              }
+            }
+
+            fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}
+`);
+          }
+          EOF
 
       - name: Upload build artifacts
         shell: bash
