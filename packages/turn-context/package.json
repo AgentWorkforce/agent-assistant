@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@agent-assistant/traits": "file:../traits",
-    "@agent-assistant/harness": "file:../harness"
+    "@agent-assistant/harness": "file:../harness",
+    "@agent-assistant/memory": "file:../memory"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

@@ -1,5 +1,7 @@
 export { createTurnContextAssembler } from './assembler.js';
 export type { CreateTurnContextAssemblerOptions } from './assembler.js';
+export { createMemoryTurnRetriever } from './memory-retriever.js';
+export type { CreateMemoryTurnRetrieverOptions } from './memory-retriever.js';
 
 export type {
   // Assembler interface
@@ -12,6 +14,7 @@ export type {
   TurnInstructionOverlay,
   TurnSessionInput,
   TurnMemoryInput,
+  TurnMemoryRetrievalInput,
   TurnMemoryCandidate,
   TurnEnrichmentInput,
   TurnEnrichmentCandidate,
@@ -30,6 +33,7 @@ export type {
 
   // Adapter seam interfaces
   TurnMemoryProjector,
+  TurnMemoryRetriever,
   TurnEnrichmentProjector,
   TurnInstructionComposer,
 } from './types.js';
