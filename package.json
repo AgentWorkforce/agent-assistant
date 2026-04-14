@@ -6,6 +6,7 @@
     "packages/traits",
     "packages/core",
     "packages/harness",
+    "packages/continuation",
     "packages/turn-context",
     "packages/sessions",
     "packages/surfaces",
