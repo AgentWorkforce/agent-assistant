@@ -16,8 +16,14 @@ export interface ValidationSpecialistConfig {
 }
 
 export interface RelayValidationHandler {
-  start(): Promise<void>;
+  start(): Promise<RelayValidationHandlerOutcome>;
   stop(): void;
+}
+
+export interface RelayValidationHandlerOutcome {
+  verdictPublished: boolean;
+  verdictEventId?: string;
+  error?: Error;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -208,7 +214,7 @@ export function createRelayValidationHandler(config: {
 
   return {
     async start() {
-      await config.relay.registerAgent({
+      const registerAgentPromise = config.relay.registerAgent({
         agentId: specialistName,
         channel: config.channelId,
         capabilities: ['execution-validation', 'proof-signals'],
@@ -220,7 +226,7 @@ export function createRelayValidationHandler(config: {
         filter(message) {
           try {
             const parsed = JSON.parse(message.text) as Partial<RelayExecutionResultMessage>;
-            return parsed.type === 'execution-result';
+            return parsed.type === 'execution-result' && parsed.threadId === config.threadId;
           } catch {
             return false;
           }
@@ -228,39 +234,44 @@ export function createRelayValidationHandler(config: {
       });
       unsubscribe = () => subscription.unsubscribe();
 
-      void (async () => {
-        const message = await subscription.waitForMessage(timeoutMs);
-        if (stopped) {
-          return;
-        }
+      await registerAgentPromise;
 
-        const payload = JSON.parse(message.text) as RelayExecutionResultMessage;
-        const verdict = validateExecutionResult(JSON.stringify(payload.executionResult), {
-          connectivity: config.connectivity,
-          threadId: payload.threadId,
-          specialistName,
-        });
-        const verdictMessage: RelayValidationVerdictMessage = {
-          type: 'validation-verdict',
-          verdict: {
-            output: verdict.output,
-            confidence: verdict.confidence,
-            status: verdict.status,
-            validatedStatus: verdict.validatedStatus,
-            degraded: verdict.degraded,
-          },
-          signals: verdict.signals,
-          turnId: payload.turnId,
-          threadId: payload.threadId,
-        };
+      const message = await subscription.waitForMessage(timeoutMs);
+      if (stopped) {
+        return { verdictPublished: false };
+      }
 
-        await config.relay.publish({
-          channel: config.channelId,
-          threadId: config.threadId,
-          from: specialistName,
-          text: JSON.stringify(verdictMessage),
-        });
-      })().catch(() => undefined);
+      const payload = JSON.parse(message.text) as RelayExecutionResultMessage;
+      const verdict = validateExecutionResult(JSON.stringify(payload.executionResult), {
+        connectivity: config.connectivity,
+        threadId: payload.threadId,
+        specialistName,
+      });
+      const verdictMessage: RelayValidationVerdictMessage = {
+        type: 'validation-verdict',
+        verdict: {
+          output: verdict.output,
+          confidence: verdict.confidence,
+          status: verdict.status,
+          validatedStatus: verdict.validatedStatus,
+          degraded: verdict.degraded,
+        },
+        signals: verdict.signals,
+        turnId: payload.turnId,
+        threadId: payload.threadId,
+      };
+
+      const published = await config.relay.publish({
+        channel: config.channelId,
+        threadId: config.threadId,
+        from: specialistName,
+        text: JSON.stringify(verdictMessage),
+      });
+
+      return {
+        verdictPublished: true,
+        verdictEventId: published.eventId,
+      };
     },
     stop() {
       stopped = true;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTurnContextAssembler } from '@agent-assistant/turn-context';
+import { createConnectivityLayer } from '@agent-assistant/connectivity';
 
 import { runByohLocalProof } from './byoh-local-proof.js';
 import type {
@@ -7,6 +8,7 @@ import type {
   RelayChannelMessage,
   RelaySubscription,
 } from './byoh-local-proof.js';
+import { createRelayValidationHandler } from './validation-specialist.js';
 import type { ExecutionAdapter, ExecutionRequest, ExecutionResult } from '../types.js';
 
 function createAdapter(resultFactory?: (request: ExecutionRequest) => ExecutionResult): ExecutionAdapter {
@@ -86,6 +88,8 @@ function createAdapter(resultFactory?: (request: ExecutionRequest) => ExecutionR
 
 function createInMemoryRelayTransport(options?: {
   dropValidationVerdict?: boolean;
+  dropExecutionResult?: boolean;
+  failPublishForType?: string;
 }): ProofRelayTransport & {
   published: RelayChannelMessage[];
   registeredAgents: string[];
@@ -150,6 +154,12 @@ function createInMemoryRelayTransport(options?: {
       published.push(message);
 
       const parsed = JSON.parse(message.text) as { type?: string };
+      if (options?.failPublishForType === parsed.type) {
+        throw new Error(`Failed to publish Relay message of type "${parsed.type}".`);
+      }
+      if (options?.dropExecutionResult && parsed.type === 'execution-result') {
+        return { eventId: message.eventId, targets: [input.channel] };
+      }
       if (!(options?.dropValidationVerdict && parsed.type === 'validation-verdict')) {
         deliver(message);
       }
@@ -188,7 +198,11 @@ function createInMemoryRelayTransport(options?: {
               if (index >= 0) {
                 subscriber.waiters.splice(index, 1);
               }
-              reject(new Error(`Timed out waiting for Relay message on channel "${input.channel}".`));
+              reject(
+                new Error(
+                  `Timed out waiting for Relay message on channel "${input.channel}" for "${subscriber.agentId}".`,
+                ),
+              );
             }, timeoutMs);
             subscriber.waiters.push(waiter);
           });
@@ -305,5 +319,132 @@ describe('runByohLocalProof', () => {
     expect(relay.published).toHaveLength(2);
     expect(JSON.parse(relay.published[0]!.text).type).toBe('execution-result');
     expect(JSON.parse(relay.published[1]!.text).type).toBe('validation-verdict');
+  });
+
+  it('surfaces specialist timeout failures instead of masking them behind orchestrator timeout', async () => {
+    const relay = createInMemoryRelayTransport({ dropExecutionResult: true });
+
+    await expect(
+      runByohLocalProof(
+        {
+          assembler: createTurnContextAssembler(),
+          adapter: createAdapter(),
+          relay,
+          relayConfig: {
+            channelId: 'byoh-local-proof',
+          },
+          timeoutMs: 20,
+        },
+        {
+          type: 'completed-no-tools',
+          message: 'Validate the proof slice.',
+        },
+      ),
+    ).rejects.toThrow('for "validation-specialist"');
+
+    expect(relay.published).toHaveLength(1);
+    expect(JSON.parse(relay.published[0]!.text).type).toBe('execution-result');
+  });
+
+  it('surfaces specialist publish failures to the orchestrator', async () => {
+    const relay = createInMemoryRelayTransport({ failPublishForType: 'validation-verdict' });
+
+    await expect(
+      runByohLocalProof(
+        {
+          assembler: createTurnContextAssembler(),
+          adapter: createAdapter(),
+          relay,
+          relayConfig: {
+            channelId: 'byoh-local-proof',
+          },
+          timeoutMs: 20,
+        },
+        {
+          type: 'completed-with-tools',
+          message: 'Validate the proof slice.',
+          tools: [{ name: 'relay_lookup', description: 'Lookup relay evidence' }],
+        },
+      ),
+    ).rejects.toThrow('Failed to publish Relay message of type "validation-verdict".');
+  });
+
+  it('keeps concurrent proof runs thread-isolated on a shared channel', async () => {
+    const relay = createInMemoryRelayTransport();
+
+    const [completedResult, degradedResult] = await Promise.all([
+      runByohLocalProof(
+        {
+          assembler: createTurnContextAssembler(),
+          adapter: createAdapter(),
+          relay,
+          relayConfig: {
+            channelId: 'shared-proof-channel',
+          },
+          timeoutMs: 50,
+        },
+        {
+          type: 'completed-no-tools',
+          message: 'Validate the proof slice.',
+        },
+      ),
+      runByohLocalProof(
+        {
+          assembler: createTurnContextAssembler(),
+          adapter: createAdapter(),
+          relay,
+          relayConfig: {
+            channelId: 'shared-proof-channel',
+          },
+          timeoutMs: 50,
+        },
+        {
+          type: 'negotiation-rejected',
+          message: 'Attempt attachment-heavy request.',
+          requirements: { attachments: 'required' },
+        },
+      ),
+    ]);
+
+    expect(completedResult.request.threadId).toBe('thread-completed-no-tools');
+    expect(completedResult.validationVerdict.validatedStatus).toBe('completed');
+    expect(degradedResult.request.threadId).toBe('thread-negotiation-rejected');
+    expect(degradedResult.validationVerdict.validatedStatus).toBe('unsupported');
+  });
+});
+
+describe('createRelayValidationHandler', () => {
+  it('ignores execution-result messages from a different thread', async () => {
+    const relay = createInMemoryRelayTransport();
+    const handler = createRelayValidationHandler({
+      connectivity: createConnectivityLayer(),
+      relay,
+      channelId: 'proof-channel',
+      threadId: 'thread-expected',
+      timeoutMs: 20,
+    });
+
+    const handlerPromise = handler.start();
+
+    await relay.publish({
+      channel: 'proof-channel',
+      threadId: 'thread-foreign',
+      from: 'orchestrator',
+      text: JSON.stringify({
+        type: 'execution-result',
+        scenario: 'completed-no-tools',
+        executionResult: {
+          backendId: 'claude-code',
+          status: 'completed',
+          output: { text: 'foreign execution' },
+        },
+        turnId: 'turn-foreign',
+        threadId: 'thread-foreign',
+      }),
+    });
+
+    await expect(handlerPromise).rejects.toThrow('for "validation-specialist"');
+    expect(relay.published).toHaveLength(1);
+    expect(JSON.parse(relay.published[0]!.text).threadId).toBe('thread-foreign');
   });
 });

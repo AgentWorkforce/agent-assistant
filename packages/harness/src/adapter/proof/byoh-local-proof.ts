@@ -325,8 +325,8 @@ export function createAgentRelayProofTransport(config: {
 
   return {
     async registerAgent(input) {
-      await relay.start();
       registeredAgents.add(input.agentId);
+      await relay.start();
     },
     async publish(input) {
       await relay.start();
@@ -485,12 +485,14 @@ export async function runByohLocalProof(
   });
 
   const handlerPromise = validationHandler.start();
+  const handlerFailure = handlerPromise.then(
+    () => new Promise<never>(() => undefined),
+    async (error) => Promise.reject(error),
+  );
   let publishedEventId: string | undefined;
   let verdictEventId: string | undefined;
 
   try {
-    await handlerPromise;
-
     const executionMessage: RelayExecutionResultMessage = {
       type: 'execution-result',
       scenario: scenario.type,
@@ -507,7 +509,10 @@ export async function runByohLocalProof(
     });
     publishedEventId = published.eventId;
 
-    const verdictMessage = await verdictSubscription.waitForMessage(timeoutMs);
+    const verdictMessage = await Promise.race([
+      verdictSubscription.waitForMessage(timeoutMs),
+      handlerFailure,
+    ]);
     verdictEventId = verdictMessage.eventId;
 
     const verdictPayload = JSON.parse(verdictMessage.text) as RelayValidationVerdictMessage;
@@ -517,7 +522,7 @@ export async function runByohLocalProof(
       scenario: scenario.type,
       executionResult,
       validationVerdict: verdictPayload.verdict,
-      signals: connectivity.query({ threadId }),
+      signals: connectivity.query({ threadId, order: 'oldest' }),
       relayCoordinated: true,
       relayRoundTrip: {
         resultPublished: true,
