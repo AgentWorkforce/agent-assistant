@@ -1,13 +1,8 @@
 import { RelayAdapter } from '@agent-relay/sdk';
 import { createConnectivityLayer } from '@agent-assistant/connectivity';
-import {
-  createCoordinator,
-  createSpecialistRegistry,
-  type Coordinator,
-  type SpecialistResult,
-} from '@agent-assistant/coordination';
 import { createTraitsProvider, type TraitsProvider } from '@agent-assistant/traits';
 import type { ConnectivityLayer, ConnectivitySignal } from '@agent-assistant/connectivity';
+import type { BrokerEvent } from '@agent-relay/sdk';
 
 import type {
   ExecutionAdapter,
@@ -16,7 +11,7 @@ import type {
   ExecutionResult,
   ExecutionToolDescriptor,
 } from '../types.js';
-import { createValidationSpecialist } from './validation-specialist.js';
+import { createRelayValidationHandler } from './validation-specialist.js';
 
 export interface ProofTurnContextAssembler {
   assemble(input: {
@@ -100,42 +95,94 @@ export type ByohProofScenario =
   | { type: 'negotiation-rejected'; message: string; requirements: ExecutionRequirements }
   | { type: 'negotiation-degraded'; message: string; requirements: ExecutionRequirements };
 
+export interface RelayChannelMessage {
+  eventId: string;
+  from: string;
+  channel: string;
+  threadId: string;
+  text: string;
+  receivedAt: string;
+}
+
+export interface RelaySubscription {
+  waitForMessage(timeoutMs?: number): Promise<RelayChannelMessage>;
+  unsubscribe(): void;
+}
+
 export interface ProofRelayTransport {
+  registerAgent(input: {
+    agentId: string;
+    channel: string;
+    capabilities: string[];
+  }): Promise<void>;
   publish(input: {
     channel: string;
     text: string;
     threadId: string;
     from?: string;
   }): Promise<{ eventId?: string; targets?: string[] }>;
+  subscribe(input: {
+    channel: string;
+    agentId: string;
+    filter?: (message: RelayChannelMessage) => boolean;
+  }): RelaySubscription;
   shutdown?(): Promise<void>;
+}
+
+export interface RelayExecutionResultMessage {
+  type: 'execution-result';
+  scenario: ByohProofScenario['type'];
+  executionResult: ExecutionResult;
+  turnId: string;
+  threadId: string;
+}
+
+export interface RelayValidationVerdict {
+  output: string;
+  confidence: number;
+  status: 'complete' | 'partial' | 'failed';
+  validatedStatus: string;
+  degraded: boolean;
+}
+
+export interface RelayValidationVerdictMessage {
+  type: 'validation-verdict';
+  verdict: RelayValidationVerdict;
+  signals: Array<{
+    signalClass: string;
+    summary: string;
+  }>;
+  turnId: string;
+  threadId: string;
 }
 
 export interface ByohLocalProofConfig {
   assembler: ProofTurnContextAssembler;
   adapter: ExecutionAdapter;
-  coordinator?: Coordinator;
-  connectivity?: ConnectivityLayer;
-  relay?: ProofRelayTransport;
-  relayConfig?: {
+  relay: ProofRelayTransport;
+  relayConfig: {
     cwd?: string;
     channelId: string;
     workspaceId?: string;
   };
+  connectivity?: ConnectivityLayer;
   traitsProvider?: TraitsProvider;
+  timeoutMs?: number;
 }
 
 export interface ByohLocalProofResult {
   scenario: ByohProofScenario['type'];
   executionResult: ExecutionResult;
-  validationResult: SpecialistResult;
+  validationVerdict: RelayValidationVerdict;
   signals: ConnectivitySignal[];
   relayCoordinated: boolean;
-  identityPreserved: boolean;
-  relayPublication?: {
-    eventId?: string;
-    channel: string;
-    targets?: string[];
+  relayRoundTrip: {
+    resultPublished: boolean;
+    resultEventId?: string;
+    verdictReceived: boolean;
+    verdictEventId?: string;
   };
+  identityPreserved: boolean;
   request: ExecutionRequest;
 }
 
@@ -241,23 +288,28 @@ function buildExecutionRequest(
     }));
 }
 
-function buildDefaultCoordinator(
-  connectivity: ConnectivityLayer,
-  threadId: string,
-): Coordinator {
-  const registry = createSpecialistRegistry();
-  registry.register(
-    createValidationSpecialist({
-      connectivity,
-      threadId,
-    }),
-  );
+function toRelayChannelMessage(event: BrokerEvent): RelayChannelMessage | null {
+  if (event.kind !== 'relay_inbound') {
+    return null;
+  }
 
-  return createCoordinator({
-    registry,
-    connectivity,
-    synthesis: { strategy: 'last-wins' },
-  });
+  return {
+    eventId: event.event_id,
+    from: event.from,
+    channel: event.target,
+    threadId: event.thread_id ?? '',
+    text: event.body,
+    receivedAt: new Date().toISOString(),
+  };
+}
+
+function isValidationVerdictMessage(value: unknown): value is RelayValidationVerdictMessage {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<RelayValidationVerdictMessage>;
+  return candidate.type === 'validation-verdict' && typeof candidate.threadId === 'string';
 }
 
 export function createAgentRelayProofTransport(config: {
@@ -269,8 +321,13 @@ export function createAgentRelayProofTransport(config: {
     cwd: config.cwd ?? process.cwd(),
     channels: [config.channelId],
   });
+  const registeredAgents = new Set<string>();
 
   return {
+    async registerAgent(input) {
+      await relay.start();
+      registeredAgents.add(input.agentId);
+    },
     async publish(input) {
       await relay.start();
       const published = await relay.sendMessage({
@@ -286,6 +343,83 @@ export function createAgentRelayProofTransport(config: {
         targets: published.targets,
       };
     },
+    subscribe(input) {
+      if (!registeredAgents.has(input.agentId)) {
+        throw new Error(`Relay agent "${input.agentId}" must be registered before subscribing.`);
+      }
+
+      const queued: RelayChannelMessage[] = [];
+      const waiters: Array<{
+        resolve: (message: RelayChannelMessage) => void;
+        reject: (error: Error) => void;
+        timer?: ReturnType<typeof setTimeout>;
+      }> = [];
+      let active = true;
+
+      const deliver = (message: RelayChannelMessage) => {
+        if (!active) {
+          return;
+        }
+
+        if (input.filter && !input.filter(message)) {
+          return;
+        }
+
+        const waiter = waiters.shift();
+        if (waiter) {
+          if (waiter.timer) {
+            clearTimeout(waiter.timer);
+          }
+          waiter.resolve(message);
+          return;
+        }
+
+        queued.push(message);
+      };
+
+      const unsubscribeFromEvents = relay.onEvent((event) => {
+        const message = toRelayChannelMessage(event);
+        if (!message || message.channel !== input.channel) {
+          return;
+        }
+        deliver(message);
+      });
+
+      return {
+        waitForMessage(timeoutMs = 30_000) {
+          const next = queued.shift();
+          if (next) {
+            return Promise.resolve(next);
+          }
+
+          return new Promise<RelayChannelMessage>((resolve, reject) => {
+            const waiter = { resolve, reject } as {
+              resolve: (message: RelayChannelMessage) => void;
+              reject: (error: Error) => void;
+              timer?: ReturnType<typeof setTimeout>;
+            };
+            waiter.timer = setTimeout(() => {
+              const index = waiters.indexOf(waiter);
+              if (index >= 0) {
+                waiters.splice(index, 1);
+              }
+              reject(new Error(`Timed out waiting for Relay message on channel "${input.channel}".`));
+            }, timeoutMs);
+            waiters.push(waiter);
+          });
+        },
+        unsubscribe() {
+          active = false;
+          unsubscribeFromEvents();
+          for (const waiter of waiters.splice(0)) {
+            if (waiter.timer) {
+              clearTimeout(waiter.timer);
+            }
+            waiter.reject(new Error(`Relay subscription for "${input.agentId}" was closed.`));
+          }
+        },
+      };
+    },
     async shutdown() {
       await relay.shutdown();
     },
@@ -299,16 +433,20 @@ export async function runByohLocalProof(
   const traitsProvider = config.traitsProvider ?? defaultTraitsProvider();
   const request = await buildExecutionRequest(config.assembler, traitsProvider, scenario);
   const connectivity = config.connectivity ?? createConnectivityLayer();
-  const coordinator = config.coordinator ?? buildDefaultCoordinator(connectivity, request.threadId ?? request.turnId);
-  const relay =
-    config.relay ??
-    (config.relayConfig
-      ? createAgentRelayProofTransport(config.relayConfig)
-      : undefined);
+  const timeoutMs = config.timeoutMs ?? 30_000;
+  const channelId = config.relayConfig.channelId;
+  const threadId = request.threadId ?? request.turnId;
 
   const negotiation = config.adapter.negotiate(request);
   const executionResult = negotiation.supported
-    ? await config.adapter.execute(request)
+    ? await config.adapter.execute(request).then((result) =>
+        negotiation.degraded
+          ? {
+              ...result,
+              degradation: [...(result.degradation ?? []), ...negotiation.reasons],
+            }
+          : result,
+      )
     : {
         backendId: config.adapter.backendId,
         status: 'unsupported' as const,
@@ -319,54 +457,83 @@ export async function runByohLocalProof(
         degradation: negotiation.reasons,
       };
 
-  const relayPublication = relay
-    ? await relay.publish({
-        channel: config.relayConfig?.channelId ?? 'byoh-local-proof',
-        threadId: request.threadId ?? request.turnId,
-        from: 'orchestrator',
-        text: JSON.stringify(
-          {
-            scenario: scenario.type,
-            executionResult,
-          },
-          null,
-          2,
-        ),
-      })
-    : undefined;
-
-  const turn = await coordinator.execute({
-    intent: 'Validate the bounded local BYOH execution result',
-    steps: [
-      {
-        specialistName: 'validation-specialist',
-        instruction: JSON.stringify(executionResult),
-      },
-    ],
+  await config.relay.registerAgent({
+    agentId: 'orchestrator',
+    channel: channelId,
+    capabilities: ['execution-request', 'proof-synthesis'],
   });
 
-  if (relay?.shutdown) {
-    await relay.shutdown();
+  const verdictSubscription = config.relay.subscribe({
+    channel: channelId,
+    agentId: 'orchestrator',
+    filter(message) {
+      try {
+        const parsed = JSON.parse(message.text) as unknown;
+        return isValidationVerdictMessage(parsed) && parsed.threadId === threadId;
+      } catch {
+        return false;
+      }
+    },
+  });
+
+  const validationHandler = createRelayValidationHandler({
+    connectivity,
+    relay: config.relay,
+    channelId,
+    threadId,
+    timeoutMs,
+  });
+
+  const handlerPromise = validationHandler.start();
+  let publishedEventId: string | undefined;
+  let verdictEventId: string | undefined;
+
+  try {
+    await handlerPromise;
+
+    const executionMessage: RelayExecutionResultMessage = {
+      type: 'execution-result',
+      scenario: scenario.type,
+      executionResult,
+      turnId: request.turnId,
+      threadId,
+    };
+
+    const published = await config.relay.publish({
+      channel: channelId,
+      threadId,
+      from: 'orchestrator',
+      text: JSON.stringify(executionMessage),
+    });
+    publishedEventId = published.eventId;
+
+    const verdictMessage = await verdictSubscription.waitForMessage(timeoutMs);
+    verdictEventId = verdictMessage.eventId;
+
+    const verdictPayload = JSON.parse(verdictMessage.text) as RelayValidationVerdictMessage;
+    await handlerPromise;
+
+    return {
+      scenario: scenario.type,
+      executionResult,
+      validationVerdict: verdictPayload.verdict,
+      signals: connectivity.query({ threadId }),
+      relayCoordinated: true,
+      relayRoundTrip: {
+        resultPublished: true,
+        resultEventId: publishedEventId,
+        verdictReceived: true,
+        verdictEventId,
+      },
+      identityPreserved: request.instructions.systemPrompt.includes('Sage'),
+      request,
+    };
+  } finally {
+    validationHandler.stop();
+    verdictSubscription.unsubscribe();
+    await Promise.allSettled([handlerPromise]);
+    if (config.relay.shutdown) {
+      await config.relay.shutdown();
+    }
   }
-
-  const signals = turn.signals.observed;
-
-  return {
-    scenario: scenario.type,
-    executionResult,
-    validationResult: turn.results[0]!,
-    signals,
-    relayCoordinated: relayPublication !== undefined,
-    identityPreserved: request.instructions.systemPrompt.includes('Sage'),
-    ...(relayPublication
-      ? {
-          relayPublication: {
-            eventId: relayPublication.eventId,
-            channel: config.relayConfig?.channelId ?? 'byoh-local-proof',
-            targets: relayPublication.targets,
-          },
-        }
-      : {}),
-    request,
-  };
 }
