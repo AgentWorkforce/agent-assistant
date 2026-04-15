@@ -8,9 +8,12 @@
  *      the thread was previously engaged by a mention. Otherwise they are dropped.
  *   3. Non-thread message events (no thread_ts) proceed — callers may gate further.
  *
- * The store is caller-supplied (Cloudflare KV, Redis, in-memory, etc.) so the gate is
- * runtime-agnostic. Every Slack-surfaced agent should use this instead of inlining the
- * same KV reads/writes in its webhook handler.
+ * Active-thread state is keyed by the composite {workspaceId, channel, threadTs}.
+ * Slack's `thread_ts` is only unique within a channel — across workspaces or channels
+ * a bare-ts lookup would let a mention in one channel unlock unrelated threads in
+ * another. The store is caller-supplied (Cloudflare KV, Redis, in-memory, etc.) so
+ * the gate is runtime-agnostic; callers join the key fields into their native key
+ * format (e.g. `${workspaceId}:${channel}:${threadTs}`).
  */
 
 export interface ActiveThreadContext {
@@ -18,9 +21,13 @@ export interface ActiveThreadContext {
   channel: string;
 }
 
+export interface ActiveThreadKey extends ActiveThreadContext {
+  threadTs: string;
+}
+
 export interface ActiveThreadStore {
-  isActive(threadTs: string): Promise<boolean>;
-  markActive(threadTs: string, ctx: ActiveThreadContext, ttlSeconds: number): Promise<void>;
+  isActive(key: ActiveThreadKey): Promise<boolean>;
+  markActive(key: ActiveThreadKey, ttlSeconds: number): Promise<void>;
 }
 
 export interface ThreadGateEvent {
@@ -52,9 +59,16 @@ export class SlackThreadGate {
     this.ttlSeconds = options.ttlSeconds ?? 86_400;
   }
 
-  async shouldProcess(event: ThreadGateEvent): Promise<ThreadGateDecision> {
+  async shouldProcess(
+    event: ThreadGateEvent,
+    workspaceId: string,
+  ): Promise<ThreadGateDecision> {
     if (event.type === "message" && event.threadTs) {
-      const active = await this.store.isActive(event.threadTs);
+      const active = await this.store.isActive({
+        workspaceId,
+        channel: event.channel,
+        threadTs: event.threadTs,
+      });
       if (!active) {
         return { proceed: false, reason: "inactive-thread" };
       }
@@ -67,13 +81,12 @@ export class SlackThreadGate {
     const threadTs = event.threadTs ?? event.ts;
     if (!threadTs) return;
     await this.store.markActive(
-      threadTs,
-      { workspaceId, channel: event.channel },
+      { workspaceId, channel: event.channel, threadTs },
       this.ttlSeconds,
     );
   }
 
-  async refresh(threadTs: string, ctx: ActiveThreadContext): Promise<void> {
-    await this.store.markActive(threadTs, ctx, this.ttlSeconds);
+  async refresh(key: ActiveThreadKey): Promise<void> {
+    await this.store.markActive(key, this.ttlSeconds);
   }
 }

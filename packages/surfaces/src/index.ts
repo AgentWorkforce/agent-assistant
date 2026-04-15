@@ -26,6 +26,7 @@ export type {
 export { SlackThreadGate } from "./slack-thread-gate.js";
 export type {
   ActiveThreadContext,
+  ActiveThreadKey,
   ActiveThreadStore,
   SlackThreadGateOptions,
   ThreadGateDecision,
