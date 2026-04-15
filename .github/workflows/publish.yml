@@ -125,6 +125,24 @@ jobs:
           echo "Publishing Agent Assistant package group: ${{ github.event.inputs.package_group }}"
           echo "Packages: ${{ needs.resolve-packages.outputs.package_list }}"
 
+      # Harness tests import from @agent-assistant/{traits,connectivity,
+      # coordination,turn-context}, several of which are file: workspace deps
+      # with stale or missing committed dists. Build the chain before running
+      # vitest so its resolver can find each package's dist/. Mirrors
+      # .github/workflows/ci.yml. Note: connectivity + coordination are not
+      # in the publish matrix, so the dependency-aware Build step below does
+      # not cover them.
+      - name: Prepare harness test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build -w @agent-assistant/traits
+          npm run build -w @agent-assistant/memory
+          npm run build -w @agent-assistant/connectivity
+          npm run build -w @agent-assistant/coordination
+          rm -rf packages/turn-context/dist
+          npm run build -w @agent-assistant/turn-context
+
       - name: Run tests
         shell: bash
         run: |
