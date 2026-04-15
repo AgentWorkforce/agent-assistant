@@ -24,8 +24,7 @@
     "build:sdk": "npm run build -w @agent-assistant/sdk"
   },
   "devDependencies": {
-    "@agentworkforce/workload-router": "^0.2.0",
-    "agent-trajectories": "^0.5.4"
+    "@agentworkforce/workload-router": "^0.2.0"
   },
   "dependencies": {
     "@agent-relay/sdk": "^4.0.22"
