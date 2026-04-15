@@ -247,6 +247,20 @@ But NightCTO should still own its product-specific observability and operational
 
 ---
 
+# 10A. Hosted assistant compatibility
+
+Agent Assistant should be definable and configurable enough to support **hosted assistant instantiation** by a platform layer.
+
+This means the SDK should support:
+- assistant definitions as data/config, not only hand-coded app logic
+- configurable identity/traits/behavior knobs
+- configurable runtime surfaces (memory, proactive behavior, BYOH preferences, communication surfaces)
+- product/platform-driven assistant templates
+
+The SDK should make assistants **definable**.
+A cloud/platform product should make assistants **spawnable and operable**.
+
+
 # 11. Bottom line
 
 Agent Assistant is a runtime substrate for real assistants.
