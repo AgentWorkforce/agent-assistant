@@ -1,7 +1,7 @@
 {
-  "name": "@agent-assistant/sdk",
-  "version": "0.1.5",
-  "description": "Top-level facade for the Agent Assistant SDK",
+  "name": "@agent-assistant/inbox",
+  "version": "0.1.0",
+  "description": "Bounded inbox primitives for trusted external inputs",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,19 +16,16 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-assistant/core": ">=0.1.0",
-    "@agent-assistant/inbox": ">=0.1.0",
-    "@agent-assistant/traits": ">=0.1.0",
-    "@agent-assistant/sessions": ">=0.1.0",
-    "@agent-assistant/surfaces": ">=0.1.0",
-    "@agent-assistant/policy": ">=0.1.0",
-    "@agent-assistant/proactive": ">=0.1.0"
+    "@agent-assistant/turn-context": ">=0.1.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   },
   "license": "MIT",
   "repository": {

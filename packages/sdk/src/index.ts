@@ -92,3 +92,28 @@ export type {
   WatchRule,
   SchedulerBinding,
 } from '@agent-assistant/proactive';
+
+// --- @agent-assistant/inbox ---
+export {
+  createInboxStore,
+  createInboxMemoryProjector,
+  createInboxEnrichmentProjector,
+  InboxItemNotFoundError,
+  InboxInvalidStatusTransitionError,
+  InboxRelayNativeSourceError,
+} from '@agent-assistant/inbox';
+export type {
+  InboxAdapterQuery,
+  InboxItem,
+  InboxItemKind,
+  InboxItemScope,
+  InboxItemStatus,
+  InboxListQuery,
+  InboxSourceTrust,
+  InboxStore,
+  InboxStoreAdapter,
+  InboxStoreConfig,
+  InboxToEnrichmentProjector,
+  InboxToMemoryProjector,
+  InboxWriteInput,
+} from '@agent-assistant/inbox';

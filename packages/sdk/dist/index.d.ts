@@ -10,4 +10,6 @@ export { createActionPolicy, defaultRiskClassifier, InMemoryAuditSink, PolicyErr
 export type { Action, PolicyEngine, PolicyEngineConfig, PolicyRule, PolicyDecision, EvaluationResult, AuditSink, RiskLevel, } from '@agent-assistant/policy';
 export { createProactiveEngine, InMemorySchedulerBinding, ProactiveError, SchedulerBindingError, } from '@agent-assistant/proactive';
 export type { ProactiveEngine, ProactiveEngineConfig, FollowUpRule, WatchRule, SchedulerBinding, } from '@agent-assistant/proactive';
+export { createInboxStore, createInboxMemoryProjector, createInboxEnrichmentProjector, InboxItemNotFoundError, InboxInvalidStatusTransitionError, InboxRelayNativeSourceError, } from '@agent-assistant/inbox';
+export type { InboxAdapterQuery, InboxItem, InboxItemKind, InboxItemScope, InboxItemStatus, InboxListQuery, InboxSourceTrust, InboxStore, InboxStoreAdapter, InboxStoreConfig, InboxToEnrichmentProjector, InboxToMemoryProjector, InboxWriteInput, } from '@agent-assistant/inbox';
 //# sourceMappingURL=index.d.ts.map

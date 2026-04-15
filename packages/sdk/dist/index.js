@@ -15,4 +15,6 @@ export { createSurfaceRegistry, SurfaceConflictError, SurfaceNotFoundError, Surf
 export { createActionPolicy, defaultRiskClassifier, InMemoryAuditSink, PolicyError, ClassificationError, } from '@agent-assistant/policy';
 // --- @agent-assistant/proactive ---
 export { createProactiveEngine, InMemorySchedulerBinding, ProactiveError, SchedulerBindingError, } from '@agent-assistant/proactive';
+// --- @agent-assistant/inbox ---
+export { createInboxStore, createInboxMemoryProjector, createInboxEnrichmentProjector, InboxItemNotFoundError, InboxInvalidStatusTransitionError, InboxRelayNativeSourceError, } from '@agent-assistant/inbox';
 //# sourceMappingURL=index.js.map
