@@ -41,6 +41,22 @@ jobs:
         working-directory: packages/surfaces
         run: npx vitest run
 
+      # harness pulls @agent-assistant/connectivity and @agent-assistant/coordination
+      # via workspace file: links. Their dists are not committed, so vitest fails
+      # to resolve the entry point until we build them here. Dependency order:
+      # connectivity (leaf) → coordination (needs connectivity) → harness tests.
+      - name: Build — connectivity (harness dep)
+        working-directory: packages/connectivity
+        run: npm run build
+
+      - name: Build — coordination (harness dep)
+        working-directory: packages/coordination
+        run: npm run build
+
+      - name: Run tests — harness
+        working-directory: packages/harness
+        run: npx vitest run
+
       # Build/typecheck in dependency order so downstream workspace imports resolve
       - name: Build — traits
         working-directory: packages/traits
