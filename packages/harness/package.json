@@ -20,9 +20,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent-assistant/core": "^0.1.3"
+    "@agent-assistant/connectivity": "file:../connectivity",
+    "@agent-assistant/core": "^0.1.3",
+    "@agent-assistant/coordination": "file:../coordination",
+    "@agent-assistant/traits": "file:../traits",
+    "@agent-assistant/turn-context": "file:../turn-context",
+    "@agent-relay/sdk": "^4.0.22"
   },
   "devDependencies": {
+    "@types/node": "^24.6.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
