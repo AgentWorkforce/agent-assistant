@@ -22,3 +22,13 @@ export type {
   SurfaceState,
   SurfaceType,
 } from './types.js';
+
+export { SlackThreadGate } from "./slack-thread-gate.js";
+export type {
+  ActiveThreadContext,
+  ActiveThreadStore,
+  SlackThreadGateOptions,
+  ThreadGateDecision,
+  ThreadGateDropReason,
+  ThreadGateEvent,
+} from "./slack-thread-gate.js";
