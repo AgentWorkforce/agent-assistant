@@ -8,7 +8,7 @@
 
 ## What These Examples Are
 
-Six TypeScript files showing how products compose the implemented SDK packages into working assistants. They start with a facade-first hello-world path, then progressively show deeper composition patterns.
+Six TypeScript files showing how products compose the implemented SDK packages into working assistants. They start with a facade-first hello-world path, then progressively show deeper composition patterns. They should be read alongside the current consumer docs: the facade is the easiest front door, while turn-context, harness, memory, continuation, connectivity, coordination, and routing stay explicit when products need those seams.
 
 These examples are adoption-oriented — they show real wiring patterns, make the product/SDK ownership boundary explicit, and provide realistic proof scenarios. They are not toy demos and not fake product implementations.
 
@@ -150,7 +150,7 @@ The examples make this boundary explicit and consistent:
 - Production product code
 - Product-private adapters and transport layer wiring
 - Cloud-hosted examples requiring non-OSS infrastructure
-- Memory, sessions, surfaces, routing, coordination examples (deferred to v1.1+)
+- Additional examples for deeper primitives such as turn-context, harness-first product wiring, memory/continuation, connectivity/coordination, and routing-specific assembly are still future expansion areas
 
 ---
 

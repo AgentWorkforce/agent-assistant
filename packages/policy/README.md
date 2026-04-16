@@ -1,7 +1,7 @@
 # `@agent-assistant/policy`
 
 **Status:** IMPLEMENTED
-**Version:** 0.1.0 (pre-1.0, provisional)
+**Version:** 0.2.0 (pre-1.0, provisional)
 **Spec:** `docs/specs/v1-policy-spec.md`
 **Implementation plan:** `docs/architecture/v1-policy-implementation-plan.md`
 

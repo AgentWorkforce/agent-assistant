@@ -1,6 +1,6 @@
 # `@agent-assistant/core`
 
-`@agent-assistant/core` is the root composition package for the Agent Assistant SDK SDK. It defines the assistant contract, creates the runtime, dispatches normalized inbound messages to capability handlers, and emits outbound events through injected adapters.
+`@agent-assistant/core` is the root composition package for Agent Assistant SDK. It defines the assistant contract, creates the runtime, dispatches normalized inbound messages to capability handlers, and emits outbound events through injected adapters.
 
 The package is TypeScript-first, has no cloud assumptions, and does not implement sessions, surfaces, memory, routing, or product logic. Those concerns stay in later packages and integrate through abstract contracts defined here.
 
