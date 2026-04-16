@@ -64,7 +64,7 @@ async function main() {
         'echo "" && echo "---ENRICHMENT PROJECTOR---"',
         'sed -n "1,260p" packages/inbox/src/enrichment-projector.ts',
         'echo "" && echo "---INBOX TESTS---"',
-        'find packages/inbox/src -maxdepth 1 \( -name "*.test.ts" -o -name "*.ts" \) | sort',
+        'find packages/inbox/src -maxdepth 1 \\( -name "*.test.ts" -o -name "*.ts" \\) | sort',
       ].join(' && '),
       captureOutput: true,
       failOnError: true,
