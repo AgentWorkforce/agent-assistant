@@ -1,53 +1,81 @@
 # How Products Should Adopt Agent Assistant SDK
 
-Date: 2026-04-11
+Date: 2026-04-16
 
 ## Purpose
 
-This document gives product teams a concrete adoption rule for Sage, MSD, NightCTO, and future assistants.
+This document gives product teams a concrete adoption rule for Sage, NightCTO, MSD, and future assistants.
 
 The goal is incremental adoption, not a rewrite.
 
 ## Core Adoption Rule
 
-Products should adopt this SDK by replacing duplicated assistant-runtime infrastructure first, while keeping product logic where it already belongs.
+Products should adopt this SDK by replacing duplicated assistant-runtime infrastructure first, while keeping product intelligence where it already belongs.
 
-Adopt:
+Adopt shared runtime primitives such as:
 
 - assistant construction
-- session continuity contracts
-- memory contracts
+- session continuity
+- assistant-facing surfaces
+- traits / identity defaults
+- bounded turn execution
+- turn-context assembly
+- continuation
+- inbox / outsider ingestion boundary
+- policy and audit seams
 - proactive engine contracts
-- coordination contracts
-- policy and audit hooks
+- memory composition contracts
+- connectivity / coordination when the product genuinely needs them
 
-Do not move:
+Do not move product-owned concerns such as:
 
 - product prompts
 - product-specific tools
 - business policy
 - product dashboards or UI
+- domain heuristics that only one product needs
 - one-off automations that are not reusable across assistants
 
-## Adoption Sequence
+## Practical Adoption Sequence
 
-### Step 1: depend on package contracts, not implementations
+### Step 1: depend on package contracts, not internal implementation details
 
-Use the package boundaries as the integration targets even before heavy code moves happen.
+Use the package boundaries as the integration targets. Do not couple product code to internal folder structure or historical plan docs.
 
-### Step 2: wrap existing product behavior
+### Step 2: wrap existing product behavior before extracting it
 
 Start by adapting current product logic to shared interfaces.
 
 Do not pause product delivery for deep extraction work.
 
-### Step 3: move generalized code only after two or more products need it
+### Step 3: move generalized code only after repeated product value is clear
 
-A capability should usually show repeated value across products before it becomes shared SDK code.
+A capability should usually show repeated value across multiple products before it becomes shared SDK code.
 
 ### Step 4: keep product-owned extensions in product repos
 
-If the shared contract needs customization, implement the customization in the product repo rather than widening the core package for one product only.
+If a shared contract needs customization, implement the customization in the product repo rather than widening a core SDK package for one product only.
+
+## Runtime Primitive Adoption Order
+
+Products should think in runtime primitives, not in one monolithic “harness adoption” motion.
+
+Recommended order:
+
+1. `@agent-assistant/core`
+2. `@agent-assistant/sessions`
+3. `@agent-assistant/surfaces`
+4. `@agent-assistant/traits`
+5. `@agent-assistant/policy`
+6. `@agent-assistant/proactive`
+7. `@agent-assistant/harness`
+8. `@agent-assistant/turn-context`
+9. `@agent-assistant/memory`
+10. `@agent-assistant/continuation`
+11. `@agent-assistant/inbox`
+12. `@agent-assistant/connectivity` / `@agent-assistant/coordination` only where the product really benefits from backstage collaboration
+
+That order is practical, not absolute. Some products will adopt memory before continuation; some will need policy before proactive; some may not need coordination at all.
 
 ## Product-Specific Guidance
 
@@ -55,19 +83,47 @@ If the shared contract needs customization, implement the customization in the p
 
 Adopt first:
 
+- `@agent-assistant/core`
+- `@agent-assistant/traits`
+- `@agent-assistant/harness`
+- `@agent-assistant/turn-context`
 - `@agent-assistant/memory`
-- `@agent-assistant/proactive`
-- `@agent-assistant/sessions`
+- `@agent-assistant/continuation`
 
 Reason:
 
-- Sage already demonstrates strong memory and follow-up patterns that should become reusable contracts
+- Sage strongly exercises the visible-assistant turn path, identity, turn shaping, continuity, and unfinished-turn follow-up behavior.
 
 Keep in Sage:
 
 - workspace knowledge workflows
-- product-specific context shaping
-- Slack-specific behavior that is not general enough yet
+- product-specific context shaping heuristics
+- Slack/server behavior that is not general enough yet
+- product-owned prompt stacks and superpowers
+
+### NightCTO
+
+Adopt first:
+
+- `@agent-assistant/core`
+- `@agent-assistant/traits`
+- `@agent-assistant/policy`
+- `@agent-assistant/proactive`
+- `@agent-assistant/memory`
+- `@agent-assistant/coordination`
+- `@agent-assistant/connectivity`
+- `@agent-assistant/inbox`
+
+Reason:
+
+- NightCTO strongly exercises runtime-assistant behavior, proactive follow-up, observability-oriented coordination, outsider ingestion boundaries, and per-client continuity.
+
+Keep in NightCTO:
+
+- founder/CTO communication style
+- client-tier and service policy
+- domain-specific specialist lineup choices
+- product-specific observability semantics and escalation heuristics
 
 ### MSD
 
@@ -76,112 +132,75 @@ Adopt first:
 - `@agent-assistant/core`
 - `@agent-assistant/sessions`
 - `@agent-assistant/surfaces`
+- `@agent-assistant/traits`
 - `@agent-assistant/policy`
+- `@agent-assistant/coordination`
 
 Reason:
 
-- MSD has strong cross-surface and shared-session architecture signals
+- MSD strongly exercises cross-surface continuity, product-owned review workflows, and coordinator/specialist patterns around code-review-style work.
 
 Keep in MSD:
 
-- code review operations
+- review-specific tools
 - PR workflows
-- review-specific orchestration logic unless it clearly generalizes
-
-### NightCTO
-
-Adopt first:
-
-- `@agent-assistant/coordination`
-- `@agent-assistant/policy`
-- `@agent-assistant/memory`
-- `@agent-assistant/proactive`
-
-Reason:
-
-- NightCTO strongly exercises many-agents-one-assistant behavior and per-client continuity
-
-Keep in NightCTO:
-
-- founder/CTO communication style
-- client-tier and service policy
-- domain-specific specialist lineups
+- domain-specific delegation and synthesis heuristics unless they clearly generalize
 
 ## Relay Foundation Boundary
 
 Products should continue to depend on Relay family repos for:
 
 - transport adapters
-- normalized inbound/outbound messages
+- normalized inbound/outbound transport messages
 - auth
 - scheduler substrate
 - low-level action dispatch
+- Relay-native coordination fabric
 
 This repo is not a replacement for Relay.
 
-It is the assistant layer built on top of Relay.
+It is the assistant-facing runtime layer built on top of Relay.
 
-## Cloud Adoption Direction
+## BYOH / Execution Plane Rule
 
-Products should target the OSS SDK interfaces first.
+Products should preserve their own identity and Relay-native collaboration model even if execution harnesses are replaceable.
 
-If a future cloud adapter layer is introduced later, products should adopt it as an implementation detail behind the OSS contracts rather than binding themselves directly to hosted infrastructure.
+That means:
 
-This keeps product repos portable and avoids a second architecture fork.
+- product identity is canonical
+- execution harnesses are replaceable
+- Relay remains the coordination/collaboration fabric
+
+Do not let external harness choice erase product individuality or flatten Relay-native collaboration into a single provider call.
 
 ## Decision Test
 
-Before moving code here, ask:
+Before moving code into this repo, ask:
 
-- would Sage, MSD, and NightCTO all plausibly use this with different configuration or adapters
+- would multiple products plausibly use this capability with different configuration or adapters?
+- is this truly assistant-runtime infrastructure rather than product behavior?
+- does this belong below product prompts/heuristics and above Relay transport/foundation?
 
 If yes, it probably belongs here.
 
 If no, keep it in the product repo.
 
+## Current Adoption Reality
 
-## Reuse Existing Relay Capabilities First
+As of the current local repo state:
 
-Products and implementation workflows should inspect the existing `relay` ecosystem before introducing new package implementations.
+- core, sessions, surfaces, routing, connectivity, coordination, traits, harness, turn-context, memory, continuation, inbox, proactive, and policy all have implemented package surfaces with passing local tests
+- the main remaining adoption questions are now less about raw package existence and more about:
+  - product-proof quality
+  - publish/install truth
+  - where product-specific behavior should stop and shared runtime should begin
 
-Important example:
-- for memory, start by evaluating and reusing `@agent-relay/memory`
-- do not assume `@agent-assistant/memory` must be a greenfield package
-- prefer wrapping, composing, or adapting Relay memory where it already satisfies the needed assistant contract
+## Recommended Product Adoption Discipline
 
----
+1. pick one bounded product slice
+2. adopt one or two SDK primitives into that slice
+3. prove the slice in the real product path
+4. fix seam issues in the SDK only when they are clearly reusable
+5. stop before rewriting the product around the SDK for its own sake
 
-## v1 Package Status and Adoption Readiness
-
-As of 2026-04-12, these packages are implemented with passing test suites and are ready for product adoption:
-
-| Package | Status | Tests | Adopt now? |
-|---|---|---|---|
-| `@agent-assistant/core` | SPEC_RECONCILED | 40 passing | Yes — universal starting point |
-| `@agent-assistant/traits` | IMPLEMENTATION_READY | 32 passing | Yes — lightweight, no downstream deps |
-| `@agent-assistant/policy` | implemented | 64 passing | Yes — MSD and NightCTO priority |
-| `@agent-assistant/proactive` | implemented | 45 passing | Yes — Sage and NightCTO priority |
-| `@agent-assistant/sessions` | v1 baseline | — | Yes — for session continuity |
-| `@agent-assistant/surfaces` | v1 baseline | — | Yes — for multi-surface fanout |
-| `@agent-assistant/memory` | placeholder | — | No — evaluate `@agent-relay/memory` first |
-| `@agent-assistant/routing` | DoD gap | 12/40+ | No — do not adopt until resolved |
-| `@agent-assistant/coordination` | tests blocked | — | No — dependency gap |
-| `@agent-assistant/connectivity` | tests blocked | — | No — dependency gap |
-
-Products should adopt packages in the "Yes" rows now. Do not block on packages in the "No" rows.
-
----
-
-## Assembly Examples
-
-`packages/examples/` contains five reference assembly files showing the exact composition patterns products should use:
-
-| Example | What to adopt from it |
-|---|---|
-| `01-minimal-assistant.ts` | Adapter wiring, lifecycle, `onError` hook — all products |
-| `02-traits-assistant.ts` | Trait value choices, handler-level formatting — all products |
-| `03-policy-gated-assistant.ts` | Policy rule shape, action construction, decision branching — MSD, NightCTO |
-| `04-proactive-assistant.ts` | Follow-up rule conditions, watch rules, scheduler binding — Sage, NightCTO |
-| `05-full-assembly.ts` | Full four-package composition, proactive→policy bridge — NightCTO and eventual convergence |
-
-See `packages/examples/README.md` for the product adoption mapping table and build order.
+Incremental proof beats broad migration plans.
