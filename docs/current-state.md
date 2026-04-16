@@ -1,117 +1,123 @@
 # Current State
 
-Date: 2026-04-13
+Date: 2026-04-16
 
-> Public release note: the repo is now public and wave-1 packages have been published to npm. A post-publish external smoke test found that the published baseline packages are missing `dist/` artifacts in the installed tarballs for at least `@agent-assistant/core`, so the npm install story is not yet healthy despite successful local `npm pack --dry-run` verification.
+Authoritative snapshot of package implementation status, local test results, and the most important remaining gaps. This document is a status record, not a design doc — see [docs/index.md](index.md) for navigation and [docs/specs/](specs/) for canonical contracts.
 
-Authoritative snapshot of package implementation status, test results, and known blockers. Derived from `npx vitest run` output and code inspection. This document is a status record, not a design doc — see `docs/index.md` for navigation and `docs/specs/` for canonical contracts.
-
-Current architecture framing reminder: `@agent-assistant/harness` is the bounded turn executor, not the umbrella runtime concept. The turn-scoped assembly seam now lives in the specified `@agent-assistant/turn-context` primitive, while `@agent-assistant/traits` remains the stable identity floor and product intelligence remains product-owned.
+Current architecture framing reminder: `@agent-assistant/harness` is the bounded turn executor, not the umbrella runtime concept. The turn-scoped assembly seam now lives in the implemented `@agent-assistant/turn-context` primitive, while `@agent-assistant/traits` remains the stable identity floor and product intelligence remains product-owned.
 
 ---
 
-## Test Results (2026-04-13)
+## Test Results (2026-04-16)
 
 Run: `npx vitest run`
 
-| Package | Test File(s) | Tests | Result |
+| Package area | Test file(s) | Tests | Result |
 | --- | --- | --- | --- |
-| `@agent-assistant/core` | `core.test.ts`, `core-sessions-surfaces.test.ts` | 31 + 6 integration | **PASS** |
+| `@agent-assistant/core` | `core.test.ts`, `core-traits.test.ts`, `core-sessions.test.ts`, `core-sessions-surfaces.test.ts` | 16 + 9 + 9 + 6 | **PASS** |
 | `@agent-assistant/sessions` | `sessions.test.ts` | 25 | **PASS** |
-| `@agent-assistant/surfaces` | `surfaces.test.ts` | 28 | **PASS** |
+| `@agent-assistant/surfaces` | `surfaces.test.ts`, `slack-thread-gate.test.ts` | 28 + 11 | **PASS** |
 | `@agent-assistant/routing` | `routing.test.ts` | 52 | **PASS** |
 | `@agent-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
 | `@agent-assistant/proactive` | `proactive.test.ts` | 53 | **PASS** |
 | `@agent-assistant/policy` | `policy.test.ts` | 64 | **PASS** |
-| `@agent-assistant/harness` | `harness.test.ts` | 14 | **PASS** |
+| `@agent-assistant/harness` | `harness.test.ts`, `claude-code-adapter.test.ts`, `byoh-local-proof.test.ts` | 14 + 9 + 9 | **PASS** |
 | `@agent-assistant/connectivity` | `connectivity.test.ts` | 30 | **PASS** |
-| `@agent-assistant/coordination` | `coordination.test.ts` | ~39 actual (blocked by connectivity) | **BLOCKED** — depends on `@agent-assistant/connectivity` which cannot load |
-| `@agent-assistant/memory` | `memory.test.ts` | — | **BLOCKED** — `@agent-relay/memory` package missing; package excluded from workspace install (private) |
+| `@agent-assistant/coordination` | `coordination.test.ts` | 39 | **PASS** |
+| `@agent-assistant/memory` | `memory.test.ts` | 53 | **PASS** |
+| `@agent-assistant/turn-context` | `assembler.test.ts` | 5 | **PASS** |
+| `@agent-assistant/continuation` | `continuation.test.ts` | 49 | **PASS** |
+| `@agent-assistant/inbox` | `inbox.test.ts`, `memory-projector.test.ts`, `enrichment-projector.test.ts` | 15 + 13 + 11 | **PASS** |
+| `@agent-assistant/integration-tests` | `integration.test.ts` | 14 | **PASS** |
 
-**Total verified passing: 368 tests (12 passing suites, 1 blocked suite)**
+**Total verified passing: 566 tests across 23 test files**
 
 ---
 
 ## Package Implementation Status
 
-| Package | Status | Spec | Notes |
-| --- | --- | --- | --- |
-| `@agent-assistant/core` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
-| `@agent-assistant/sessions` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline |
-| `@agent-assistant/surfaces` | **IMPLEMENTED** | `SPEC_RECONCILED` | Stable — v1 baseline |
-| `@agent-assistant/routing` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Routing hardening complete: 52 tests passing; READY_FOR_WAVE_2 within package boundary. |
-| `@agent-assistant/connectivity` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 30 tests passing; package-local publishability/export hygiene cleanup complete; READY_FOR_WAVE_2 within package boundary. |
-| `@agent-assistant/coordination` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | 39 tests passing locally; broader publish/dependency cleanup still applies outside connectivity scope. |
-| `@agent-assistant/traits` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — assistant identity traits, voice, style, behavioral defaults |
-| `@agent-assistant/proactive` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-proactive-spec.md` |
-| `@agent-assistant/policy` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Stable — v1 baseline; spec at `docs/specs/v1-policy-spec.md` |
-| `@agent-assistant/harness` | **IMPLEMENTED** | `IMPLEMENTATION_READY` | Bounded turn runtime with iterative model/tool/model execution, truthful stop semantics, continuation payloads, and trace hooks |
-| `@agent-assistant/turn-context` | **SPECIFIED** | boundary/spec defined | Turn-scoped identity/context assembly primitive above harness; not yet implemented |
-| `@agent-assistant/memory` | **placeholder (private — excluded from workspace install)** | `IMPLEMENTATION_READY` | Spec at `docs/specs/v1-memory-spec.md`; blocked by `@agent-relay/memory` dep (relay foundation infrastructure, not yet publicly available) |
-| `@agent-assistant/examples` | reference package | N/A | Reference adoption examples; not production code |
-
----
-
-## Known Blockers
-
-### 1. Published npm packages missing runtime build artifacts
-- **Impact:** A clean npm-only install of `@agent-assistant/sdk@0.1.0` currently fails at runtime because installed dependency packages such as `@agent-assistant/core` do not contain `dist/index.js` even though their manifests export it.
-- **Evidence:** external smoke test in `/tmp/agent-assistant-smoke` failed with `ERR_MODULE_NOT_FOUND` for `node_modules/@agent-assistant/core/dist/index.js`; installed package contents contained only `README.md` and `package.json`.
-- **Likely cause:** packages were published from repo state where `dist/` was not actually present in the published tarball, despite later local `npm pack --dry-run` checks passing.
-- **Resolution:** inspect the published npm tarballs, republish/fix the affected wave-1 packages, then rerun the npm-only smoke test.
-- **Risk:** treat the current npm release as needing immediate remediation before external adoption.
-
-### 2. `@agent-assistant/connectivity` had a public type leak to routing (resolved)
-- **Impact:** external TypeScript consumers of the packed connectivity package could fail to typecheck because emitted `.d.ts` files referenced `@agent-assistant/routing`, which was not a declared runtime dependency.
-- **Resolution:** connectivity now defines `RequestedRoutingMode` and `RoutingEscalationHook` locally, removes the unnecessary routing coupling from scripts/devDependencies, and passes npm-only install + typecheck smoke validation.
-- **Risk:** package-local blocker cleared; broader repo publish sequencing still applies.
-
-### 3. `@agent-relay/memory` missing
-- **Impact:** `@agent-assistant/memory` package and tests cannot run.
-- **Status:** Memory is marked `"private": true` and excluded from the workspace install graph. It will be re-enabled when `@agent-relay/memory` is published publicly.
-- **Note:** `@agent-assistant/memory` is not yet installable. It depends on `@agent-relay/memory` (relay foundation infrastructure) which is not publicly available.
-
----
-
-## V1 Baseline (Safe for Product Use)
-
-These packages are stable and can be consumed in products:
-- `@agent-assistant/core`
-- `@agent-assistant/sessions`
-- `@agent-assistant/surfaces`
-- `@agent-assistant/traits`
-- `@agent-assistant/proactive`
-- `@agent-assistant/policy`
-- `@agent-assistant/harness`
-
-This baseline should be read as a stack of adjacent primitives, not as "the harness plus extras." In particular, products should keep turn-shaping and product intelligence out of harness-owned code paths.
-
----
-
-## Deferred Publish Tracking (Wave 2+)
-
-| Package | Current blocker | Publish gate |
+| Package | Status | Notes |
 | --- | --- | --- |
-| `@agent-assistant/routing` | no current package-local blocker; broader wave-2 publish sequencing still applies | package-local hardening complete |
-| `@agent-assistant/connectivity` | no current package-local blocker | package-local cleanup complete; proceed within wave-2 sequencing |
-| `@agent-assistant/coordination` | depends on connectivity readiness | connectivity green + dependency cleanup + review |
-| `@agent-assistant/memory` | blocked on `@agent-relay/memory` public installability | publish/install `@agent-relay/memory`, then re-enable and validate |
+| `@agent-assistant/core` | **IMPLEMENTED** | Stable runtime shell |
+| `@agent-assistant/sessions` | **IMPLEMENTED** | Stable continuity primitive |
+| `@agent-assistant/surfaces` | **IMPLEMENTED** | Includes Slack thread gate coverage |
+| `@agent-assistant/routing` | **IMPLEMENTED** | Routing hardening landed |
+| `@agent-assistant/connectivity` | **IMPLEMENTED** | Package-local publishability cleanup landed |
+| `@agent-assistant/coordination` | **IMPLEMENTED** | Coordination package currently green locally |
+| `@agent-assistant/traits` | **IMPLEMENTED** | Stable assistant identity floor |
+| `@agent-assistant/harness` | **IMPLEMENTED** | Bounded turn executor |
+| `@agent-assistant/turn-context` | **IMPLEMENTED** | Turn-scoped context assembly is now real, not just specified |
+| `@agent-assistant/memory` | **IMPLEMENTED** | Depends on `@agent-relay/memory`; package and tests are currently green in local repo state |
+| `@agent-assistant/continuation` | **IMPLEMENTED** | Resumable unfinished turn lineage primitive |
+| `@agent-assistant/inbox` | **IMPLEMENTED** | Trusted outsider ingestion boundary |
+| `@agent-assistant/proactive` | **IMPLEMENTED** | Stable proactive baseline |
+| `@agent-assistant/policy` | **IMPLEMENTED** | Stable approval / governance seam |
+| `@agent-assistant/sdk` | **IMPLEMENTED** | Top-level facade package |
+| `@agent-assistant/integration-tests` | **IMPLEMENTED** | Private integration package for cross-package coverage |
+| `@agent-assistant/examples` | reference package | Reference adoption examples |
 
 ---
 
-## Workflow Completion
+## What Changed Since Older Status Snapshots
 
-| Workflow | Status |
-| --- | --- |
-| WF-1: Define assistant and start runtime | **COMPLETE** |
-| WF-2: Handle inbound message via dispatch | **COMPLETE** |
-| WF-3: Create and manage sessions | **COMPLETE** |
-| WF-4: Wire session store into runtime | **COMPLETE** |
-| WF-5: Register surface registry and route messages | **COMPLETE** |
-| WF-6: Multi-surface session fanout | **COMPLETE** |
-| WF-7: End-to-end assembly | **OPEN** — no assembly test in `packages/examples/src/` |
+Older status docs in this repo may still imply some combination of the following:
 
-See [workflow backlog](workflows/v1-workflow-backlog.md) for details.
+- memory is placeholder-only
+- turn-context is specified but not implemented
+- coordination is blocked in practice
+- test counts are much lower than current reality
+
+Those statements are no longer accurate for the current local repo state verified on 2026-04-16.
+
+---
+
+## Real Remaining Gaps
+
+### 1. Documentation and status drift
+The code has moved ahead of several index/status docs. The repo needs ongoing consolidation so public readers get the current truth, not historical intermediate states.
+
+### 2. Publish/install truth still matters
+A green local monorepo is not the same as a healthy external consumer experience. Public package installability, tarball contents, dependency correctness, and clean npm-only smoke validation should remain first-class gates.
+
+### 3. Product-proof slices still matter
+Package-local tests are strong, but the SDK still benefits from real proving in consumer products such as Sage and NightCTO, especially around:
+
+- turn-context composition in real product flows
+- continuation behavior across real surfaces
+- BYOH / execution-adapter behavior in product environments
+- inbox / outsider-ingestion semantics
+
+---
+
+## V1 Baseline (usable building blocks)
+
+These package areas are actively implemented and locally green:
+
+- core
+- sessions
+- surfaces
+- routing
+- connectivity
+- coordination
+- traits
+- harness
+- turn-context
+- memory
+- continuation
+- inbox
+- proactive
+- policy
+- sdk facade
+
+This baseline should still be read as a stack of adjacent primitives, not as “the harness plus extras.” In particular, products should keep turn-shaping and product intelligence out of harness-owned code paths.
+
+---
+
+## Recommended Near-Term Priorities
+
+1. **Docs reconciliation** — keep README, docs index, and status pages aligned with actual code reality.
+2. **Publish/readiness verification** — verify public package installation and runtime behavior from clean environments.
+3. **Product proof** — continue bounded proving in Sage / NightCTO / BYOH-backed real flows.
 
 ---
 
