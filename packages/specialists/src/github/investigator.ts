@@ -1,4 +1,4 @@
-import type { Specialist, SpecialistContext, SpecialistResult } from '@agent-assistant/coordination';
+import type { Specialist, SpecialistContext } from '@agent-assistant/coordination';
 import type { VfsProvider, VfsReadResult } from '@agent-assistant/vfs';
 import {
   githubPullRequestPath,
@@ -6,6 +6,13 @@ import {
 } from '@relayfile/adapter-github/path-mapper';
 
 import type { SpecialistFinding, SpecialistFindings } from '../shared/findings.js';
+import { createInvestigator } from '../shared/investigator-engine.js';
+import type {
+  InvestigatorAdapter,
+  InvestigatorDeps,
+  InvestigatorPaths,
+  InvestigatorTarget,
+} from '../shared/investigator-engine.js';
 import type { GitHubInvestigationParams, GitHubPullRequestRef, GitHubQueryFilterSet } from './types.js';
 
 const SPECIALIST_NAME = 'github-investigator';
@@ -141,6 +148,21 @@ interface LoadedRawPr {
   gaps: FindingsGap[];
 }
 
+interface PrInvestigationEntity {
+  raw: string;
+  source?: EvidenceSource;
+}
+
+interface InvestigatorEvidenceBlob {
+  metadata?: string;
+  diff?: string;
+}
+
+interface SourceTrackingVfs {
+  vfs: VfsProvider;
+  sourceForRaw(raw: string, request: PrInvestigationRequest, asOf: string): EvidenceSource | undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -226,6 +248,79 @@ function directPrPaths(owner: string, repo: string, number: number): {
     metadata: [canonicalMetadata, `${root}/meta.json`],
     raw: [`${root}/pr.md`, `${root}/pr.txt`, `${root}/summary.md`],
     diff: `${root}/diff.patch`,
+  };
+}
+
+function investigatorEnginePaths(owner: string, repo: string, number: number): InvestigatorPaths {
+  const paths = directPrPaths(owner, repo, number);
+  return {
+    // The shared engine reads `metadata` before `diff`; include legacy raw PR
+    // blobs here to preserve canonical metadata -> legacy metadata -> raw PR order.
+    metadata: [...paths.metadata, ...paths.raw],
+    diff: paths.diff,
+  };
+}
+
+function createSourceTrackingVfs(provider: VfsProvider): SourceTrackingVfs {
+  const reads: VfsReadResult[] = [];
+  const vfs: VfsProvider = {
+    async read(filePath) {
+      const result = await provider.read(filePath);
+      if (result) {
+        reads.push(result);
+      }
+      return result;
+    },
+    list(path, options) {
+      return provider.list(path, options);
+    },
+    search(query, options) {
+      return provider.search(query, options);
+    },
+    ...(provider.stat
+      ? {
+          stat(path: string) {
+            return provider.stat!(path);
+          },
+        }
+      : {}),
+  };
+
+  return {
+    vfs,
+    sourceForRaw(raw, request, asOf) {
+      const { owner, repo } = request.repo;
+      const { number } = request.pr;
+      const paths = directPrPaths(owner, repo, number);
+      const orderedPaths = [...paths.metadata, ...paths.raw, paths.diff];
+      const blob = splitInvestigatorEvidenceBlob(raw);
+      const sourceContents = [blob.metadata, blob.diff, raw].filter(
+        (content): content is string => typeof content === 'string' && content.length > 0,
+      );
+
+      for (const filePath of orderedPaths) {
+        const result = [...reads]
+          .reverse()
+          .find(
+            (read) =>
+              read.path === filePath &&
+              sourceContents.some(
+                (content) => read.content === content || read.content.trim() === content.trim(),
+              ),
+          );
+        if (result) {
+          return {
+            provider: 'vfs',
+            ref: buildPullRequestRef(owner, repo, number),
+            asOf,
+            path: result.path,
+            ...(result.revision === undefined ? {} : { revision: result.revision }),
+          };
+        }
+      }
+
+      return undefined;
+    },
   };
 }
 
@@ -323,6 +418,95 @@ function formatApiPullRequest(number: number, data: GitHubApiPullRequest): strin
   };
 
   return formatPullRequest(number, metadata, data.diff ?? null);
+}
+
+function splitInvestigatorEvidenceBlob(raw: string): InvestigatorEvidenceBlob {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('Metadata:\n')) {
+    const rest = trimmed.slice('Metadata:\n'.length);
+    const diffMarker = '\n\nDiff:\n';
+    const diffIndex = rest.indexOf(diffMarker);
+    if (diffIndex >= 0) {
+      return {
+        metadata: rest.slice(0, diffIndex),
+        diff: rest.slice(diffIndex + diffMarker.length),
+      };
+    }
+
+    return { metadata: rest };
+  }
+
+  if (trimmed.startsWith('Diff:\n')) {
+    return { diff: trimmed.slice('Diff:\n'.length) };
+  }
+
+  return {};
+}
+
+function appendDiffToRawPr(raw: string, diff: string | undefined): string {
+  if (!diff || /\nDiff:\s*/.test(raw)) {
+    return raw;
+  }
+
+  return `${raw.trim()}\nDiff:\n${diff.trim()}`;
+}
+
+function normalizeInvestigatorEvidenceBlob(raw: string, number: number): string {
+  const blob = splitInvestigatorEvidenceBlob(raw);
+  if (!blob.metadata && !blob.diff) {
+    return raw;
+  }
+
+  const metadata = blob.metadata ? parseJsonRecord(blob.metadata) : null;
+  if (metadata) {
+    return formatPullRequest(number, metadata, blob.diff ?? null) ?? raw;
+  }
+
+  if (blob.metadata) {
+    return appendDiffToRawPr(blob.metadata, blob.diff);
+  }
+
+  return formatPullRequest(number, null, blob.diff ?? null) ?? raw;
+}
+
+/**
+ * A PR payload is "meaningful" if we can extract at least one grounded field —
+ * a section marker (Title/Body/Diff) OR a structured JSON metadata shape with
+ * at least a title/number/body/html_url. Empty, whitespace, or truncated blobs
+ * that yield nothing but silent defaults must return null so the engine falls
+ * through to apiFallback instead of emitting placeholder findings.
+ */
+function isMeaningfulPrPayload(raw: string): boolean {
+  const normalized = raw?.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  // Formatted text (produced by Sage's formatGitHubPr or the specialist's own formatter).
+  if (/^(Title|Body|Diff|State|Author|URL|Labels):/m.test(normalized)) {
+    return true;
+  }
+
+  // Raw JSON metadata written by @relayfile/adapter-github.
+  if (normalized.startsWith('{') || normalized.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(normalized) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>;
+        return (
+          typeof record.title === 'string' ||
+          typeof record.number === 'number' ||
+          typeof record.body === 'string' ||
+          typeof record.html_url === 'string' ||
+          typeof record.state === 'string'
+        );
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 function parsePrSections(raw: string): ParsedPrSections {
@@ -476,6 +660,10 @@ function buildStructuredPr(raw: string): StructuredPr {
   };
 }
 
+function buildStructuredPrForRequest(raw: string, request: PrInvestigationRequest): StructuredPr {
+  return buildStructuredPr(normalizeInvestigatorEvidenceBlob(raw, request.pr.number));
+}
+
 function buildSummary(structured: StructuredPr, riskAreas: Array<Record<string, unknown>>): string {
   const fileList = structured.filesChanged.slice(0, 3).join(', ');
   const topRisk = riskAreas[0];
@@ -532,21 +720,56 @@ function buildMetadataFinding(
   };
 }
 
-async function buildDiffFinding(
+function buildDiffFindingBody(structured: StructuredPr): string {
+  const changedFiles = structured.filesChanged.map((file) => `- ${file}`).join('\n');
+  return `Changed files:\n${changedFiles}\n\nDiff:\n${structured.diff}`.trim();
+}
+
+function buildDiffFindingBase(
   request: PrInvestigationRequest,
   structured: StructuredPr,
   source: EvidenceSource,
-  evidenceWriter: EvidenceWriter | null,
-): Promise<SpecialistFinding> {
+  body: string,
+  durableRef?: DurableEvidenceRef,
+): SpecialistFinding {
   const riskAreas = buildRiskAreas(structured.filesChanged);
   const structuredContent = {
     filesChanged: structured.filesChanged,
     riskAreas,
     changeCategories: categorizeChanges(structured.filesChanged),
   };
-  const changedFiles = structured.filesChanged.map((file) => `- ${file}`).join('\n');
-  let body = `Changed files:\n${changedFiles}\n\nDiff:\n${structured.diff}`.trim();
+
+  return {
+    title: `PR #${request.pr.number} diff analysis`,
+    body,
+    metadata: {
+      id: 'pr-diff',
+      kind: 'diff_analysis',
+      confidence: structured.filesChanged.length > 0 ? 0.88 : 0.62,
+      source: sourceMetadata(source),
+      structured: structuredContent,
+      ...(durableRef === undefined ? {} : { durableRef }),
+    },
+  };
+}
+
+function buildDiffFindingForEngine(
+  request: PrInvestigationRequest,
+  structured: StructuredPr,
+  source: EvidenceSource,
+): SpecialistFinding {
+  return buildDiffFindingBase(request, structured, source, buildDiffFindingBody(structured));
+}
+
+async function buildDiffFinding(
+  request: PrInvestigationRequest,
+  structured: StructuredPr,
+  source: EvidenceSource,
+  evidenceWriter: EvidenceWriter | null,
+): Promise<SpecialistFinding> {
+  const body = buildDiffFindingBody(structured);
   let durableRef: DurableEvidenceRef | undefined;
+  let finalBody = body;
 
   if (
     evidenceWriter &&
@@ -562,21 +785,11 @@ async function buildDiffFinding(
       contentType: 'text/markdown',
       confidence: structured.filesChanged.length > 0 ? 0.88 : 0.62,
     });
-    body = `Changed files:\n${changedFiles}\n\nDiff analysis persisted as durable evidence.`;
+    const changedFiles = structured.filesChanged.map((file) => `- ${file}`).join('\n');
+    finalBody = `Changed files:\n${changedFiles}\n\nDiff analysis persisted as durable evidence.`;
   }
 
-  return {
-    title: `PR #${request.pr.number} diff analysis`,
-    body,
-    metadata: {
-      id: 'pr-diff',
-      kind: 'diff_analysis',
-      confidence: structured.filesChanged.length > 0 ? 0.88 : 0.62,
-      source: sourceMetadata(source),
-      structured: structuredContent,
-      ...(durableRef === undefined ? {} : { durableRef }),
-    },
-  };
+  return buildDiffFindingBase(request, structured, source, finalBody, durableRef);
 }
 
 async function loadRawPrFromVfs(request: PrInvestigationRequest, vfs: VfsProvider): Promise<LoadedRawPr> {
@@ -981,6 +1194,175 @@ function unparseableRequest(instruction: string, context?: SpecialistContext): P
   };
 }
 
+function requestFromInvestigatorTarget(target: InvestigatorTarget): PrInvestigationRequest | null {
+  return requestFromRecord(target, readString(target.requestId) ?? 'github-investigation');
+}
+
+function describePrTarget(target: InvestigatorTarget): string {
+  const request = requestFromInvestigatorTarget(target);
+  return request ? `PR #${request.pr.number} in ${request.repo.owner}/${request.repo.repo}` : 'GitHub pull request';
+}
+
+function sourceForEngineEvidence(
+  entity: PrInvestigationEntity,
+  target: InvestigatorTarget,
+  deps: GitHubInvestigatorDeps,
+  sourceTracker: SourceTrackingVfs | null,
+): EvidenceSource | null {
+  const request = requestFromInvestigatorTarget(target);
+  if (!request) {
+    return null;
+  }
+
+  const asOf = new Date(deps.now?.() ?? Date.now()).toISOString();
+  return (
+    entity.source ??
+    sourceTracker?.sourceForRaw(entity.raw, request, asOf) ?? {
+      provider: 'vfs',
+      ref: buildPullRequestRef(request.repo.owner, request.repo.repo, request.pr.number),
+      asOf,
+    }
+  );
+}
+
+function createGitHubPrInvestigatorAdapter(
+  deps: GitHubInvestigatorDeps,
+  sourceTracker: SourceTrackingVfs | null,
+): InvestigatorAdapter<PrInvestigationEntity> {
+  const apiFallback = deps.apiFallback ?? deps.github ?? null;
+  const baseAdapter: InvestigatorAdapter<PrInvestigationEntity> = {
+    capability: PR_INVESTIGATION_CAPABILITY,
+    specialistName: SPECIALIST_NAME,
+    specialistVersion: SPECIALIST_VERSION,
+    durableEvidenceThresholdBytes: DURABLE_EVIDENCE_THRESHOLD_BYTES,
+    paths(target) {
+      const request = requestFromInvestigatorTarget(target);
+      if (!request) {
+        return { metadata: [] };
+      }
+
+      return investigatorEnginePaths(request.repo.owner, request.repo.repo, request.pr.number);
+    },
+    parse(raw) {
+      // Return null for unparseable/empty blobs so the engine falls through
+      // to apiFallback instead of emitting "complete" placeholder findings.
+      if (!isMeaningfulPrPayload(raw)) {
+        return null;
+      }
+      return { raw };
+    },
+    toEvidence(entity, target) {
+      const request = requestFromInvestigatorTarget(target);
+      const source = sourceForEngineEvidence(entity, target, deps, sourceTracker);
+      if (!request || !source) {
+        return [];
+      }
+
+      const structured = buildStructuredPrForRequest(entity.raw, request);
+      return [
+        buildMetadataFinding(request, structured, source),
+        buildDiffFindingForEngine(request, structured, source),
+      ];
+    },
+  };
+
+  if (!apiFallback) {
+    return baseAdapter;
+  }
+
+  return {
+    ...baseAdapter,
+    async apiFallback(target) {
+      const request = requestFromInvestigatorTarget(target);
+      if (!request) {
+        return null;
+      }
+
+      const result = extractApiData(
+        await apiFallback.readPRDiff(request.repo.owner, request.repo.repo, request.pr.number),
+      );
+      if (!result || (!readString(result.title) && !readString(result.diff))) {
+        return null;
+      }
+
+      const raw = formatApiPullRequest(request.pr.number, result);
+      if (!raw) {
+        return null;
+      }
+
+      return {
+        raw,
+        source: {
+          provider: 'github_api',
+          ref: buildPullRequestRef(request.repo.owner, request.repo.repo, request.pr.number),
+          asOf: new Date(deps.now?.() ?? Date.now()).toISOString(),
+        },
+      };
+    },
+  };
+}
+
+function summarizeGitHubInvestigation(input: { findings: SpecialistFinding[] }): string | undefined {
+  const metadata = input.findings.find((finding) => finding.metadata?.id === 'pr-meta')?.metadata
+    ?.structured;
+  const diff = input.findings.find((finding) => finding.metadata?.id === 'pr-diff')?.metadata?.structured;
+
+  if (!isRecord(metadata) || !isRecord(diff) || !Array.isArray(diff.filesChanged)) {
+    return undefined;
+  }
+
+  const title = readString(metadata.title) ?? 'Pull request';
+  const filesChanged = diff.filesChanged.filter((file): file is string => typeof file === 'string');
+  const riskAreas = Array.isArray(diff.riskAreas)
+    ? diff.riskAreas.filter((risk): risk is Record<string, unknown> => isRecord(risk))
+    : [];
+
+  return buildSummary(
+    {
+      title,
+      body: '',
+      url: readString(metadata.url) ?? '',
+      state: readString(metadata.state) ?? 'open',
+      author: readString(metadata.author) ?? 'unknown',
+      baseBranch: readString(metadata.baseBranch) ?? 'unknown',
+      headBranch: readString(metadata.headBranch) ?? 'unknown',
+      labels: Array.isArray(metadata.labels)
+        ? metadata.labels.filter((label): label is string => typeof label === 'string')
+        : [],
+      reviewStatus: normalizeReviewStatus(metadata.reviewStatus),
+      filesChanged,
+      additions: typeof metadata.additions === 'number' ? metadata.additions : 0,
+      deletions: typeof metadata.deletions === 'number' ? metadata.deletions : 0,
+      diff: '',
+    },
+    riskAreas,
+  );
+}
+
+function createGitHubInvestigatorEngineDeps(
+  deps: GitHubInvestigatorDeps,
+  sourceTracker: SourceTrackingVfs,
+): InvestigatorDeps {
+  return {
+    vfs: sourceTracker.vfs,
+    ...(deps.evidenceWriter === undefined ? {} : { evidenceWriter: deps.evidenceWriter }),
+    ...(deps.now === undefined ? {} : { now: deps.now }),
+    parseTarget(instruction, context) {
+      return parseGitHubInvestigationInstruction(instruction, context) as unknown as InvestigatorTarget | null;
+    },
+    describeTarget: describePrTarget,
+    summarize({ target, findings }) {
+      return (
+        summarizeGitHubInvestigation({ findings }) ??
+        `${describePrTarget(target)} produced ${findings.length} finding(s).`
+      );
+    },
+    confidence() {
+      return 0.86;
+    },
+  };
+}
+
 export async function investigateGitHub(
   params: GitHubInvestigationParams,
   deps: GitHubInvestigatorDeps,
@@ -1025,51 +1407,10 @@ export async function investigateGitHub(
   return investigatePullRequest(request, deps);
 }
 
-function toSpecialistResult(findings: SpecialistFindings): SpecialistResult {
-  return {
-    specialistName: SPECIALIST_NAME,
-    output: JSON.stringify(findings, null, 2),
-    status: findings.status,
-    ...(findings.confidence === undefined ? {} : { confidence: findings.confidence }),
-    metadata: {
-      requestId: findings.requestId,
-      capability: findings.capability,
-      findings,
-    },
-  };
-}
-
 export function createGitHubInvestigator(deps: GitHubInvestigatorDeps): Specialist {
-  return {
-    name: SPECIALIST_NAME,
-    description: 'Investigates GitHub pull requests using VFS evidence with an optional API fallback.',
-    capabilities: [PR_INVESTIGATION_CAPABILITY],
-    handler: {
-      async execute(instruction, context) {
-        const request = parseGitHubInvestigationInstruction(instruction, context);
-        if (!request) {
-          return toSpecialistResult(
-            failedFindings(
-              unparseableRequest(instruction, context),
-              'Unable to investigate PR because the instruction did not include a GitHub pull request target.',
-              [
-                {
-                  description: 'Expected a GitHub PR URL, owner/repo#number, or repo filter with PR number.',
-                  reason: 'invalid_request',
-                },
-              ],
-              0.05,
-              {
-                actionCount: 0,
-                durableEvidenceCount: 0,
-                producedAt: new Date(deps.now?.() ?? Date.now()).toISOString(),
-              },
-            ),
-          );
-        }
-
-        return toSpecialistResult(await investigatePullRequest(request, deps));
-      },
-    },
-  };
+  const sourceTracker = createSourceTrackingVfs(deps.vfs);
+  return createInvestigator(
+    createGitHubPrInvestigatorAdapter(deps, sourceTracker),
+    createGitHubInvestigatorEngineDeps(deps, sourceTracker),
+  );
 }
