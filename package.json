@@ -20,6 +20,7 @@
     "packages/policy",
     "packages/integration",
     "packages/sdk",
+    "packages/specialists",
     "packages/examples"
   ],
   "scripts": {
