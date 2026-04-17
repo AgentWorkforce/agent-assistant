@@ -81,7 +81,7 @@ jobs:
         run: |
           case "${{ github.event.inputs.package_group }}" in
             runtime-core)
-              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","memory","turn-context","inbox","continuation","sdk", "vfs"]'
+              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","memory","turn-context","inbox","continuation","sdk","vfs"]'
               FIRST='traits'
               ;;
             *)
@@ -158,7 +158,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORDER=(traits core sessions surfaces policy proactive harness memory turn-context inbox continuation sdk)
+          ORDER=(traits core sessions surfaces policy proactive harness memory turn-context inbox continuation sdk vfs)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
