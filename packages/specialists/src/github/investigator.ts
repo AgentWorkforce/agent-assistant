@@ -416,7 +416,10 @@ function categorizeChanges(filesChanged: string[]): string[] {
       categories.add('docs');
       continue;
     }
-    if (/package\.json$|lock|\.ya?ml$|\.json$/i.test(file)) {
+    // `\.lock$` covers yarn.lock/bun.lockb etc; `lock\.json$` covers package-lock.json;
+    // `\.json$` and `\.ya?ml$` catch generic config. Anchored to avoid matching
+    // unrelated substrings like "distributed-lock.ts".
+    if (/\.lock$|lock\.json$|package\.json$|\.ya?ml$|\.json$/i.test(file)) {
       categories.add('config');
       continue;
     }

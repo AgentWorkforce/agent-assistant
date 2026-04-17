@@ -8,7 +8,10 @@ import { parseQuery } from '../shared/query-syntax.js';
 import type { GitHubEnumerationParams } from './types.js';
 
 type GitHubEnumerationType = 'pr' | 'issue';
-type GitHubEnumerationCapability = 'github_enumeration';
+// Canonical capability literal matches types.ts GitHubEnumerationParams.capability
+// so routing/correlation keys line up across request and findings.
+type GitHubEnumerationCapability = 'github.enumerate';
+const GITHUB_ENUMERATION_CAPABILITY: GitHubEnumerationCapability = 'github.enumerate';
 type EnumerationStatus = 'complete' | 'partial' | 'failed';
 
 interface GitHubLibrarianVfs {
@@ -100,7 +103,7 @@ export function createGitHubLibrarian({
   return {
     name: 'github-librarian',
     description: 'Enumerates GitHub repositories, pull requests, and issues from VFS-backed metadata.',
-    capabilities: ['github_enumeration'],
+    capabilities: [GITHUB_ENUMERATION_CAPABILITY],
     handler: {
       async execute(instruction: string): Promise<GitHubLibrarianFindings> {
         const parsed = parseQuery(instruction);
@@ -123,18 +126,24 @@ export function createGitHubLibrarian({
         }
 
         if (entries.length === 0 && apiFallback) {
-          const fallbackEntries = await loadFallbackEntries(apiFallback, {
-            instruction,
-            text: parsed.text,
-            filters,
-            types,
-          });
-          if (fallbackEntries.length > 0) {
-            source = errors.length > 0 ? 'mixed' : 'apiFallback';
-            entries = fallbackEntries.map((entry) => ({
-              entry,
-              enumerationType: inferEnumerationType(entry),
-            }));
+          try {
+            const fallbackEntries = await loadFallbackEntries(apiFallback, {
+              instruction,
+              text: parsed.text,
+              filters,
+              types,
+            });
+            if (fallbackEntries.length > 0) {
+              source = errors.length > 0 ? 'mixed' : 'apiFallback';
+              entries = fallbackEntries.map((entry) => ({
+                entry,
+                enumerationType: inferEnumerationType(entry),
+              }));
+            }
+          } catch (error) {
+            // Mirror the VFS error-handling pattern so a failing apiFallback
+            // never crashes the handler — surface via errors + 'failed' status.
+            errors.push(errorMessage(error));
           }
         }
 
@@ -145,7 +154,7 @@ export function createGitHubLibrarian({
         const status = statusFor(evidence.length, errors.length);
 
         return {
-          capability: 'github_enumeration',
+          capability: GITHUB_ENUMERATION_CAPABILITY,
           status,
           summary: summarizeMatches(evidence),
           evidence,
@@ -156,8 +165,36 @@ export function createGitHubLibrarian({
   };
 }
 
-export async function enumerateGitHub(_params: GitHubEnumerationParams): Promise<never> {
-  throw new Error('enumerateGitHub requires a VFS instance; use createGitHubLibrarian({ vfs }).handler.execute().');
+// Functional counterpart to investigateGitHub — runs the librarian handler
+// for callers that have params + deps but don't want to instantiate a
+// Specialist. Uses params.query as the instruction when present.
+export async function enumerateGitHub(
+  params: GitHubEnumerationParams,
+  options: GitHubLibrarianOptions,
+): Promise<GitHubLibrarianFindings> {
+  const librarian = createGitHubLibrarian(options);
+  const instruction = buildEnumerationInstruction(params);
+  return librarian.handler.execute(instruction);
+}
+
+function buildEnumerationInstruction(params: GitHubEnumerationParams): string {
+  const parts: string[] = [];
+  if (params.query && params.query.trim()) {
+    parts.push(params.query.trim());
+  }
+
+  const filters = params.filters ?? {};
+  for (const key of ['state', 'repo', 'label', 'type'] as const) {
+    const values = filters[key];
+    if (!values || values.length === 0) {
+      continue;
+    }
+    for (const value of values) {
+      parts.push(`${key}:${value}`);
+    }
+  }
+
+  return parts.join(' ').trim();
 }
 
 function inferEnumerationFilters(text: string, parsedFilters: Record<string, string[]>): Record<string, string[]> {
