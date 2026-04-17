@@ -158,7 +158,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORDER=(traits core sessions surfaces policy proactive harness memory turn-context inbox continuation sdk vfs)
+          ORDER=(traits core sessions surfaces policy proactive harness memory turn-context inbox continuation sdk vfs specialists)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
