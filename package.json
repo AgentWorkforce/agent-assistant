@@ -12,6 +12,7 @@
     "packages/turn-context",
     "packages/sessions",
     "packages/surfaces",
+    "packages/vfs",
     "packages/routing",
     "packages/connectivity",
     "packages/coordination",

@@ -16,6 +16,7 @@ A focused, open-source SDK for building production-grade AI assistants from expl
 - **Proactive behavior** — Follow-up engines, watch rules, and scheduler bindings for outbound assistant actions (`@agent-assistant/proactive`)
 - **Routing / execution envelope selection** — Model-choice and latency/depth/cost routing policy (`@agent-assistant/routing`)
 - **Connectivity and coordination** — Inter-agent signaling plus coordinator/specialist orchestration (`@agent-assistant/connectivity`, `@agent-assistant/coordination`)
+- **Virtual filesystem navigation** — Provider-neutral contracts and Bash-friendly navigation helpers for assistant-readable VFS surfaces (`@agent-assistant/vfs`)
 
 ## Quick Start
 
@@ -71,6 +72,7 @@ The repo should not be read as if “the harness” were the umbrella runtime co
 - `@agent-assistant/traits` = stable identity floor
 - `@agent-assistant/policy` = approval / action governance seam
 - `@agent-assistant/memory` = memory and prepared context supply
+- `@agent-assistant/vfs` = assistant-readable virtual filesystem navigation primitive
 - `@agent-assistant/continuation` = resumable unfinished turn lineage runtime
 - `@agent-assistant/inbox` = trusted outsider ingestion boundary
 - `@agent-assistant/routing`, `connectivity`, `coordination` = execution envelope + backstage collaboration primitives
@@ -96,6 +98,7 @@ See:
 | `@agent-assistant/harness` | Bounded iterative assistant-turn runtime with truthful stop semantics | **IMPLEMENTED** |
 | `@agent-assistant/turn-context` | Turn-scoped assistant-facing context assembly | **IMPLEMENTED** |
 | `@agent-assistant/memory` | Assistant-scoped memory composition over relay memory | **IMPLEMENTED** |
+| `@agent-assistant/vfs` | Provider-neutral virtual filesystem contracts and Bash CLI runner | **IMPLEMENTED** |
 | `@agent-assistant/continuation` | Resumable unfinished turn state and validated resume triggers | **IMPLEMENTED** |
 | `@agent-assistant/inbox` | Trusted outsider ingestion primitives and turn-context projection | **IMPLEMENTED** |
 | `@agent-assistant/proactive` | Follow-up engines, watch rules, scheduler bindings | **IMPLEMENTED** |
