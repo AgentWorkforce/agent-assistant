@@ -18,8 +18,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-assistant/coordination": "file:../coordination",
-    "@agent-assistant/vfs": "file:../vfs"
+    "@agent-assistant/coordination": "^0.1.0",
+    "@agent-assistant/vfs": "^0.2.2",
+    "@relayfile/adapter-github": "^0.1.6"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

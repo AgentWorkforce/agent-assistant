@@ -1,5 +1,9 @@
 import type { Specialist, SpecialistContext, SpecialistResult } from '@agent-assistant/coordination';
 import type { VfsProvider, VfsReadResult } from '@agent-assistant/vfs';
+import {
+  githubPullRequestPath,
+  githubRepoPrefix,
+} from '@relayfile/adapter-github/path-mapper';
 
 import type { SpecialistFinding, SpecialistFindings } from '../shared/findings.js';
 import type { GitHubInvestigationParams, GitHubPullRequestRef, GitHubQueryFilterSet } from './types.js';
@@ -204,16 +208,10 @@ function readLabels(value: unknown): string[] {
     .filter((label): label is string => label !== undefined);
 }
 
-function encodePathSegment(value: string): string {
-  return encodeURIComponent(value);
-}
-
-function buildRepoRoot(owner: string, repo: string): string {
-  return `/github/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}`;
-}
-
+// Path math delegated to @relayfile/adapter-github/path-mapper — the adapter
+// is the source of truth for where GitHub VFS data lives.
 function buildPullRequestRef(owner: string, repo: string, number: number): string {
-  return `${buildRepoRoot(owner, repo)}/pulls/${number}`;
+  return `${githubRepoPrefix(owner, repo)}/pulls/${number}`;
 }
 
 function directPrPaths(owner: string, repo: string, number: number): {
@@ -221,9 +219,11 @@ function directPrPaths(owner: string, repo: string, number: number): {
   raw: string[];
   diff: string;
 } {
+  const canonicalMetadata = githubPullRequestPath(owner, repo, String(number));
   const root = buildPullRequestRef(owner, repo, number);
   return {
-    metadata: [`${root}/meta.json`, `${root}/metadata.json`],
+    // adapter-github canonical first; keep legacy /meta.json for pre-adapter VFS data.
+    metadata: [canonicalMetadata, `${root}/meta.json`],
     raw: [`${root}/pr.md`, `${root}/pr.txt`, `${root}/summary.md`],
     diff: `${root}/diff.patch`,
   };

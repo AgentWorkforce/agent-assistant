@@ -1,4 +1,8 @@
 import type { VfsEntry } from '@agent-assistant/vfs';
+import {
+  GITHUB_PATH_ROOT,
+  githubRepoPrefix,
+} from '@relayfile/adapter-github/path-mapper';
 
 import { parseQuery } from '../shared/query-syntax.js';
 import type { GitHubEnumerationParams } from './types.js';
@@ -220,8 +224,17 @@ async function listEnumerationEntries(
     const repoFilters = filters.repo ?? [];
     const listRoots =
       repoFilters.length > 0
-        ? repoFilters.flatMap((repo) => types.map((type) => `/github/repos/${repo}/${COLLECTION_BY_TYPE[type]}/`))
-        : ['/github/repos'];
+        ? repoFilters.flatMap((repoSlug) =>
+            types.map((type) => {
+              const [owner, repo] = repoSlug.split('/');
+              // Fall back to raw path if the slug isn't owner/name shaped.
+              if (!owner || !repo) {
+                return `${GITHUB_PATH_ROOT}/repos/${repoSlug}/${COLLECTION_BY_TYPE[type]}/`;
+              }
+              return `${githubRepoPrefix(owner, repo)}/${COLLECTION_BY_TYPE[type]}/`;
+            }),
+          )
+        : [`${GITHUB_PATH_ROOT}/repos`];
 
     for (const root of listRoots) {
       try {

@@ -81,7 +81,7 @@ jobs:
         run: |
           case "${{ github.event.inputs.package_group }}" in
             runtime-core)
-              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","memory","turn-context","inbox","continuation","sdk","vfs"]'
+              PACKAGES='["traits","core","sessions","surfaces","policy","proactive","harness","memory","turn-context","inbox","continuation","sdk","vfs","specialists"]'
               FIRST='traits'
               ;;
             *)
