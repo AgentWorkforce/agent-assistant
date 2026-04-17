@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/policy",
-  "version": "0.2.3",
+  "version": "0.2.6",
   "description": "Action classification, gating, and audit contracts for agent assistants",
   "type": "module",
   "main": "./dist/index.js",
