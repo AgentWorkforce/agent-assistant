@@ -294,7 +294,7 @@ function helpText(name: string): string {
     `  ${name} tree [path] [--depth N] [--limit N] [--json]`,
     `  ${name} read <path> [--max-chars N] [--json]`,
     `  ${name} search <query> [--provider NAME] [--limit N] [--json]`,
-    `  ${name} stat <path> [--json]`,
+    `  ${name} stat <path> [--limit N] [--json]`,
     '',
   ].join('\n');
 }
