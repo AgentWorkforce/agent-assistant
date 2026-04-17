@@ -182,10 +182,10 @@ function createEvidenceWriter(
     },
 
     async finalize(findings) {
-      const manifestPath = `/evidence/${findings.requestId}/manifest.json`;
+      const manifestPath = `/evidence/${findings.metadata.assistantId}/${findings.requestId}/manifest.json`;
       const manifest: EvidenceManifest = {
         requestId: findings.requestId,
-        assistantId: findings.metadata?.assistantId ?? 'unknown',
+        assistantId: findings.metadata.assistantId,
         specialistName: findings.specialistName,
         producedAt: findings.metadata.producedAt,
         items: written,

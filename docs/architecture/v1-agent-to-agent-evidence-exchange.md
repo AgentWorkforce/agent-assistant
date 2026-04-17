@@ -56,7 +56,7 @@ All delegation messages use Relay's standard `sendMessage` / `post` API. The pay
 }
 ```
 
-The `threadId` field on the Relay message is set to the `requestId` from `DelegationRequest`. This allows the specialist to correlate its response without custom routing logic.
+The Relay message `threadId` is used strictly for transport correlation and is set to the `requestId` from `DelegationRequest`. Conversation context travels separately on `DelegationRequest.conversationId`. This avoids overloading one field with both product-turn semantics and Relay transport semantics.
 
 ### Payload discrimination
 

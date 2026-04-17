@@ -14,13 +14,13 @@ This specialist is intentionally narrow. It handles structured GitHub investigat
 
 ### Capabilities
 
-| Capability | Description |
-|---|---|
-| `pr_investigation` | Read a PR (diff, description, comments, review status), produce structured evidence |
-| `issue_investigation` | Read an issue (body, labels, timeline, linked PRs), produce structured evidence |
-| `code_search` | Search code across repos, return structured search results with snippets |
-| `file_read` | Read specific files at specific refs, return content as evidence |
-| `repo_exploration` | List repo structure, identify relevant files, map dependencies |
+| Capability | Description | V1 Status |
+|---|---|---|
+| `pr_investigation` | Read a PR (diff, description, comments, review status), produce structured evidence | Active proving scope |
+| `issue_investigation` | Read an issue (body, labels, timeline, linked PRs), produce structured evidence | Future, not active in v1 |
+| `code_search` | Search code across repos, return structured search results with snippets | Future, not active in v1 |
+| `file_read` | Read specific files at specific refs, return content as evidence | Future, not active in v1 |
+| `repo_exploration` | List repo structure, identify relevant files, map dependencies | Future, not active in v1 |
 
 ### Non-capabilities (out of scope)
 
@@ -65,6 +65,7 @@ The coordinator sends a `DelegationRequest` with parameters structured for GitHu
 interface GitHubInvestigationParams {
   /** Which capability to invoke */
   capability: 'pr_investigation' | 'issue_investigation' | 'code_search' | 'file_read' | 'repo_exploration';
+  // v1 implementation must only execute `pr_investigation`; the others are future capability shapes.
 
   /** Repository context — at least owner/repo for targeted operations */
   repo?: { owner: string; repo: string };
@@ -83,8 +84,9 @@ Example delegation request for PR investigation:
 ```typescript
 const request: DelegationRequest = {
   requestId: 'req-20260416-pr47',
+  type: 'delegation_request',
   turnId: 'turn-abc',
-  threadId: 'thread-xyz',
+  conversationId: 'thread-xyz',
   assistantId: 'sage',
   intent: 'Investigate PR #47 in AgentWorkforce/relay',
   instruction: 'Read the PR diff, description, and review status. Identify critical issues and provide a structured summary.',
@@ -244,7 +246,7 @@ The specialist delegation path refactors step 2:
 
 ### Migration strategy
 
-Phase 1 (v1): Run both paths. Specialist handles `pr_investigation` and `issue_investigation` capabilities. Simple tool calls (`github_search_code`, `github_read_file`) remain inline.
+Phase 1 (v1): Run both paths. Specialist handles `pr_investigation` only. Simple tool calls (`github_search_code`, `github_read_file`) remain inline, and `issue_investigation` stays explicitly out of active v1 implementation scope.
 
 Phase 2 (v1.1): Migrate remaining capabilities to the specialist. Remove inline tool execution from the orchestrator.
 

@@ -69,7 +69,7 @@ Sage should first route only these high-value investigation prompts through the 
 - "Read this PR and tell me the main risks"
 - "Summarize what changed and what is still unclear"
 
-This slice should prefer `pr_investigation` first, with `issue_investigation` as the second proving target only if the PR path is stable.
+This slice is fixed to `pr_investigation` for v1. `issue_investigation` remains a future expansion only after the PR path is proven and adopted cleanly.
 
 ### Why this slice is narrow enough
 

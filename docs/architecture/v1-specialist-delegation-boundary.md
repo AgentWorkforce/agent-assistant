@@ -70,9 +70,12 @@ interface DelegationRequest {
   /** Unique request identifier for correlation */
   requestId: string;
 
+  /** Discriminator for Relay payload envelopes */
+  type: 'delegation_request';
+
   /** Coordinator's turn context */
   turnId: string;
-  threadId: string;
+  conversationId: string;
   assistantId: string;
 
   /** What the specialist should investigate */
@@ -107,6 +110,9 @@ interface DelegationBounds {
 interface SpecialistFindings {
   /** Correlation back to the request */
   requestId: string;
+
+  /** Discriminator for Relay payload envelopes */
+  type: 'specialist_findings';
 
   /** Which specialist produced this */
   specialistName: string;
@@ -166,6 +172,9 @@ interface RecommendedAction {
 }
 
 interface FindingsMetadata {
+  /** Assistant that initiated the delegation and owns the evidence namespace */
+  assistantId: string;
+
   /** Wall-clock duration of specialist execution */
   durationMs: number;
 
