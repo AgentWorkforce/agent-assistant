@@ -21,6 +21,13 @@ export interface LibrarianAdapter<TType extends string = string> {
   inferEntityType(entry: VfsEntry): TType | 'unknown';
   toEvidence(entry: VfsEntry, type: TType | 'unknown'): LibrarianEvidence;
   searchProvider?: string;
+  /**
+   * Provider-aware search term for a given entity type. Used when list-based
+   * enumeration comes back empty and the engine falls back to vfs.search.
+   * Defaults to String(type) if unspecified; adapters should override when the
+   * underlying index prefers a richer term (e.g. GitHub → "pull request" for "pr").
+   */
+  searchTerm?(type: TType): string;
 }
 
 export interface LibrarianVfs {
@@ -208,7 +215,8 @@ async function listEnumerationEntries<TType extends string>(
   }
 
   try {
-    const results = await vfs.search(types.join(' '), searchOptions(adapter, options.limit));
+    const query = types.map((type) => (adapter.searchTerm ? adapter.searchTerm(type) : String(type))).join(' ');
+    const results = await vfs.search(query, searchOptions(adapter, options.limit));
     return results.flatMap((entry) => toEnumerationEntry(adapter, entry, types));
   } catch (error) {
     errors.push(errorMessage(error));

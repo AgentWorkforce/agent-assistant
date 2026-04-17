@@ -84,6 +84,9 @@ const githubLibrarianAdapter: LibrarianAdapter<GitHubEnumerationType> = {
   valuesForFilter,
   inferEntityType,
   toEvidence,
+  // "pr" alone is a weak search term for GitHub-indexed VFS stores; emit the
+  // richer natural-language form so list-miss → vfs.search doesn't drop valid hits.
+  searchTerm: (type) => (type === 'pr' ? 'pull request' : type),
 };
 
 export function createGitHubLibrarian({
