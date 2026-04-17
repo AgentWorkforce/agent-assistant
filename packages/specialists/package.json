@@ -20,10 +20,18 @@
   "dependencies": {
     "@agent-assistant/coordination": "^0.1.0",
     "@agent-assistant/vfs": "^0.2.2",
-    "@relayfile/adapter-github": "^0.1.6"
+    "@relayfile/adapter-github": "^0.1.6",
+    "@relayfile/adapter-linear": "^0.1.7"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgentWorkforce/agent-assistant"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
