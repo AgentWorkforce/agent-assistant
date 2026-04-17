@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/traits",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Validated immutable assistant traits for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
