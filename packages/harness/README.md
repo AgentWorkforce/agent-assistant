@@ -87,12 +87,112 @@ const result = await harness.runTurn({
 });
 ```
 
+## OpenRouter execution adapter
+
+The harness package now also exposes a bounded hosted execution adapter for OpenRouter-backed turns.
+
+### What it is
+
+The `OpenRouterExecutionAdapter` is a direct hosted backend behind the existing `ExecutionAdapter` seam.
+
+This means Agent Assistant still owns:
+- assistant identity
+- turn-context assembly
+- policy
+- continuation semantics
+- Relay-native collaboration
+
+The adapter only owns:
+- request translation
+- backend invocation
+- output normalization
+- truthful capability/degradation reporting
+
+### Current scope
+
+This adapter is intentionally narrow in the current slice:
+- backend id: `openrouter-api`
+- direct hosted API execution
+- no-tool turns only
+- minimal trace facts
+- truthful `unsupported` / degraded negotiation
+
+### Current non-goals
+
+This adapter does **not** currently support:
+- tool-bearing execution
+- structured tool calls
+- attachments
+- structured continuation support
+- approval interrupts
+
+### Example
+
+```ts
+import {
+  OpenRouterExecutionAdapter,
+  type ExecutionRequest,
+} from '@agent-assistant/harness';
+
+const adapter = new OpenRouterExecutionAdapter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  model: 'openai/gpt-5-mini',
+});
+
+const request: ExecutionRequest = {
+  assistantId: 'sage',
+  turnId: 'turn-456',
+  message: {
+    id: 'msg-2',
+    text: 'Summarize the current PR status.',
+    receivedAt: new Date().toISOString(),
+  },
+  instructions: {
+    systemPrompt: 'You are Sage. Be concise and truthful.',
+    developerPrompt: 'Do not invent missing GitHub state.',
+  },
+  context: {
+    blocks: [
+      {
+        id: 'ctx-1',
+        label: 'Scope',
+        text: 'Only summarize what is present in the supplied context.',
+      },
+    ],
+  },
+};
+
+const negotiation = adapter.negotiate(request);
+if (!negotiation.supported) {
+  throw new Error(negotiation.reasons.map((reason) => reason.message).join(' '));
+}
+
+const result = await adapter.execute(request);
+```
+
+### Honest usage guidance
+
+Use this adapter when you want:
+- a hosted API backend
+- one bounded no-tool turn
+- normalized `ExecutionResult` output through the same execution seam as other backends
+
+Do **not** treat it as a replacement for:
+- the local CLI harness BYOH path
+- Relay-native collaboration
+- future tool-capable hosted execution work
+
 ## Public API
 
 ```ts
 import {
   HarnessConfigError,
+  OpenRouterExecutionAdapter,
   createHarness,
+  createOpenRouterAdapter,
+  type ExecutionAdapter,
+  type ExecutionRequest,
+  type ExecutionResult,
   type HarnessConfig,
   type HarnessContinuation,
   type HarnessModelAdapter,
@@ -129,5 +229,6 @@ Current package validation includes a non-trivial test suite covering:
 - retryable vs unrecoverable tool errors
 - deferred outcomes for iteration and budget ceilings
 - runtime error surfacing
+- focused OpenRouter adapter coverage for bounded no-tool hosted execution
 
 HARNESS_PACKAGE_IMPLEMENTED
