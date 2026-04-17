@@ -469,6 +469,46 @@ function normalizeInvestigatorEvidenceBlob(raw: string, number: number): string 
   return formatPullRequest(number, null, blob.diff ?? null) ?? raw;
 }
 
+/**
+ * A PR payload is "meaningful" if we can extract at least one grounded field —
+ * a section marker (Title/Body/Diff) OR a structured JSON metadata shape with
+ * at least a title/number/body/html_url. Empty, whitespace, or truncated blobs
+ * that yield nothing but silent defaults must return null so the engine falls
+ * through to apiFallback instead of emitting placeholder findings.
+ */
+function isMeaningfulPrPayload(raw: string): boolean {
+  const normalized = raw?.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  // Formatted text (produced by Sage's formatGitHubPr or the specialist's own formatter).
+  if (/^(Title|Body|Diff|State|Author|URL|Labels):/m.test(normalized)) {
+    return true;
+  }
+
+  // Raw JSON metadata written by @relayfile/adapter-github.
+  if (normalized.startsWith('{') || normalized.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(normalized) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>;
+        return (
+          typeof record.title === 'string' ||
+          typeof record.number === 'number' ||
+          typeof record.body === 'string' ||
+          typeof record.html_url === 'string' ||
+          typeof record.state === 'string'
+        );
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 function parsePrSections(raw: string): ParsedPrSections {
   const normalized = raw.trim();
   const titleMatch = normalized.match(/^Title:\s*(.+)$/m);
@@ -1204,6 +1244,11 @@ function createGitHubPrInvestigatorAdapter(
       return investigatorEnginePaths(request.repo.owner, request.repo.repo, request.pr.number);
     },
     parse(raw) {
+      // Return null for unparseable/empty blobs so the engine falls through
+      // to apiFallback instead of emitting "complete" placeholder findings.
+      if (!isMeaningfulPrPayload(raw)) {
+        return null;
+      }
       return { raw };
     },
     toEvidence(entity, target) {
