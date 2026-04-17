@@ -41,6 +41,10 @@ jobs:
         working-directory: packages/surfaces
         run: npx vitest run
 
+      - name: Run tests — vfs
+        working-directory: packages/vfs
+        run: npx vitest run
+
       # Harness depends on traits, connectivity, coordination, and turn-context via
       # workspace file: links. None of those dists (except turn-context's, which is
       # stale and references a `memory-retriever.js` that isn't in the committed
@@ -112,10 +116,18 @@ jobs:
         working-directory: packages/surfaces
         run: npx tsc --noEmit -p tsconfig.json
 
+      - name: Build — vfs
+        working-directory: packages/vfs
+        run: npm run build
+
+      - name: Typecheck — vfs
+        working-directory: packages/vfs
+        run: npx tsc --noEmit -p tsconfig.json
+
       - name: Verify no test artifacts in dist
         run: |
           FAIL=0
-          for pkg in traits core sessions surfaces; do
+          for pkg in traits core sessions surfaces vfs; do
             if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
               echo "ERROR: test artifacts found in packages/$pkg/dist/"
               find "packages/$pkg/dist" -name '*.test.*'
