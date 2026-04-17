@@ -156,10 +156,11 @@ async function runStat(
   stderr: VfsCliWritable,
 ): Promise<number> {
   ensureNoUnknownFlags(parsed, ['json', 'limit']);
-  ensurePositionals(parsed, 1, 1, `${name} stat <path> [--json]`);
+  ensurePositionals(parsed, 1, 1, `${name} stat <path> [--limit N] [--json]`);
 
   const targetPath = normalizeVfsPath(parsed.positionals[0] ?? '');
-  const result = await resolveStat(provider, targetPath, options.maxResults ?? DEFAULT_MAX_RESULTS);
+  const limit = readPositiveInteger(parsed, 'limit', options.maxResults ?? DEFAULT_MAX_RESULTS);
+  const result = await resolveStat(provider, targetPath, limit);
   if (!result) {
     write(stderr, `Not found: ${targetPath}\n`);
     return 1;
@@ -214,7 +215,11 @@ function parseArgs(args: string[]): ParsedArgs {
     }
 
     const next = args[index + 1];
-    if (next !== undefined && !next.startsWith('-') && flagRequiresValue(withoutPrefix)) {
+    if (flagRequiresValue(withoutPrefix)) {
+      if (next === undefined || next.startsWith('-')) {
+        throw new UsageError(`--${withoutPrefix} requires a value`);
+      }
+
       flags.set(withoutPrefix, next);
       index += 1;
       continue;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { runVfsCli } from './index.js';
+import { normalizeVfsPath } from './output.js';
 import type { VfsEntry, VfsProvider, VfsSearchOptions } from './types.js';
 
 function createWritable() {
@@ -17,7 +18,10 @@ function createWritable() {
   };
 }
 
-function createProvider(): VfsProvider & { lastSearchOptions?: VfsSearchOptions } {
+function createProvider(): VfsProvider & {
+  lastSearchOptions?: VfsSearchOptions;
+  lastListOptions?: { path: string; options?: { depth?: number; limit?: number } };
+} {
   const entries: VfsEntry[] = [
     {
       path: '/linear',
@@ -42,7 +46,8 @@ function createProvider(): VfsProvider & { lastSearchOptions?: VfsSearchOptions 
   ];
 
   return {
-    async list(path) {
+    async list(path, options) {
+      this.lastListOptions = { path, options };
       return entries.filter((entry) => entry.path === path || entry.path.startsWith(`${path.replace(/\/$/g, '')}/`));
     },
     async read(path) {
@@ -132,6 +137,30 @@ describe('runVfsCli', () => {
       type: 'file',
       provider: 'linear',
     });
+  });
+
+  it('uses parsed limit in stat fallback lookups', async () => {
+    const provider = createProvider();
+    delete provider.stat;
+
+    const result = await run(provider, ['stat', '/linear/issues/ABC-123/issue.json', '--limit', '7']);
+
+    expect(result.code).toBe(0);
+    expect(provider.lastListOptions).toEqual({
+      path: '/linear/issues/ABC-123',
+      options: { depth: 1, limit: 7 },
+    });
+  });
+
+  it('returns a usage error when a value-taking flag is missing its value', async () => {
+    const result = await run(createProvider(), ['search', 'roadmap', '--provider']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--provider requires a value');
+  });
+
+  it('normalizes repeated path separators', () => {
+    expect(normalizeVfsPath('/linear//issues///ABC-123/')).toBe('/linear/issues/ABC-123');
   });
 
   it('returns a usage error for unknown commands', async () => {

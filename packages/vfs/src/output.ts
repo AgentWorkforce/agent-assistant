@@ -10,7 +10,7 @@ export function normalizeVfsPath(value: string): string {
     return '/';
   }
 
-  return `/${trimmed.replace(/^\/+|\/+$/g, '')}`;
+  return `/${trimmed.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/')}`;
 }
 
 export function dirname(filePath: string): string {
