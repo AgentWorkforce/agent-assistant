@@ -2,6 +2,11 @@ export { createHarness } from './harness.js';
 export { HarnessConfigError } from './types.js';
 export * from './adapter/index.js';
 
+export { OpenRouterModelAdapter, createOpenRouterModelAdapter } from './adapter/openrouter-model-adapter.js';
+export type { OpenRouterModelAdapterConfig } from './adapter/openrouter-model-adapter.js';
+export { BashToolRegistry, createBashToolRegistry } from './tools/bash-tool-registry.js';
+export type { BashToolConfig } from './tools/bash-tool-registry.js';
+
 export type {
   HarnessAggregateUsage,
   HarnessApprovalAdapter,
