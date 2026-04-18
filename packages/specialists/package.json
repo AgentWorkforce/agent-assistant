@@ -18,8 +18,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-assistant/coordination": "^0.1.0",
-    "@agent-assistant/vfs": "^0.2.2",
+    "@agent-assistant/coordination": "^0.2.6",
+    "@agent-assistant/vfs": "^0.2.6",
     "@relayfile/adapter-github": "^0.1.6",
     "@relayfile/adapter-linear": "^0.1.7"
   },
