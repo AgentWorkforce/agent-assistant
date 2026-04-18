@@ -41,6 +41,10 @@ jobs:
         working-directory: packages/surfaces
         run: npx vitest run
 
+      - name: Run tests — routing
+        working-directory: packages/routing
+        run: npx vitest run
+
       - name: Run tests — vfs
         working-directory: packages/vfs
         run: npx vitest run
@@ -67,6 +71,10 @@ jobs:
 
       - name: Build — connectivity (harness dep)
         working-directory: packages/connectivity
+        run: npm run build
+
+      - name: Build — routing (coordination dep)
+        working-directory: packages/routing
         run: npm run build
 
       - name: Build — coordination (harness dep)
@@ -114,6 +122,14 @@ jobs:
 
       - name: Typecheck — surfaces
         working-directory: packages/surfaces
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Build — routing
+        working-directory: packages/routing
+        run: npm run build
+
+      - name: Typecheck — routing
+        working-directory: packages/routing
         run: npx tsc --noEmit -p tsconfig.json
 
       - name: Build — vfs
