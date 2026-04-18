@@ -221,6 +221,11 @@ jobs:
             if [ "$pkg" = "$FIRST" ]; then
               continue
             fi
+            CURRENT_VERSION=$(node -p "require('./packages/$pkg/package.json').version")
+            if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+              echo "==> Skipping $pkg, already at $NEW_VERSION"
+              continue
+            fi
             (cd "packages/$pkg" && npm version "$NEW_VERSION" --no-git-tag-version)
           done
 
