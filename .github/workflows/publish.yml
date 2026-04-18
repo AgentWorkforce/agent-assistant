@@ -204,40 +204,34 @@ jobs:
           BUMP="${{ github.event.inputs.version }}"
           PREID="${{ github.event.inputs.preid }}"
           FIRST="${{ needs.resolve-packages.outputs.first_package }}"
+          PACKAGES='${{ needs.resolve-packages.outputs.matrix }}'
 
-          cd "packages/$FIRST"
-          if [ -n "$CUSTOM" ]; then
-            npm version "$CUSTOM" --no-git-tag-version
-          elif [[ "$BUMP" == pre* ]]; then
-            npm version "$BUMP" --preid="$PREID" --no-git-tag-version
-          else
-            npm version "$BUMP" --no-git-tag-version
-          fi
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          cd ../..
-
-          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
-            if [ "$pkg" = "$FIRST" ]; then
-              continue
-            fi
-            CURRENT_VERSION=$(node -p "require('./packages/$pkg/package.json').version")
-            if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
-              echo "==> Skipping $pkg, already at $NEW_VERSION"
-              continue
-            fi
-            (cd "packages/$pkg" && npm version "$NEW_VERSION" --no-git-tag-version)
-          done
-
-          export NEW_VERSION
-          export PACKAGES='${{ needs.resolve-packages.outputs.matrix }}'
+          export CUSTOM BUMP PREID FIRST PACKAGES
           node <<'EOF'
           const fs = require('fs');
           const path = require('path');
+          const { execFileSync } = require('child_process');
 
-          const version = process.env.NEW_VERSION;
           const packages = JSON.parse(process.env.PACKAGES);
+          const first = process.env.FIRST;
+          const custom = process.env.CUSTOM;
+          const bump = process.env.BUMP;
+          const preid = process.env.PREID;
           const packageNames = new Set(packages.map((pkg) => `@agent-assistant/${pkg}`));
+          const versions = {};
+
+          for (const pkg of packages) {
+            const cwd = path.join(process.cwd(), 'packages', pkg);
+            const args = custom
+              ? ['version', custom, '--no-git-tag-version']
+              : bump.startsWith('pre')
+                ? ['version', bump, `--preid=${preid}`, '--no-git-tag-version']
+                : ['version', bump, '--no-git-tag-version'];
+
+            execFileSync('npm', args, { cwd, stdio: 'inherit' });
+            const packageJson = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
+            versions[pkg] = packageJson.version;
+          }
 
           for (const pkg of packages) {
             const packageJsonPath = path.join('packages', pkg, 'package.json');
@@ -248,13 +242,19 @@ jobs:
               if (!deps) continue;
               for (const [name, value] of Object.entries(deps)) {
                 if (packageNames.has(name) && String(value).startsWith('file:')) {
-                  deps[name] = `^${version}`;
+                  const depPkg = name.replace('@agent-assistant/', '');
+                  if (versions[depPkg]) {
+                    deps[name] = `^${versions[depPkg]}`;
+                  }
                 }
               }
             }
 
             fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
           }
+
+          const firstVersion = versions[first];
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `new_version=${firstVersion}\n`);
           EOF
 
       - name: Upload build artifacts
