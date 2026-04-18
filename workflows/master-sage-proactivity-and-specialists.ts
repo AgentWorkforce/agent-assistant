@@ -39,8 +39,8 @@ async function runWorkflow() {
 
     .step('run-proactivity-trace', {
       agent: 'runner-a',
-      task: `In ~/Projects/AgentWorkforce/relay-agent-assistant, run:
-~/.local/bin/agent-relay run workflows/trace-sage-proactivity-relaycron.ts
+      task: `In /tmp/agent-assistant-overnight-dig, run:
+cd /tmp/agent-assistant-overnight-dig && ~/.local/bin/agent-relay run workflows/trace-sage-proactivity-relaycron.ts
 
 When done, write a concise summary plus the full verdict file contents to /tmp/master-proactivity-trace.txt.
 Include the workflow exit status and whether the verification marker was present.`,
@@ -49,8 +49,8 @@ Include the workflow exit status and whether the verification marker was present
     })
     .step('run-relay-credentials-trace', {
       agent: 'runner-b',
-      task: `In ~/Projects/AgentWorkforce/relay-agent-assistant, run:
-~/.local/bin/agent-relay run workflows/trace-sage-relay-credentials-cloud.ts
+      task: `In /tmp/agent-assistant-overnight-dig, run:
+cd /tmp/agent-assistant-overnight-dig && ~/.local/bin/agent-relay run workflows/trace-sage-relay-credentials-cloud.ts
 
 When done, write a concise summary plus the full verdict file contents to /tmp/master-relay-credentials-trace.txt.
 Include the workflow exit status and whether the verification marker was present.`,
@@ -59,8 +59,8 @@ Include the workflow exit status and whether the verification marker was present
     })
     .step('run-specialist-expansion-spec', {
       agent: 'runner-c',
-      task: `In ~/Projects/AgentWorkforce/relay-agent-assistant, run:
-~/.local/bin/agent-relay run workflows/specify-expanded-domain-specialists.ts
+      task: `In /tmp/agent-assistant-overnight-dig, run:
+cd /tmp/agent-assistant-overnight-dig && ~/.local/bin/agent-relay run workflows/specify-expanded-domain-specialists.ts
 
 When done, write a concise summary plus the full plan file contents to /tmp/master-specialist-expansion.txt.
 Include the workflow exit status and whether the verification marker was present.`,
