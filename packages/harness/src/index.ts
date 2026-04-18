@@ -7,6 +7,25 @@ export type { OpenRouterModelAdapterConfig } from './adapter/openrouter-model-ad
 export { BashToolRegistry, createBashToolRegistry } from './tools/bash-tool-registry.js';
 export type { BashToolConfig } from './tools/bash-tool-registry.js';
 
+export { OpenRouterSingleShotAdapter, createOpenRouterSingleShotAdapter } from './router/openrouter-singleshot-adapter.js';
+export type { OpenRouterSingleShotAdapterConfig } from './router/openrouter-singleshot-adapter.js';
+export { createTieredRunner } from './router/tiered-runner.js';
+export type { TieredRunnerConfig } from './router/tiered-runner.js';
+export type {
+  Router,
+  RouterInput,
+  RoutingDecision,
+  RoutingTier,
+  SingleShotAdapter,
+  SingleShotInput,
+  SingleShotResult,
+  TieredRunner,
+  TieredRunnerResult,
+  TieredRunnerFastResult,
+  TieredRunnerHarnessResult,
+  TieredRunnerRejectedResult,
+} from './router/types.js';
+
 export type {
   HarnessAggregateUsage,
   HarnessApprovalAdapter,
