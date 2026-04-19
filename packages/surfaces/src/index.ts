@@ -33,3 +33,9 @@ export type {
   ThreadGateDropReason,
   ThreadGateEvent,
 } from "./slack-thread-gate.js";
+
+export { classifySlackIngressEvent } from "./slack-ingress.js";
+export type {
+  SlackIngressClassification,
+  SlackIngressKind,
+} from "./slack-ingress.js";
