@@ -230,4 +230,32 @@ describe('OpenRouterModelAdapter', () => {
       expect(result.reason.toUpperCase()).toContain('JSON');
     }
   });
+
+  it('case 10: missing response message returns invalid with explicit reason', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({ choices: [{}] }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    const result = await adapter.nextStep(makeInput());
+
+    expect(result.type).toBe('invalid');
+    if (result.type === 'invalid') {
+      expect(result.reason).toContain('did not include a message choice');
+    }
+  });
+
+  it('case 11: empty assistant content returns invalid with explicit reason', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: '   ' } }],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    const result = await adapter.nextStep(makeInput());
+
+    expect(result.type).toBe('invalid');
+    if (result.type === 'invalid') {
+      expect(result.reason).toContain('usable assistant content');
+    }
+  });
 });
