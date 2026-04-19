@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/harness",
-  "version": "0.2.6",
+  "version": "0.2.11",
   "description": "Bounded iterative assistant-turn runtime for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./proof": {
+      "import": "./dist/proof.js",
+      "types": "./dist/proof.d.ts"
     }
   },
   "files": [
