@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/coordination",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Minimal coordinator, specialist registry, delegation, and synthesis runtime for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
