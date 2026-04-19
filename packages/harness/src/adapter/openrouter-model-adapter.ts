@@ -183,6 +183,15 @@ function mapUsage(raw: OpenRouterResponseBody['usage']): HarnessUsage | undefine
   return Object.keys(usage).length > 0 ? usage : undefined;
 }
 
+function normalizeFinalAnswerText(content: string | null | undefined): string | null {
+  if (typeof content !== 'string') {
+    return null;
+  }
+
+  const trimmed = content.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export class OpenRouterModelAdapter implements HarnessModelAdapter {
   private readonly apiKey?: string;
   private readonly model: string;
@@ -234,8 +243,18 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
       }
 
       const usage = mapUsage(body.usage);
-      const message = body.choices?.[0]?.message;
+      const choice = body.choices?.[0];
+      const message = choice?.message;
       const rawToolCalls = message?.tool_calls;
+
+      if (!choice || !message) {
+        return {
+          type: 'invalid',
+          reason: 'OpenRouter response did not include a message choice',
+          raw: body,
+          ...(usage ? { usage } : {}),
+        };
+      }
 
       if (rawToolCalls && rawToolCalls.length > 0) {
         const calls: HarnessToolCall[] = [];
@@ -251,7 +270,16 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
         return { type: 'tool_request', calls, ...(usage ? { usage } : {}) };
       }
 
-      const text = message?.content ?? '';
+      const text = normalizeFinalAnswerText(message.content);
+      if (!text) {
+        return {
+          type: 'invalid',
+          reason: 'OpenRouter response did not include usable assistant content',
+          raw: body,
+          ...(usage ? { usage } : {}),
+        };
+      }
+
       return { type: 'final_answer', text, ...(usage ? { usage } : {}) };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

@@ -251,6 +251,7 @@ describe('harness runtime', () => {
     const result = await harness.runTurn(createInput());
     expect(result.outcome).toBe('failed');
     expect(result.stopReason).toBe('model_invalid_response');
+    expect(result.metadata?.reason).toBe('still bad');
   });
 
   it('defers when max iterations is reached', async () => {
