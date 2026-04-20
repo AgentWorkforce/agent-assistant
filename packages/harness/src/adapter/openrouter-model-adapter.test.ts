@@ -259,3 +259,116 @@ describe('OpenRouterModelAdapter', () => {
     }
   });
 });
+
+describe('OpenRouterModelAdapter context request mapping', () => {
+  it('includes every context block label and body text in a system message', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: 'ok' } }],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    await adapter.nextStep(
+      makeInput({
+        instructions: {
+          systemPrompt: 'You are a bot.',
+          developerPrompt: 'Use the supplied context.',
+        },
+        context: {
+          blocks: [
+            { id: 'b1', label: 'customer-profile', content: 'Customer prefers concise replies.' },
+            { id: 'b2', label: 'recent-ticket', content: 'The last ticket mentioned Slack sync.' },
+          ],
+        },
+        message: { id: 'm1', text: 'What should I do next?', receivedAt: '2024-01-01T00:00:00Z' },
+      }),
+    );
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    const messages: Array<{ role: string; content: string }> = body.messages;
+    const developerPromptIndex = messages.findIndex(
+      (message) => message.role === 'system' && message.content === 'Use the supplied context.',
+    );
+    const contextMessageIndex = messages.findIndex(
+      (message) => message.role === 'system' && message.content.includes('Conversation context:'),
+    );
+    const userMessageIndex = messages.findIndex(
+      (message) => message.role === 'user' && message.content === 'What should I do next?',
+    );
+
+    expect(contextMessageIndex).toBeGreaterThan(developerPromptIndex);
+    expect(contextMessageIndex).toBeLessThan(userMessageIndex);
+    expect(messages[contextMessageIndex].content).toContain('customer-profile');
+    expect(messages[contextMessageIndex].content).toContain('Customer prefers concise replies.');
+    expect(messages[contextMessageIndex].content).toContain('recent-ticket');
+    expect(messages[contextMessageIndex].content).toContain('The last ticket mentioned Slack sync.');
+  });
+
+  it('does not add a context system message when input.context is undefined', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: 'ok' } }],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    await adapter.nextStep(
+      makeInput({
+        instructions: {
+          systemPrompt: 'You are a bot.',
+          developerPrompt: 'Be concise.',
+        },
+      }),
+    );
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    const messages: Array<{ role: string; content: string }> = body.messages;
+    const systemMessages = messages.filter((message) => message.role === 'system');
+
+    expect(systemMessages).toHaveLength(2);
+    expect(systemMessages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ content: 'You are a bot.' }),
+        expect.objectContaining({ content: 'Be concise.' }),
+      ]),
+    );
+    expect(systemMessages.some((message) => message.content.includes('Conversation context:'))).toBe(
+      false,
+    );
+    expect(systemMessages.some((message) => message.content.includes('Structured context:'))).toBe(
+      false,
+    );
+  });
+
+  it('includes serialized structured context JSON in a system message', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: 'ok' } }],
+      }),
+    );
+    const structured = {
+      customer: { tier: 'enterprise', region: 'us-east' },
+      flags: ['slack-sync', 'priority'],
+    };
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    await adapter.nextStep(
+      makeInput({
+        context: {
+          blocks: [],
+          structured,
+        },
+      }),
+    );
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    const messages: Array<{ role: string; content: string }> = body.messages;
+    const structuredMessage = messages.find(
+      (message) => message.role === 'system' && message.content.includes('Structured context:'),
+    );
+
+    expect(structuredMessage).toBeDefined();
+    expect(structuredMessage?.content).toContain(JSON.stringify(structured, null, 2));
+  });
+});

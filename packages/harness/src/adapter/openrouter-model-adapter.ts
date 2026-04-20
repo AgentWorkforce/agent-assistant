@@ -146,6 +146,30 @@ function buildTranscriptMessages(transcript: HarnessTranscriptItem[]): ChatMessa
   return messages;
 }
 
+function renderContext(ctx: HarnessModelInput['context']): string | null {
+  if (!ctx) {
+    return null;
+  }
+
+  const sections: string[] = [];
+  const blocks = ctx.blocks ?? [];
+
+  if (blocks.length > 0) {
+    const lines = blocks.map((block) => {
+      const label = block.label ? `[${block.label}] ` : '';
+      const body = block.content ?? '';
+      return `- ${label}${body}`;
+    });
+    sections.push(`Conversation context:\n${lines.join('\n')}`);
+  }
+
+  if (ctx.structured && Object.keys(ctx.structured).length > 0) {
+    sections.push(`Structured context:\n${JSON.stringify(ctx.structured, null, 2)}`);
+  }
+
+  return sections.length > 0 ? sections.join('\n\n') : null;
+}
+
 function buildRequestBody(
   input: HarnessModelInput,
   model: string,
@@ -157,6 +181,11 @@ function buildRequestBody(
 
   if (input.instructions.developerPrompt?.trim()) {
     messages.push({ role: 'system', content: input.instructions.developerPrompt });
+  }
+
+  const contextText = renderContext(input.context);
+  if (contextText) {
+    messages.push({ role: 'system', content: contextText });
   }
 
   messages.push(...buildTranscriptMessages(input.transcript));
