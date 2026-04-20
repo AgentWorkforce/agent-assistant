@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   HarnessExecutionState,
+  HarnessModelCallRecord,
   HarnessResult,
   HarnessTranscriptItem,
   HarnessUsage,
@@ -8,7 +9,12 @@ import type {
 import { computeCost } from './cost.js';
 import { FROZEN_PRICING_TABLE } from './pricing.js';
 import type { PricingTable } from './pricing.js';
-import type { TelemetrySink, TelemetryEvent } from './sinks/types.js';
+import type {
+  TelemetryEvent,
+  TelemetryEventCost,
+  TelemetryOutputKind,
+  TelemetrySink,
+} from './sinks/types.js';
 
 export interface TelemetryHookOptions {
   sink: TelemetrySink;
@@ -18,27 +24,6 @@ export interface TelemetryHookOptions {
   generateEventId?(): string;
 }
 
-type ExposedHarnessState = HarnessExecutionState & {
-  userId?: string;
-  threadId?: string;
-  input?: {
-    message?: { text?: unknown } | unknown;
-    instructions?: { systemPrompt?: unknown } | unknown;
-  };
-  transcript?: unknown;
-  modelCalls?: unknown;
-};
-
-type ModelCallLike = {
-  model?: unknown;
-  modelId?: unknown;
-  usage?: unknown;
-  inputTokens?: unknown;
-  outputTokens?: unknown;
-  promptTokens?: unknown;
-  completionTokens?: unknown;
-};
-
 export function createTelemetryHook(
   options: TelemetryHookOptions,
 ): (result: HarnessResult, state: HarnessExecutionState) => Promise<void> {
@@ -46,20 +31,19 @@ export function createTelemetryHook(
 
   return async (result, state) => {
     try {
-      const exposedState = state as ExposedHarnessState;
       const event: TelemetryEvent = {
         eventId: options.generateEventId?.() ?? randomUUID(),
         eventKind: 'turn.finished',
         timestamp: new Date().toISOString(),
         assistantId: state.assistantId,
         turnId: result.turnId || state.turnId,
-        threadId: exposedState.threadId,
-        userId: exposedState.userId,
-        input: options.inputMessageFor?.(state) ?? defaultInputFor(exposedState),
+        threadId: state.threadId,
+        userId: state.userId,
+        input: options.inputMessageFor?.(state) ?? defaultInputFor(state),
         output: outputFor(result),
-        transcript: transcriptFor(exposedState),
+        transcript: transcriptFor(state),
         usage: result.usage,
-        cost: costFor(exposedState, pricingTable),
+        cost: costFor(state, pricingTable),
         metadata: metadataFor(result, state, options),
       };
 
@@ -70,65 +54,51 @@ export function createTelemetryHook(
   };
 }
 
-function defaultInputFor(state: ExposedHarnessState): TelemetryEvent['input'] {
-  const message = state.input?.message;
-  const instructions = state.input?.instructions;
-  const text =
-    isRecord(message) && typeof message.text === 'string'
-      ? message.text
-      : typeof message === 'string'
-        ? message
-        : '';
-  const systemPrompt =
-    isRecord(instructions) && typeof instructions.systemPrompt === 'string'
-      ? instructions.systemPrompt
-      : undefined;
+function defaultInputFor(state: HarnessExecutionState): TelemetryEvent['input'] {
+  const message = state.input?.message?.text ?? '';
+  const systemPrompt = state.input?.instructions?.systemPrompt;
 
-  return systemPrompt === undefined
-    ? { message: text }
-    : { message: text, systemPrompt };
+  return systemPrompt === undefined ? { message } : { message, systemPrompt };
 }
 
 function outputFor(result: HarnessResult): TelemetryEvent['output'] {
-  if (result.stopReason === 'model_refused') {
-    return {
-      kind: 'refused',
-      text: result.assistantMessage?.text,
-      stopReason: result.stopReason,
-    };
+  const text = result.assistantMessage?.text;
+  const stopReason = result.stopReason;
+
+  if (stopReason === 'model_refused') {
+    return { kind: 'refused', text, stopReason };
   }
 
-  if (result.outcome === 'failed') {
-    return {
-      kind: 'failed',
-      text: result.assistantMessage?.text,
-      stopReason: result.stopReason,
-    };
-  }
-
-  return {
-    kind: 'final_answer',
-    text: result.assistantMessage?.text,
-    stopReason: result.stopReason,
-  };
+  const kind = kindForOutcome(result.outcome);
+  return { kind, text, stopReason };
 }
 
-function transcriptFor(state: ExposedHarnessState): HarnessTranscriptItem[] {
-  // HarnessExecutionState currently exposes only counters and IDs. The runtime keeps
-  // transcript internally, so prefer an enriched state.transcript when present and
-  // fall back to [] rather than serializing result.traceSummary, which omits content.
-  return Array.isArray(state.transcript)
-    ? (state.transcript as HarnessTranscriptItem[])
-    : [];
+function kindForOutcome(outcome: HarnessResult['outcome']): TelemetryOutputKind {
+  switch (outcome) {
+    case 'completed':
+      return 'final_answer';
+    case 'needs_clarification':
+      return 'clarification';
+    case 'awaiting_approval':
+      return 'approval';
+    case 'deferred':
+      return 'deferred';
+    case 'failed':
+      return 'failed';
+  }
+}
+
+function transcriptFor(state: HarnessExecutionState): HarnessTranscriptItem[] {
+  return state.transcript ?? [];
 }
 
 function costFor(
-  state: ExposedHarnessState,
+  state: HarnessExecutionState,
   pricingTable: PricingTable,
-): TelemetryEvent['cost'] {
+): TelemetryEventCost {
   const perModel = modelCallsFor(state).map((call) => {
-    const model = modelIdFor(call);
-    const usage = usageFor(call);
+    const model = call.modelId ?? 'unknown';
+    const usage = call.usage ?? {};
     const cost = computeCost(usage, model, pricingTable);
 
     return {
@@ -136,62 +106,43 @@ function costFor(
       inputTokens: usage.inputTokens ?? 0,
       outputTokens: usage.outputTokens ?? 0,
       usd: cost.usd,
+      missingPricing: cost.missingPricing,
     };
   });
 
   return {
     usd: perModel.reduce((total, item) => total + item.usd, 0),
+    missingPricing: perModel.some((item) => item.missingPricing),
     perModel,
   };
 }
 
-function modelCallsFor(state: ExposedHarnessState): ModelCallLike[] {
-  if (Array.isArray(state.modelCalls)) {
-    return state.modelCalls.filter(isRecord) as ModelCallLike[];
+function modelCallsFor(state: HarnessExecutionState): Array<{ modelId?: string; usage?: HarnessUsage }> {
+  if (Array.isArray(state.modelCalls) && state.modelCalls.length > 0) {
+    return state.modelCalls as HarnessModelCallRecord[];
   }
 
   return transcriptFor(state)
     .filter((item) => item.type === 'assistant_step')
     .map((item) => metadataModelCallFor(item.metadata))
-    .filter((call): call is ModelCallLike => call !== undefined);
+    .filter((call): call is { modelId?: string; usage?: HarnessUsage } => call !== undefined);
 }
 
-function metadataModelCallFor(metadata: Record<string, unknown> | undefined): ModelCallLike | undefined {
+function metadataModelCallFor(
+  metadata: Record<string, unknown> | undefined,
+): { modelId?: string; usage?: HarnessUsage } | undefined {
   if (!metadata) {
     return undefined;
   }
 
-  const model = firstString(metadata.modelId, metadata.model);
-  const usage = isRecord(metadata.usage) ? metadata.usage : undefined;
+  const modelId = firstString(metadata.modelId, metadata.model);
+  const usage = isRecord(metadata.usage) ? (metadata.usage as HarnessUsage) : undefined;
 
-  if (model === undefined && usage === undefined) {
+  if (modelId === undefined && usage === undefined) {
     return undefined;
   }
 
-  return { model, usage };
-}
-
-function modelIdFor(call: ModelCallLike): string {
-  return firstString(call.modelId, call.model) ?? 'unknown';
-}
-
-function usageFor(call: ModelCallLike): Pick<HarnessUsage, 'inputTokens' | 'outputTokens'> {
-  const usage = isRecord(call.usage) ? call.usage : undefined;
-
-  return {
-    inputTokens: firstNumber(
-      usage?.inputTokens,
-      usage?.promptTokens,
-      call.inputTokens,
-      call.promptTokens,
-    ),
-    outputTokens: firstNumber(
-      usage?.outputTokens,
-      usage?.completionTokens,
-      call.outputTokens,
-      call.completionTokens,
-    ),
-  };
+  return { modelId, usage };
 }
 
 function metadataFor(
@@ -208,16 +159,6 @@ function metadataFor(
 function firstString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === 'string' && value.length > 0) {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
-function firstNumber(...values: unknown[]): number | undefined {
-  for (const value of values) {
-    if (typeof value === 'number' && Number.isFinite(value)) {
       return value;
     }
   }

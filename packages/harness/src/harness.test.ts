@@ -293,6 +293,44 @@ describe('harness runtime', () => {
       expect(hookResult.outcome).toBe('failed');
     });
 
+    it('passes the full execution state (input, transcript, modelCalls) to the hook', async () => {
+      const onTurnFinished = vi.fn();
+
+      const harness = createHarness({
+        model: {
+          nextStep: async () => ({
+            type: 'final_answer',
+            text: 'Done',
+            metadata: { modelId: 'anthropic/claude-sonnet-4-6' },
+            usage: { inputTokens: 12, outputTokens: 6 },
+          }),
+        },
+        hooks: { onTurnFinished },
+        clock: createClock([0, 1, 2, 3]),
+      });
+
+      await harness.runTurn(createInput());
+      const [, state] = onTurnFinished.mock.calls[0];
+
+      expect(state.input?.message?.text).toBe('help me');
+      expect(state.input?.instructions?.systemPrompt).toBe('You are helpful.');
+      expect(state.transcript).toHaveLength(1);
+      expect(state.transcript?.[0]).toMatchObject({
+        type: 'assistant_step',
+        outputType: 'final_answer',
+      });
+      expect(state.modelCalls).toEqual([
+        {
+          iteration: 1,
+          outputType: 'final_answer',
+          modelId: 'anthropic/claude-sonnet-4-6',
+          usage: { inputTokens: 12, outputTokens: 6 },
+        },
+      ]);
+      expect(state.userId).toBe('user-1');
+      expect(state.threadId).toBe('thread-1');
+    });
+
     it('does not propagate errors thrown by the hook', async () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const onTurnFinished = vi.fn(() => {

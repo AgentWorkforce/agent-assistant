@@ -285,6 +285,8 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
         };
       }
 
+      const metadata = { modelId: this.model };
+
       if (rawToolCalls && rawToolCalls.length > 0) {
         const calls: HarnessToolCall[] = [];
         for (const tc of rawToolCalls) {
@@ -296,7 +298,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
           }
           calls.push({ id: tc.id, name: tc.function.name, input: parsed });
         }
-        return { type: 'tool_request', calls, ...(usage ? { usage } : {}) };
+        return { type: 'tool_request', calls, metadata, ...(usage ? { usage } : {}) };
       }
 
       const text = normalizeFinalAnswerText(message.content);
@@ -309,7 +311,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
         };
       }
 
-      return { type: 'final_answer', text, ...(usage ? { usage } : {}) };
+      return { type: 'final_answer', text, metadata, ...(usage ? { usage } : {}) };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return { type: 'invalid', reason: 'timeout' };

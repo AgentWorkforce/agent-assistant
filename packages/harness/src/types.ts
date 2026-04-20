@@ -440,9 +440,24 @@ export interface HarnessExecutionState {
   assistantId: string;
   turnId: string;
   sessionId?: string;
+  userId?: string;
+  threadId?: string;
   iteration: number;
   toolCallCount: number;
   elapsedMs: number;
+  input?: {
+    message: HarnessUserMessage;
+    instructions: HarnessInstructions;
+  };
+  transcript?: HarnessTranscriptItem[];
+  modelCalls?: HarnessModelCallRecord[];
+}
+
+export interface HarnessModelCallRecord {
+  iteration: number;
+  modelId?: string;
+  usage?: HarnessUsage;
+  outputType: HarnessModelOutput['type'];
 }
 
 export interface HarnessClock {

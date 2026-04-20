@@ -23,6 +23,7 @@ function createEvent(eventId: string): TelemetryEvent {
     },
     cost: {
       usd: 0,
+      missingPricing: false,
       perModel: [],
     },
   };

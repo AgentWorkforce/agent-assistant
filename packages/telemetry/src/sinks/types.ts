@@ -1,10 +1,25 @@
 import type { HarnessAggregateUsage, HarnessTranscriptItem } from '@agent-assistant/harness';
 
+export type TelemetryOutputKind =
+  | 'final_answer'
+  | 'failed'
+  | 'refused'
+  | 'deferred'
+  | 'clarification'
+  | 'approval';
+
 export interface TelemetryEventCostBreakdown {
   model: string;
   inputTokens: number;
   outputTokens: number;
   usd: number;
+  missingPricing: boolean;
+}
+
+export interface TelemetryEventCost {
+  usd: number;
+  missingPricing: boolean;
+  perModel: TelemetryEventCostBreakdown[];
 }
 
 export interface TelemetryEvent {
@@ -16,10 +31,10 @@ export interface TelemetryEvent {
   threadId?: string;
   userId?: string;
   input: { message: string; systemPrompt?: string };
-  output: { kind: 'final_answer' | 'failed' | 'refused'; text?: string; stopReason?: string };
+  output: { kind: TelemetryOutputKind; text?: string; stopReason?: string };
   transcript: HarnessTranscriptItem[];
   usage: HarnessAggregateUsage;
-  cost: { usd: number; perModel: TelemetryEventCostBreakdown[] };
+  cost: TelemetryEventCost;
   metadata?: Record<string, unknown>;
 }
 

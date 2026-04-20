@@ -36,12 +36,14 @@ function createEvent(): TelemetryEvent {
     },
     cost: {
       usd: 0.000095,
+      missingPricing: false,
       perModel: [
         {
           model: 'openai/gpt-4.1',
           inputTokens: 10,
           outputTokens: 5,
           usd: 0.000095,
+          missingPricing: false,
         },
       ],
     },

@@ -3,6 +3,7 @@ import type {
   HarnessExecutionState,
   HarnessHooks,
   HarnessResult,
+  HarnessModelCallRecord,
 } from '@agent-assistant/harness';
 
 import { createTelemetryHook } from '../src/harness-bridge.js';
@@ -33,21 +34,9 @@ function createResult(): HarnessResult {
   };
 }
 
-function createState(): HarnessExecutionState & {
-  userId: string;
-  threadId: string;
-  input: {
-    message: { text: string };
-    instructions: { systemPrompt: string };
-  };
-  modelCalls: Array<{
-    modelId: string;
-    usage: {
-      inputTokens: number;
-      outputTokens: number;
-    };
-  }>;
-} {
+function createState(
+  overrides: { modelCalls?: HarnessModelCallRecord[] } = {},
+): HarnessExecutionState {
   return {
     assistantId: 'assistant-1',
     turnId: 'turn-1',
@@ -58,11 +47,18 @@ function createState(): HarnessExecutionState & {
     toolCallCount: 0,
     elapsedMs: 40,
     input: {
-      message: { text: 'Help me' },
+      message: {
+        id: 'msg-1',
+        text: 'Help me',
+        receivedAt: '2026-04-20T00:00:00.000Z',
+      },
       instructions: { systemPrompt: 'Be useful.' },
     },
-    modelCalls: [
+    transcript: [],
+    modelCalls: overrides.modelCalls ?? [
       {
+        iteration: 1,
+        outputType: 'final_answer',
         modelId: 'anthropic/claude-sonnet-4.6',
         usage: {
           inputTokens: 1_000_000,
@@ -118,12 +114,14 @@ describe('createTelemetryHook', () => {
     });
     expect(event.cost).toEqual({
       usd: 18,
+      missingPricing: false,
       perModel: [
         {
           model: 'anthropic/claude-sonnet-4.6',
           inputTokens: 1_000_000,
           outputTokens: 1_000_000,
           usd: 18,
+          missingPricing: false,
         },
       ],
     });
@@ -163,5 +161,84 @@ describe('createTelemetryHook', () => {
 
     const [event] = emit.mock.calls[0] as [TelemetryEvent];
     expect(event.eventId).toBe('custom-event-id');
+  });
+
+  it.each([
+    ['needs_clarification', 'clarification_required', 'clarification'],
+    ['awaiting_approval', 'approval_required', 'approval'],
+    ['deferred', 'max_iterations_reached', 'deferred'],
+    ['failed', 'runtime_error', 'failed'],
+  ] as const)(
+    'maps outcome %s (stopReason %s) to output.kind=%s',
+    async (outcome, stopReason, expectedKind) => {
+      const emit = vi.fn();
+      const sink: TelemetrySink = { emit };
+      const hook = createTelemetryHook({ sink });
+      const result: HarnessResult = {
+        ...createResult(),
+        outcome,
+        stopReason,
+      };
+
+      await hook(result, createState());
+
+      const [event] = emit.mock.calls[0] as [TelemetryEvent];
+      expect(event.output.kind).toBe(expectedKind);
+      expect(event.metadata?.outcome).toBe(outcome);
+    },
+  );
+
+  it('prefers "refused" kind when stopReason is model_refused', async () => {
+    const emit = vi.fn();
+    const sink: TelemetrySink = { emit };
+    const hook = createTelemetryHook({ sink });
+    const result: HarnessResult = {
+      ...createResult(),
+      outcome: 'failed',
+      stopReason: 'model_refused',
+      assistantMessage: { text: 'cannot help' },
+    };
+
+    await hook(result, createState());
+
+    const [event] = emit.mock.calls[0] as [TelemetryEvent];
+    expect(event.output).toEqual({
+      kind: 'refused',
+      text: 'cannot help',
+      stopReason: 'model_refused',
+    });
+  });
+
+  it('flags missingPricing for models absent from the pricing table', async () => {
+    const emit = vi.fn();
+    const sink: TelemetrySink = { emit };
+    const hook = createTelemetryHook({ sink });
+    const state = createState({
+      modelCalls: [
+        {
+          iteration: 1,
+          outputType: 'final_answer',
+          modelId: 'mystery/model-not-in-table',
+          usage: { inputTokens: 100, outputTokens: 100 },
+        },
+      ],
+    });
+
+    await hook(createResult(), state);
+
+    const [event] = emit.mock.calls[0] as [TelemetryEvent];
+    expect(event.cost).toEqual({
+      usd: 0,
+      missingPricing: true,
+      perModel: [
+        {
+          model: 'mystery/model-not-in-table',
+          inputTokens: 100,
+          outputTokens: 100,
+          usd: 0,
+          missingPricing: true,
+        },
+      ],
+    });
   });
 });
