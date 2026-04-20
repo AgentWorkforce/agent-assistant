@@ -20,7 +20,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent-assistant/harness": "^0.1.3"
+    "@agent-assistant/harness": "^0.3.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
