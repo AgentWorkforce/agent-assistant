@@ -21,6 +21,7 @@
     "packages/integration",
     "packages/sdk",
     "packages/specialists",
+    "packages/telemetry",
     "packages/examples"
   ],
   "scripts": {

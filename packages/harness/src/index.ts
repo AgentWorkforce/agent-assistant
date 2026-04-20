@@ -48,6 +48,7 @@ export type {
   HarnessInvalidOutput,
   HarnessLimits,
   HarnessModelAdapter,
+  HarnessModelCallRecord,
   HarnessModelInput,
   HarnessModelOutput,
   HarnessModelStepFinishedEvent,

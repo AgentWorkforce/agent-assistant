@@ -8,6 +8,7 @@ import type {
   HarnessExecutionState,
   HarnessInvalidOutput,
   HarnessLimits,
+  HarnessModelCallRecord,
   HarnessModelInput,
   HarnessModelOutput,
   HarnessResult,
@@ -38,6 +39,7 @@ type MutableState = {
   iteration: number;
   toolCallCount: number;
   transcript: HarnessTranscriptItem[];
+  modelCalls: HarnessModelCallRecord[];
   usage: HarnessAggregateUsage;
   consecutiveInvalidOutputs: number;
   finalEventType: string;
@@ -131,6 +133,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
     iteration: 0,
     toolCallCount: 0,
     transcript: [],
+    modelCalls: [],
     usage: {
       modelCalls: 0,
       toolCalls: 0,
@@ -184,6 +187,12 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       await emit(config, input, state, { type: 'model_step_started' });
       const output = await config.model.nextStep(modelInput);
       state.usage.modelCalls += 1;
+      state.modelCalls.push({
+        iteration,
+        outputType: output.type,
+        modelId: readModelId(output),
+        usage: output.usage,
+      });
       accumulateUsage(state.usage, output.usage);
       await emit(config, input, state, {
         type: 'model_step_finished',
@@ -363,6 +372,14 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
   } finally {
     if (finalResult) {
       await emitFinishedSafely(config, input, state, finalResult);
+      try {
+        await config.hooks?.onTurnFinished?.(
+          finalResult,
+          executionState(input, state, startedAt, config),
+        );
+      } catch (error) {
+        console.error('Harness onTurnFinished hook failed', error);
+      }
     }
   }
 }
@@ -473,10 +490,32 @@ function executionState(
     assistantId: input.assistantId,
     turnId: input.turnId,
     sessionId: input.sessionId,
+    userId: input.userId,
+    threadId: input.threadId,
     iteration: state.iteration,
     toolCallCount: state.toolCallCount,
     elapsedMs: getElapsedMs(config, startedAt),
+    input: {
+      message: input.message,
+      instructions: input.instructions,
+    },
+    transcript: state.transcript.slice(),
+    modelCalls: state.modelCalls.slice(),
   };
+}
+
+function readModelId(output: HarnessModelOutput): string | undefined {
+  if (output.type === 'invalid') {
+    return undefined;
+  }
+
+  const metadata = output.metadata;
+  if (!metadata) {
+    return undefined;
+  }
+
+  const raw = metadata.modelId ?? metadata.model;
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
 }
 
 function createContinuation(

@@ -254,6 +254,108 @@ describe('harness runtime', () => {
     expect(result.metadata?.reason).toBe('still bad');
   });
 
+  describe('onTurnFinished hook', () => {
+    it('fires once with completed result usage after a final answer', async () => {
+      const nextStep = vi.fn(async () => ({ type: 'final_answer' as const, text: 'Done' }));
+      const onTurnFinished = vi.fn();
+
+      const harness = createHarness({
+        model: { nextStep },
+        hooks: { onTurnFinished },
+        clock: createClock([0, 1, 2, 3]),
+      });
+
+      const result = await harness.runTurn(createInput());
+      const [hookResult] = onTurnFinished.mock.calls[0];
+
+      expect(result.outcome).toBe('completed');
+      expect(onTurnFinished).toHaveBeenCalledOnce();
+      expect(hookResult.outcome).toBe('completed');
+      expect(hookResult.usage.modelCalls).toBe(nextStep.mock.calls.length);
+    });
+
+    it('fires once with failed result after invalid model output', async () => {
+      const onTurnFinished = vi.fn();
+
+      const harness = createHarness({
+        model: { nextStep: async () => ({ type: 'invalid', reason: 'still bad' }) },
+        limits: { maxConsecutiveInvalidModelOutputs: 1 },
+        hooks: { onTurnFinished },
+        clock: createClock([0, 1, 2, 3]),
+      });
+
+      const result = await harness.runTurn(createInput());
+      const [hookResult] = onTurnFinished.mock.calls[0];
+
+      expect(result.outcome).toBe('failed');
+      expect(result.stopReason).toBe('model_invalid_response');
+      expect(onTurnFinished).toHaveBeenCalledOnce();
+      expect(hookResult.outcome).toBe('failed');
+    });
+
+    it('passes the full execution state (input, transcript, modelCalls) to the hook', async () => {
+      const onTurnFinished = vi.fn();
+
+      const harness = createHarness({
+        model: {
+          nextStep: async () => ({
+            type: 'final_answer',
+            text: 'Done',
+            metadata: { modelId: 'anthropic/claude-sonnet-4-6' },
+            usage: { inputTokens: 12, outputTokens: 6 },
+          }),
+        },
+        hooks: { onTurnFinished },
+        clock: createClock([0, 1, 2, 3]),
+      });
+
+      await harness.runTurn(createInput());
+      const [, state] = onTurnFinished.mock.calls[0];
+
+      expect(state.input?.message?.text).toBe('help me');
+      expect(state.input?.instructions?.systemPrompt).toBe('You are helpful.');
+      expect(state.transcript).toHaveLength(1);
+      expect(state.transcript?.[0]).toMatchObject({
+        type: 'assistant_step',
+        outputType: 'final_answer',
+      });
+      expect(state.modelCalls).toEqual([
+        {
+          iteration: 1,
+          outputType: 'final_answer',
+          modelId: 'anthropic/claude-sonnet-4-6',
+          usage: { inputTokens: 12, outputTokens: 6 },
+        },
+      ]);
+      expect(state.userId).toBe('user-1');
+      expect(state.threadId).toBe('thread-1');
+    });
+
+    it('does not propagate errors thrown by the hook', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const onTurnFinished = vi.fn(() => {
+        throw new Error('hook exploded');
+      });
+
+      const harness = createHarness({
+        model: { nextStep: async () => ({ type: 'final_answer', text: 'Done' }) },
+        hooks: { onTurnFinished },
+        clock: createClock([0, 1, 2, 3]),
+      });
+
+      try {
+        const result = await harness.runTurn(createInput());
+
+        expect(result.outcome).toBe('completed');
+        expect(result.stopReason).toBe('answer_finalized');
+        expect(onTurnFinished).toHaveBeenCalledOnce();
+        expect(errorSpy).toHaveBeenCalledOnce();
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+  });
+
   it('defers when max iterations is reached', async () => {
     const harness = createHarness({
       model: { nextStep: async () => ({ type: 'invalid', reason: 'keep going' }) },

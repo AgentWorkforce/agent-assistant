@@ -1,0 +1,53 @@
+{
+  "name": "@agent-assistant/telemetry",
+  "version": "0.1.0",
+  "description": "Usage, cost, and response telemetry primitives for Agent Assistant",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./pricing": {
+      "import": "./dist/pricing.js",
+      "types": "./dist/pricing.d.ts"
+    },
+    "./cost": {
+      "import": "./dist/cost.js",
+      "types": "./dist/cost.d.ts"
+    },
+    "./sinks": {
+      "import": "./dist/sinks/index.js",
+      "types": "./dist/sinks/index.d.ts"
+    },
+    "./bridge": {
+      "import": "./dist/harness-bridge.js",
+      "types": "./dist/harness-bridge.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@agent-assistant/harness": "^0.2.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgentWorkforce/agent-assistant"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
