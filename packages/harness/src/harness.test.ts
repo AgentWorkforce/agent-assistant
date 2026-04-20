@@ -6,6 +6,7 @@ function createInput() {
   return {
     assistantId: 'assistant-1',
     turnId: 'turn-1',
+    workspaceId: 'workspace-1',
     sessionId: 'session-1',
     userId: 'user-1',
     threadId: 'thread-1',
@@ -18,6 +19,11 @@ function createInput() {
       systemPrompt: 'You are helpful.',
     },
   };
+}
+
+function createInputWithoutWorkspaceId() {
+  const { workspaceId: _workspaceId, ...input } = createInput();
+  return input;
 }
 
 function createClock(times: number[]) {
@@ -62,6 +68,30 @@ describe('harness runtime', () => {
       'model_step_finished',
       'turn_finished',
     ]);
+  });
+
+  it('still completes when workspaceId is omitted from the turn input', async () => {
+    const trace: HarnessTraceEvent[] = [];
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({ type: 'final_answer', text: 'Done', usage: { inputTokens: 10, outputTokens: 5, costUnits: 2, latencyMs: 40 } }),
+      },
+      trace: { emit: (event) => trace.push(event) },
+      clock: createClock([0, 5, 10, 15, 20]),
+    });
+
+    const result = await harness.runTurn(createInputWithoutWorkspaceId());
+
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+    expect(result.assistantMessage?.text).toBe('Done');
+    expect(trace.map((event) => event.type)).toEqual([
+      'turn_started',
+      'model_step_started',
+      'model_step_finished',
+      'turn_finished',
+    ]);
+    expect(trace.every((event) => event.workspaceId === undefined)).toBe(true);
   });
 
   it('handles iterative tool/model/tool loop sequentially', async () => {
@@ -154,6 +184,38 @@ describe('harness runtime', () => {
     expect(result.continuation?.id).toBe('approval-cont');
   });
 
+  it('passes workspaceId to approval adapters', async () => {
+    const prepareRequest = vi.fn(async ({ request }) => ({
+      request,
+      continuation: {
+        id: 'approval-cont',
+        type: 'approval' as const,
+        createdAt: '2026-04-13T00:00:00.000Z',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        resumeToken: 'resume-1',
+        state: { requestId: request.id },
+      },
+    }));
+
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({
+          type: 'approval_request',
+          request: { id: 'approve-1', kind: 'external_action', summary: 'Send email' },
+        }),
+      },
+      approvals: { prepareRequest },
+      clock: createClock([0, 1, 2, 3]),
+    });
+
+    await harness.runTurn(createInput());
+
+    expect(prepareRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+    );
+  });
+
   it('fails when a requested tool is unavailable', async () => {
     const harness = createHarness({
       model: {
@@ -239,6 +301,96 @@ describe('harness runtime', () => {
     expect(onInvalidModelOutput).toHaveBeenCalledOnce();
     expect(result.outcome).toBe('completed');
     expect(result.traceSummary.iterationCount).toBe(2);
+  });
+
+  it('passes workspaceId through model, tool, hook, and trace inputs', async () => {
+    const trace: HarnessTraceEvent[] = [];
+    const listAvailable = vi.fn(async () => [{ name: 'lookup', description: 'Lookup' }]);
+    const execute = vi.fn(async (call) => ({
+      callId: call.id,
+      toolName: call.name,
+      status: 'success' as const,
+      output: 'ok',
+    }));
+    const onTurnFinished = vi.fn();
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'lookup', input: {} }] },
+      { type: 'final_answer', text: 'Done' },
+    ];
+    const nextStep = vi.fn(async (input) => steps.shift() ?? ({ type: 'final_answer', text: 'Done' } as const));
+
+    const harness = createHarness({
+      model: { nextStep },
+      tools: { listAvailable, execute },
+      hooks: { onTurnFinished },
+      trace: { emit: (event) => trace.push(event) },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6]),
+    });
+
+    await harness.runTurn(createInput());
+    const [, state] = onTurnFinished.mock.calls[0];
+
+    expect(listAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+    );
+    expect(nextStep).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+    );
+    expect(state.workspaceId).toBe('workspace-1');
+    expect(trace.every((event) => event.workspaceId === 'workspace-1')).toBe(true);
+  });
+
+  it('succeeds with workspaceId="ws-123" and exposes it through observable hook state', async () => {
+    const onTurnFinished = vi.fn();
+    const nextStep = vi.fn(async () => ({ type: 'final_answer' as const, text: 'Done' }));
+    const harness = createHarness({
+      model: { nextStep },
+      hooks: { onTurnFinished },
+      clock: createClock([0, 1, 2, 3]),
+    });
+
+    const result = await harness.runTurn({
+      ...createInput(),
+      workspaceId: 'ws-123',
+    });
+    const [, state] = onTurnFinished.mock.calls[0];
+
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+    expect(nextStep).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-123' }),
+    );
+    expect(state.workspaceId).toBe('ws-123');
+  });
+
+  it('preserves the exact no-tools transcript when workspaceId is omitted', async () => {
+    const onTurnFinished = vi.fn();
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({ type: 'final_answer', text: 'Done' }),
+      },
+      hooks: { onTurnFinished },
+      clock: createClock([0, 1, 2, 3]),
+    });
+
+    const result = await harness.runTurn(createInputWithoutWorkspaceId());
+    const [, state] = onTurnFinished.mock.calls[0];
+
+    expect(result.outcome).toBe('completed');
+    expect(state.transcript).toEqual([
+      {
+        type: 'assistant_step',
+        iteration: 1,
+        outputType: 'final_answer',
+        text: 'Done',
+        metadata: undefined,
+      },
+    ]);
   });
 
   it('fails after exceeding invalid model output limit', async () => {
@@ -327,6 +479,7 @@ describe('harness runtime', () => {
           usage: { inputTokens: 12, outputTokens: 6 },
         },
       ]);
+      expect(state.workspaceId).toBe('workspace-1');
       expect(state.userId).toBe('user-1');
       expect(state.threadId).toBe('thread-1');
     });

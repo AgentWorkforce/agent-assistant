@@ -36,7 +36,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent-assistant/harness": "^0.2.11"
+    "@agent-assistant/harness": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

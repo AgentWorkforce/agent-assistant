@@ -8,6 +8,7 @@ export type DelegationStatus = 'complete' | 'partial' | 'failed';
 
 export interface DelegationRequestFor<TParams extends GitHubCapabilityParams> {
   requestId: string;
+  workspaceId?: string;
   capability: TParams['capability'];
   params: TParams;
   timeoutMs?: number;
