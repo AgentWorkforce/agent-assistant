@@ -363,6 +363,14 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
   } finally {
     if (finalResult) {
       await emitFinishedSafely(config, input, state, finalResult);
+      try {
+        await config.hooks?.onTurnFinished?.(
+          finalResult,
+          executionState(input, state, startedAt, config),
+        );
+      } catch (error) {
+        console.error('Harness onTurnFinished hook failed', error);
+      }
     }
   }
 }

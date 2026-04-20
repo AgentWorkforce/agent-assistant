@@ -430,6 +430,10 @@ export interface HarnessHooks {
     result: HarnessToolResult,
     state: HarnessExecutionState,
   ) => Promise<void> | void;
+  onTurnFinished?: (
+    result: HarnessResult,
+    state: HarnessExecutionState,
+  ) => Promise<void> | void;
 }
 
 export interface HarnessExecutionState {
