@@ -83,6 +83,16 @@ jobs:
         working-directory: packages/harness
         run: npx vitest run
 
+      # Telemetry depends on harness types (HarnessUsage / HarnessResult).
+      # Build harness first so the workspace file: link resolves, then test.
+      - name: Build — harness (telemetry dep)
+        working-directory: packages/harness
+        run: npm run build
+
+      - name: Run tests — telemetry
+        working-directory: packages/telemetry
+        run: npx vitest run
+
       # Build/typecheck in dependency order so downstream workspace imports resolve
       - name: Build — traits
         working-directory: packages/traits
@@ -124,10 +134,18 @@ jobs:
         working-directory: packages/vfs
         run: npx tsc --noEmit -p tsconfig.json
 
+      - name: Build — telemetry
+        working-directory: packages/telemetry
+        run: npm run build
+
+      - name: Typecheck — telemetry
+        working-directory: packages/telemetry
+        run: npx tsc --noEmit -p tsconfig.json
+
       - name: Verify no test artifacts in dist
         run: |
           FAIL=0
-          for pkg in traits core sessions surfaces vfs; do
+          for pkg in traits core sessions surfaces vfs telemetry; do
             if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
               echo "ERROR: test artifacts found in packages/$pkg/dist/"
               find "packages/$pkg/dist" -name '*.test.*'
