@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/surfaces",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "Surface connection registry, inbound normalization, and outbound dispatch for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
