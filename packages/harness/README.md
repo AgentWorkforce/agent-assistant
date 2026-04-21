@@ -182,13 +182,86 @@ Do **not** treat it as a replacement for:
 - Relay-native collaboration
 - future tool-capable hosted execution work
 
+## Local command execution adapter
+
+The harness package also exposes a reusable `LocalCommandExecutionAdapter` for BYOH/local
+CLI execution. It is product-neutral: products keep assistant identity, policy, memory, and
+turn-context assembly, while the adapter owns only local process invocation and result
+normalization.
+
+Use it when a local harness can be represented as:
+- a command to spawn
+- an argv builder from `ExecutionRequest`
+- an output parser into normalized assistant output
+- declared `ExecutionCapabilities`
+
+```ts
+import {
+  LocalCommandExecutionAdapter,
+  type ExecutionRequest,
+} from '@agent-assistant/harness';
+
+const adapter = new LocalCommandExecutionAdapter({
+  backendId: 'my-local-harness',
+  command: 'my-harness',
+  capabilities: {
+    toolUse: 'adapter-mediated',
+    structuredToolCalls: true,
+    continuationSupport: 'none',
+    approvalInterrupts: 'none',
+    traceDepth: 'minimal',
+    attachments: false,
+  },
+  buildArgs(request: ExecutionRequest) {
+    return ['--json', '--prompt', request.message.text];
+  },
+  parseOutput(stdout) {
+    const parsed = JSON.parse(stdout) as { text?: string };
+    return parsed.text ? { text: parsed.text } : null;
+  },
+});
+```
+
+`ClaudeCodeExecutionAdapter` is now a preset over this same local-command primitive. That keeps
+Claude Code support intact while allowing other local harnesses to use the same
+`ExecutionAdapter` contract.
+
+## Agent Relay execution adapter
+
+For long-lived local harnesses, `AgentRelayExecutionAdapter` uses Agent Relay as the local
+control plane. It publishes a typed execution request to a Relay worker and waits for a typed
+execution result on the same thread.
+
+```ts
+import {
+  AgentRelayExecutionAdapter,
+} from '@agent-assistant/harness';
+
+const adapter = new AgentRelayExecutionAdapter({
+  cwd: process.cwd(),
+  channelId: 'nightcto-local-byoh',
+  workerName: 'nightcto-local-harness',
+  orchestratorName: 'nightcto-local-chat',
+});
+```
+
+The request message body is JSON with type `agent-assistant.execution-request.v1`.
+Workers reply with JSON type `agent-assistant.execution-result.v1` and an `executionResult`
+that follows the normal `ExecutionResult` contract. This keeps Claude Code, Codex, OpenCode,
+or a custom local worker behind Relay instead of baking provider-specific CLI argv into the
+product.
+
 ## Public API
 
 ```ts
 import {
+  AgentRelayExecutionAdapter,
   HarnessConfigError,
+  LocalCommandExecutionAdapter,
   OpenRouterExecutionAdapter,
+  createAgentRelayExecutionAdapter,
   createHarness,
+  createLocalCommandAdapter,
   createOpenRouterAdapter,
   type ExecutionAdapter,
   type ExecutionRequest,

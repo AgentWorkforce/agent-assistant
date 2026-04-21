@@ -20,6 +20,7 @@ export interface HarnessLimits {
 export interface HarnessTurnInput {
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     userId?: string;
     threadId?: string;
@@ -67,6 +68,7 @@ export interface HarnessModelAdapter {
 export interface HarnessModelInput {
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     userId?: string;
     threadId?: string;
@@ -126,6 +128,7 @@ export interface HarnessToolRegistry {
 export interface HarnessToolAvailabilityInput {
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     userId?: string;
     allowedToolNames?: string[];
@@ -145,6 +148,7 @@ export interface HarnessToolCall {
 export interface HarnessToolExecutionContext {
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     userId?: string;
     threadId?: string;
@@ -173,6 +177,7 @@ export interface HarnessApprovalAdapter {
 export interface HarnessApprovalRequestInput {
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     userId?: string;
     request: HarnessApprovalRequest;
@@ -267,6 +272,7 @@ export interface HarnessBaseTraceEvent {
     timestamp: string;
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     iteration?: number;
     toolCallCount?: number;
@@ -325,6 +331,7 @@ export interface HarnessHooks {
 export interface HarnessExecutionState {
     assistantId: string;
     turnId: string;
+    workspaceId?: string;
     sessionId?: string;
     userId?: string;
     threadId?: string;

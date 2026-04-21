@@ -87,6 +87,7 @@ async function runTurn(config, input) {
             ? await config.tools.listAvailable({
                 assistantId: input.assistantId,
                 turnId: input.turnId,
+                workspaceId: input.workspaceId,
                 sessionId: input.sessionId,
                 userId: input.userId,
                 allowedToolNames: input.allowedToolNames,
@@ -102,6 +103,7 @@ async function runTurn(config, input) {
             const modelInput = {
                 assistantId: input.assistantId,
                 turnId: input.turnId,
+                workspaceId: input.workspaceId,
                 sessionId: input.sessionId,
                 userId: input.userId,
                 threadId: input.threadId,
@@ -175,6 +177,7 @@ async function runTurn(config, input) {
                         ? await config.approvals.prepareRequest({
                             assistantId: input.assistantId,
                             turnId: input.turnId,
+                            workspaceId: input.workspaceId,
                             sessionId: input.sessionId,
                             userId: input.userId,
                             request: output.request,
@@ -234,6 +237,7 @@ async function runTurn(config, input) {
                         const result = await config.tools.execute(call, {
                             assistantId: input.assistantId,
                             turnId: input.turnId,
+                            workspaceId: input.workspaceId,
                             sessionId: input.sessionId,
                             userId: input.userId,
                             threadId: input.threadId,
@@ -368,6 +372,7 @@ function executionState(input, state, startedAt, config) {
     return {
         assistantId: input.assistantId,
         turnId: input.turnId,
+        workspaceId: input.workspaceId,
         sessionId: input.sessionId,
         userId: input.userId,
         threadId: input.threadId,
@@ -479,6 +484,7 @@ async function emit(config, input, state, partial) {
         timestamp: config.clock.nowIso(),
         assistantId: input.assistantId,
         turnId: input.turnId,
+        workspaceId: input.workspaceId,
         sessionId: input.sessionId,
         iteration: state.iteration,
         toolCallCount: state.toolCallCount,
@@ -499,6 +505,7 @@ async function emitFinishedSafely(config, input, state, result) {
             timestamp: config.clock.nowIso(),
             assistantId: input.assistantId,
             turnId: input.turnId,
+            workspaceId: input.workspaceId,
             sessionId: input.sessionId,
             iteration: state.iteration,
             toolCallCount: state.toolCallCount,

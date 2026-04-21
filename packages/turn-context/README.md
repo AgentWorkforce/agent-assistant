@@ -109,6 +109,36 @@ const result = await harness.runTurn({
 
 The `harnessProjection` output is always a valid `HarnessInstructions` + `HarnessPreparedContext`. No adapter or transformation is needed between `assemble()` and `harness.runTurn()`.
 
+## Direct execution adapter projection
+
+Products that execute through an `ExecutionAdapter` can project the same assembly into the
+canonical `ExecutionRequest` shape with `toExecutionRequest`.
+
+```ts
+import {
+  createTurnContextAssembler,
+  toExecutionRequest,
+} from '@agent-assistant/turn-context';
+
+const assembler = createTurnContextAssembler();
+const assembly = await assembler.assemble(input);
+
+const request = toExecutionRequest(assembly, incomingMessage, {
+  tools: readOnlyToolDescriptors,
+  requirements: { toolUse: 'allowed', traceDepth: 'standard' },
+  metadata: { route: 'founder-chat' },
+});
+
+const negotiation = adapter.negotiate(request);
+const result = negotiation.supported
+  ? await adapter.execute(request)
+  : { status: 'unsupported', degradation: negotiation.reasons };
+```
+
+The projection preserves assistant/session/user/thread ids, rendered instructions, context
+blocks, response style, message metadata, and optional tools/requirements/continuation metadata.
+Execution adapters stay downstream of turn-context; products still own identity and policy.
+
 ---
 
 ## Multi-source assembly with memory, enrichment, and guardrails
@@ -281,3 +311,8 @@ try {
   }
 }
 ```
+
+### `toExecutionRequest(assembly, userMessage, overrides?)`
+
+Projects a `TurnContextAssembly` and incoming message into the canonical
+`@agent-assistant/harness` `ExecutionRequest` used by execution adapters.

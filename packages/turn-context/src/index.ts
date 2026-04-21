@@ -2,6 +2,14 @@ export { createTurnContextAssembler } from './assembler.js';
 export type { CreateTurnContextAssemblerOptions } from './assembler.js';
 export { createMemoryTurnRetriever } from './memory-retriever.js';
 export type { CreateMemoryTurnRetrieverOptions } from './memory-retriever.js';
+export { projectToHarness, toExecutionRequest } from './projection.js';
+export type {
+  ExecutionRequestMessageInput,
+  ProjectedExecutionRequest,
+  ProjectedExecutionRequirements,
+  ProjectedExecutionToolDescriptor,
+  ToExecutionRequestOverrides,
+} from './projection.js';
 
 export type {
   // Assembler interface
