@@ -5,10 +5,15 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./agent-relay": {
+      "import": "./dist/adapter/agent-relay-adapter.js",
+      "types": "./dist/adapter/agent-relay-adapter.d.ts"
     },
     "./proof": {
       "import": "./dist/proof.js",
