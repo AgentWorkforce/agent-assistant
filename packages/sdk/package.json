@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/sdk",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "description": "Top-level facade for the Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
