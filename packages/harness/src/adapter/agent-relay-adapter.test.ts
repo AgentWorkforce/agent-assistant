@@ -183,8 +183,12 @@ describe('AgentRelayExecutionAdapter', () => {
           threadId: requestMessage.threadId,
           assistantId: 'nightcto-local-chat',
           executionResult: {
+            backendId: 'custom-worker',
             status: 'ok',
             answer: 'E2E_OK: local git status was inspected.',
+            structured: {
+              repoStatus: 'dirty',
+            },
             toolCalls: [
               {
                 name: 'Bash(git status:*)',
@@ -211,6 +215,7 @@ describe('AgentRelayExecutionAdapter', () => {
       output: {
         text: 'E2E_OK: local git status was inspected.',
         structured: {
+          repoStatus: 'dirty',
           toolCalls: [
             {
               name: 'Bash(git status:*)',
@@ -220,7 +225,7 @@ describe('AgentRelayExecutionAdapter', () => {
       },
       metadata: {
         relay: {
-          workerBackendId: 'agent-relay-worker',
+          workerBackendId: 'custom-worker',
         },
         normalizedFromRelayWorker: true,
       },

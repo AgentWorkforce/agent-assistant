@@ -260,6 +260,17 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
   }
 }
 
+function isCanonicalExecutionStatus(status: unknown): status is ExecutionResult['status'] {
+  return (
+    status === 'completed' ||
+    status === 'needs_clarification' ||
+    status === 'awaiting_approval' ||
+    status === 'deferred' ||
+    status === 'failed' ||
+    status === 'unsupported'
+  );
+}
+
 function isExecutionResult(value: unknown): value is ExecutionResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
@@ -267,7 +278,7 @@ function isExecutionResult(value: unknown): value is ExecutionResult {
 
   const candidate = value as Partial<ExecutionResult>;
 
-  return typeof candidate.backendId === 'string' && typeof candidate.status === 'string';
+  return typeof candidate.backendId === 'string' && isCanonicalExecutionStatus(candidate.status);
 }
 
 function readString(record: Record<string, unknown>, keys: string[]): string | undefined {
@@ -299,14 +310,7 @@ function readOutputText(record: Record<string, unknown>): string | undefined {
 }
 
 function normalizeWorkerStatus(status: unknown): ExecutionResult['status'] | undefined {
-  if (
-    status === 'completed' ||
-    status === 'needs_clarification' ||
-    status === 'awaiting_approval' ||
-    status === 'deferred' ||
-    status === 'failed' ||
-    status === 'unsupported'
-  ) {
+  if (isCanonicalExecutionStatus(status)) {
     return status;
   }
 
@@ -339,8 +343,13 @@ function coerceExecutionResult(value: unknown): ExecutionResult | null {
   }
 
   const structured: Record<string, unknown> = {};
+  const structuredValue = record.structured;
 
-  for (const key of ['structured', 'toolCalls', 'tool_calls']) {
+  if (structuredValue && typeof structuredValue === 'object' && !Array.isArray(structuredValue)) {
+    Object.assign(structured, structuredValue);
+  }
+
+  for (const key of ['toolCalls', 'tool_calls']) {
     const valueForKey = record[key];
 
     if (valueForKey !== undefined) {
