@@ -182,13 +182,59 @@ Do **not** treat it as a replacement for:
 - Relay-native collaboration
 - future tool-capable hosted execution work
 
+## Local command execution adapter
+
+The harness package also exposes a reusable `LocalCommandExecutionAdapter` for BYOH/local
+CLI execution. It is product-neutral: products keep assistant identity, policy, memory, and
+turn-context assembly, while the adapter owns only local process invocation and result
+normalization.
+
+Use it when a local harness can be represented as:
+- a command to spawn
+- an argv builder from `ExecutionRequest`
+- an output parser into normalized assistant output
+- declared `ExecutionCapabilities`
+
+```ts
+import {
+  LocalCommandExecutionAdapter,
+  type ExecutionRequest,
+} from '@agent-assistant/harness';
+
+const adapter = new LocalCommandExecutionAdapter({
+  backendId: 'my-local-harness',
+  command: 'my-harness',
+  capabilities: {
+    toolUse: 'adapter-mediated',
+    structuredToolCalls: true,
+    continuationSupport: 'none',
+    approvalInterrupts: 'none',
+    traceDepth: 'minimal',
+    attachments: false,
+  },
+  buildArgs(request: ExecutionRequest) {
+    return ['--json', '--prompt', request.message.text];
+  },
+  parseOutput(stdout) {
+    const parsed = JSON.parse(stdout) as { text?: string };
+    return parsed.text ? { text: parsed.text } : null;
+  },
+});
+```
+
+`ClaudeCodeExecutionAdapter` is now a preset over this same local-command primitive. That keeps
+Claude Code support intact while allowing other local harnesses to use the same
+`ExecutionAdapter` contract.
+
 ## Public API
 
 ```ts
 import {
   HarnessConfigError,
+  LocalCommandExecutionAdapter,
   OpenRouterExecutionAdapter,
   createHarness,
+  createLocalCommandAdapter,
   createOpenRouterAdapter,
   type ExecutionAdapter,
   type ExecutionRequest,
