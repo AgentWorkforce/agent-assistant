@@ -270,6 +270,97 @@ function isExecutionResult(value: unknown): value is ExecutionResult {
   return typeof candidate.backendId === 'string' && typeof candidate.status === 'string';
 }
 
+function readString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function readOutputText(record: Record<string, unknown>): string | undefined {
+  const directText = readString(record, ['text', 'answer', 'output_text', 'outputText', 'result']);
+
+  if (directText) {
+    return directText;
+  }
+
+  const output = record.output;
+
+  if (output && typeof output === 'object' && !Array.isArray(output)) {
+    return readString(output as Record<string, unknown>, ['text', 'answer', 'output_text', 'outputText']);
+  }
+
+  return undefined;
+}
+
+function normalizeWorkerStatus(status: unknown): ExecutionResult['status'] | undefined {
+  if (
+    status === 'completed' ||
+    status === 'needs_clarification' ||
+    status === 'awaiting_approval' ||
+    status === 'deferred' ||
+    status === 'failed' ||
+    status === 'unsupported'
+  ) {
+    return status;
+  }
+
+  if (status === 'ok' || status === 'success' || status === 'done') {
+    return 'completed';
+  }
+
+  if (status === undefined || status === null) {
+    return undefined;
+  }
+
+  return 'failed';
+}
+
+function coerceExecutionResult(value: unknown): ExecutionResult | null {
+  if (isExecutionResult(value)) {
+    return value;
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const status = normalizeWorkerStatus(record.status);
+  const text = readOutputText(record);
+
+  if (!status || !text) {
+    return null;
+  }
+
+  const structured: Record<string, unknown> = {};
+
+  for (const key of ['structured', 'toolCalls', 'tool_calls']) {
+    const valueForKey = record[key];
+
+    if (valueForKey !== undefined) {
+      structured[key] = valueForKey;
+    }
+  }
+
+  return {
+    backendId: readString(record, ['backendId', 'backend_id', 'backend']) ?? 'agent-relay-worker',
+    status,
+    output: {
+      text,
+      ...(Object.keys(structured).length > 0 ? { structured } : {}),
+    },
+    metadata: {
+      normalizedFromRelayWorker: true,
+    },
+  };
+}
+
 function parseResultMessage(raw: string): AgentRelayExecutionResultMessage | null {
   const record = parseJsonObject(raw);
 
@@ -282,8 +373,9 @@ function parseResultMessage(raw: string): AgentRelayExecutionResultMessage | nul
   }
 
   const result = record.executionResult ?? record.result;
+  const executionResult = coerceExecutionResult(result);
 
-  if (!isExecutionResult(result)) {
+  if (!executionResult) {
     return null;
   }
 
@@ -298,7 +390,7 @@ function parseResultMessage(raw: string): AgentRelayExecutionResultMessage | nul
     type: record.type,
     turnId,
     threadId,
-    executionResult: result,
+    executionResult,
   } as AgentRelayExecutionResultMessage;
 }
 
@@ -312,7 +404,10 @@ function buildDefaultWorkerTask(input: {
     'For each request, preserve the assistant identity and instructions inside request.instructions.',
     'Use only the tools described by request.tools and respect read-only metadata.',
     'Send the result back to the sender on the same thread using Relay messaging.',
-    `The response body must be JSON with type "${AGENT_RELAY_EXECUTION_RESULT_TYPE}", the same turnId/threadId, and executionResult shaped like Agent Assistant ExecutionResult.`,
+    `The response body must be JSON with type "${AGENT_RELAY_EXECUTION_RESULT_TYPE}", the same turnId/threadId, and an executionResult shaped exactly like Agent Assistant ExecutionResult.`,
+    'Use executionResult.status "completed" for successful turns, not "ok" or "success".',
+    'Put the final assistant response in executionResult.output.text, not top-level answer/text.',
+    'Minimum successful response shape: {"type":"agent-assistant.execution-result.v1","turnId":"<same>","threadId":"<same>","executionResult":{"backendId":"agent-relay-worker","status":"completed","output":{"text":"<final response>"}}}.',
     `Default channel: ${input.channelId}.`,
   ].join('\n');
 }
