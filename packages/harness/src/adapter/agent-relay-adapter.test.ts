@@ -44,6 +44,7 @@ class FakeRelayTransport implements AgentRelayExecutionTransport {
     respond?: boolean;
     failSend?: boolean;
     failSpawn?: boolean;
+    responseBody?: (input: SendMessageInput) => Record<string, unknown>;
   } = {}) {}
 
   async start(): Promise<void> {
@@ -59,24 +60,26 @@ class FakeRelayTransport implements AgentRelayExecutionTransport {
     if (this.options.respond ?? true) {
       const requestMessage = JSON.parse(input.text) as { turnId: string; threadId: string };
       queueMicrotask(() => {
+        const body = this.options.responseBody?.(input) ?? {
+          type: AGENT_RELAY_EXECUTION_RESULT_TYPE,
+          turnId: requestMessage.turnId,
+          threadId: requestMessage.threadId,
+          executionResult: {
+            backendId: 'worker-backend',
+            status: 'completed',
+            output: {
+              text: 'Relay worker completed the turn.',
+            },
+          } satisfies ExecutionResult,
+        };
+
         this.emit({
           kind: 'relay_inbound',
           event_id: 'evt-result-1',
           from: 'local-worker',
           target: input.from ?? 'agent-assistant',
           thread_id: input.threadId,
-          body: JSON.stringify({
-            type: AGENT_RELAY_EXECUTION_RESULT_TYPE,
-            turnId: requestMessage.turnId,
-            threadId: requestMessage.threadId,
-            executionResult: {
-              backendId: 'worker-backend',
-              status: 'completed',
-              output: {
-                text: 'Relay worker completed the turn.',
-              },
-            } satisfies ExecutionResult,
-          }),
+          body: JSON.stringify(body),
         });
       });
     }
@@ -165,6 +168,66 @@ describe('AgentRelayExecutionAdapter', () => {
           channelId: 'nightcto-local',
           target: 'local-worker',
         },
+      },
+    });
+  });
+
+  it('normalizes a practical worker result that uses status ok and answer', async () => {
+    const relay = new FakeRelayTransport({
+      responseBody(input) {
+        const requestMessage = JSON.parse(input.text) as { turnId: string; threadId: string };
+
+        return {
+          type: AGENT_RELAY_EXECUTION_RESULT_TYPE,
+          turnId: requestMessage.turnId,
+          threadId: requestMessage.threadId,
+          assistantId: 'nightcto-local-chat',
+          executionResult: {
+            backendId: 'custom-worker',
+            status: 'ok',
+            answer: 'E2E_OK: local git status was inspected.',
+            structured: {
+              repoStatus: 'dirty',
+            },
+            toolCalls: [
+              {
+                name: 'Bash(git status:*)',
+                input: { command: 'git status' },
+                output: 'On branch codex/example; no staged changes.',
+              },
+            ],
+          },
+        };
+      },
+    });
+    const adapter = new AgentRelayExecutionAdapter({
+      relay,
+      workerName: 'local-worker',
+      orchestratorName: 'nightcto',
+      channelId: 'nightcto-local',
+    });
+
+    const result = await adapter.execute(baseRequest());
+
+    expect(result).toMatchObject({
+      backendId: 'agent-relay',
+      status: 'completed',
+      output: {
+        text: 'E2E_OK: local git status was inspected.',
+        structured: {
+          repoStatus: 'dirty',
+          toolCalls: [
+            {
+              name: 'Bash(git status:*)',
+            },
+          ],
+        },
+      },
+      metadata: {
+        relay: {
+          workerBackendId: 'custom-worker',
+        },
+        normalizedFromRelayWorker: true,
       },
     });
   });

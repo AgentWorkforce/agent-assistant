@@ -247,9 +247,12 @@ const adapter = new AgentRelayExecutionAdapter({
 
 The request message body is JSON with type `agent-assistant.execution-request.v1`.
 Workers reply with JSON type `agent-assistant.execution-result.v1` and an `executionResult`
-that follows the normal `ExecutionResult` contract. This keeps Claude Code, Codex, OpenCode,
-or a custom local worker behind Relay instead of baking provider-specific CLI argv into the
-product.
+that follows the normal `ExecutionResult` contract. Successful turns should use
+`executionResult.status: "completed"` and put the assistant answer in
+`executionResult.output.text`. The adapter also tolerates common local-worker shorthands
+such as `status: "ok"` plus `answer` and normalizes them into the same `ExecutionResult`
+shape. This keeps Claude Code, Codex, OpenCode, or a custom local worker behind Relay
+instead of baking provider-specific CLI argv into the product.
 
 ## Public API
 
