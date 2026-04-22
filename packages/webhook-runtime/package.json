@@ -27,10 +27,11 @@
   ],
   "scripts": {
     "build": "tsc",
+    "test": "vitest run",
     "example:sim": "tsx examples/slack-to-github-sim.ts"
   },
   "dependencies": {
-    "@agent-assistant/specialists": "file:../specialists",
+    "@agent-assistant/specialists": "^0.3.5",
     "@hono/node-server": "^2.0.0",
     "hono": "^4"
   },
@@ -39,5 +40,12 @@
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgentWorkforce/agent-assistant"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
