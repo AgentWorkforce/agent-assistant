@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-04-16
+Date: 2026-04-22
 
 Authoritative snapshot of package implementation status, local test results, and the most important remaining gaps. This document is a status record, not a design doc — see [docs/index.md](index.md) for navigation and [docs/specs/](specs/) for canonical contracts.
 
@@ -8,7 +8,7 @@ Current architecture framing reminder: `@agent-assistant/harness` is the bounded
 
 ---
 
-## Test Results (2026-04-16)
+## Test Results (2026-04-22)
 
 Run: `npx vitest run`
 
@@ -16,7 +16,7 @@ Run: `npx vitest run`
 | --- | --- | --- | --- |
 | `@agent-assistant/core` | `core.test.ts`, `core-traits.test.ts`, `core-sessions.test.ts`, `core-sessions-surfaces.test.ts` | 16 + 9 + 9 + 6 | **PASS** |
 | `@agent-assistant/sessions` | `sessions.test.ts` | 25 | **PASS** |
-| `@agent-assistant/surfaces` | `surfaces.test.ts`, `slack-thread-gate.test.ts` | 28 + 11 | **PASS** |
+| `@agent-assistant/surfaces` | `surfaces.test.ts`, `slack-thread-gate.test.ts`, `slack-event-dedup.test.ts`, `slack-ingress.test.ts` | 28 + 11 + 9 + 4 | **PASS** |
 | `@agent-assistant/routing` | `routing.test.ts` | 52 | **PASS** |
 | `@agent-assistant/traits` | `traits.test.ts` | 32 | **PASS** |
 | `@agent-assistant/proactive` | `proactive.test.ts` | 53 | **PASS** |
@@ -30,7 +30,7 @@ Run: `npx vitest run`
 | `@agent-assistant/inbox` | `inbox.test.ts`, `memory-projector.test.ts`, `enrichment-projector.test.ts` | 15 + 13 + 11 | **PASS** |
 | `@agent-assistant/integration-tests` | `integration.test.ts` | 14 | **PASS** |
 
-**Total verified passing: 566 tests across 23 test files**
+**Total verified passing: 579 tests across 24 test files**
 
 ---
 
@@ -40,7 +40,7 @@ Run: `npx vitest run`
 | --- | --- | --- |
 | `@agent-assistant/core` | **IMPLEMENTED** | Stable runtime shell |
 | `@agent-assistant/sessions` | **IMPLEMENTED** | Stable continuity primitive |
-| `@agent-assistant/surfaces` | **IMPLEMENTED** | Includes Slack thread gate coverage |
+| `@agent-assistant/surfaces` | **IMPLEMENTED** | Includes Slack thread gate and event dedup coverage |
 | `@agent-assistant/routing` | **IMPLEMENTED** | Routing hardening landed |
 | `@agent-assistant/connectivity` | **IMPLEMENTED** | Package-local publishability cleanup landed |
 | `@agent-assistant/coordination` | **IMPLEMENTED** | Coordination package currently green locally |
@@ -67,7 +67,7 @@ Older status docs in this repo may still imply some combination of the following
 - coordination is blocked in practice
 - test counts are much lower than current reality
 
-Those statements are no longer accurate for the current local repo state verified on 2026-04-16.
+Those statements are no longer accurate for the current local repo state verified on 2026-04-22.
 
 ---
 

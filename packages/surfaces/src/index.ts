@@ -39,3 +39,15 @@ export type {
   SlackIngressClassification,
   SlackIngressKind,
 } from "./slack-ingress.js";
+
+export {
+  SlackEventDedupGate,
+  getSlackDeduplicationKey,
+} from "./slack-event-dedup.js";
+export type {
+  SlackEventDedupDecision,
+  SlackEventDedupDropReason,
+  SlackEventDedupGateOptions,
+  SlackEventDedupInput,
+  SlackEventDedupStore,
+} from "./slack-event-dedup.js";
