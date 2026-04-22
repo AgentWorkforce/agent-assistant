@@ -84,7 +84,11 @@ jobs:
               # telemetry depends on harness (HarnessUsage / HarnessResult types) —
               # must build + publish after it. Order preserved by max-parallel: 1
               # in the publish matrix, so telemetry publish waits for harness.
-              PACKAGES='["traits","connectivity","coordination","core","sessions","surfaces","policy","proactive","harness","telemetry","memory","turn-context","inbox","continuation","sdk","vfs","specialists"]'
+              # webhook-runtime depends on specialists (SpecialistRegistry /
+              # DelegationRequest types) — must build + publish after it. Same
+              # max-parallel: 1 contract keeps webhook-runtime's publish after
+              # specialists'.
+              PACKAGES='["traits","connectivity","coordination","core","sessions","surfaces","policy","proactive","harness","telemetry","memory","turn-context","inbox","continuation","sdk","vfs","specialists","webhook-runtime"]'
               FIRST='traits'
               ;;
             *)
@@ -161,7 +165,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORDER=(traits connectivity coordination core sessions surfaces policy proactive harness telemetry memory turn-context inbox continuation sdk vfs specialists)
+          ORDER=(traits connectivity coordination core sessions surfaces policy proactive harness telemetry memory turn-context inbox continuation sdk vfs specialists webhook-runtime)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
