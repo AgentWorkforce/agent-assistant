@@ -30,7 +30,7 @@
     "example:sim": "tsx examples/slack-to-github-sim.ts"
   },
   "dependencies": {
-    "@agent-assistant/specialists": "workspace:*",
+    "@agent-assistant/specialists": "file:../specialists",
     "@hono/node-server": "^2.0.0",
     "hono": "^4"
   },

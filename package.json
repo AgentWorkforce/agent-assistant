@@ -22,7 +22,8 @@
     "packages/sdk",
     "packages/specialists",
     "packages/telemetry",
-    "packages/examples"
+    "packages/examples",
+    "packages/webhook-runtime"
   ],
   "scripts": {
     "build:sdk": "npm run build -w @agent-assistant/sdk"

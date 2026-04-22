@@ -64,7 +64,7 @@ function readNangoProvider(envelope: JsonRecord): string | undefined {
   return readString(envelope.from) ?? readString(envelope.provider);
 }
 
-function extractNangoSlackEvent(rawBody: string): unknown {
+function validateNangoSlackEnvelope(rawBody: string): JsonRecord {
   const envelope = parseJsonRecord(rawBody, "Nango webhook payload");
   const provider = readNangoProvider(envelope)?.toLowerCase();
 
@@ -76,7 +76,7 @@ function extractNangoSlackEvent(rawBody: string): unknown {
     throw new Error("Nango Slack webhook payload is missing payload");
   }
 
-  return envelope.payload;
+  return envelope;
 }
 
 function routeUrlHost(address: AddressInfo, fallback: string): string {
@@ -147,8 +147,8 @@ export function startHttpRuntime({
     let normalized: NormalizedWebhook;
 
     try {
-      const slackEvent = extractNangoSlackEvent(rawBody);
-      normalized = parseSlackEvent(slackEvent);
+      const envelope = validateNangoSlackEnvelope(rawBody);
+      normalized = parseSlackEvent(envelope);
     } catch (error) {
       const message = errorToMessage(error);
       await logger?.warn?.("Nango webhook rejected", {

@@ -172,12 +172,45 @@ describe("startHttpRuntime", () => {
         provider: "slack",
         workspaceId: "T_NANGO_HTTP",
         eventType: "message",
+        connectionId: "conn_http",
+        path: "nango.forward",
         data: {
           team_id: "T_NANGO_HTTP",
           channel: "C_NANGO_HTTP",
           user: "U_NANGO_HTTP",
           text: "hello through nango",
+          nango: {
+            from: "slack",
+            connectionId: "conn_http",
+            type: "forward",
+          },
         },
+      });
+    } finally {
+      await runtime.stop();
+    }
+  });
+
+  it("rejects a Nango envelope whose from is not slack", async () => {
+    const logger = quietLogger();
+    const registry = createWebhookRegistry({ logger });
+    const runtime = startHttpRuntime({ registry, port: 0, logger });
+
+    try {
+      const response = await fetch(`${runtime.url}/webhooks/nango`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "forward",
+          from: "github",
+          connectionId: "conn_gh",
+          payload: { action: "opened" },
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: expect.stringContaining("Unsupported Nango provider"),
       });
     } finally {
       await runtime.stop();

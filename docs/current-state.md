@@ -29,8 +29,9 @@ Run: `npx vitest run`
 | `@agent-assistant/continuation` | `continuation.test.ts` | 49 | **PASS** |
 | `@agent-assistant/inbox` | `inbox.test.ts`, `memory-projector.test.ts`, `enrichment-projector.test.ts` | 15 + 13 + 11 | **PASS** |
 | `@agent-assistant/integration-tests` | `integration.test.ts` | 14 | **PASS** |
+| `@agent-assistant/webhook-runtime` | `http-runtime.test.ts`, `slack-parser.test.ts`, `specialist-bridge.test.ts`, `webhook-registry.test.ts` | 4 + 4 + 2 + 9 | **PASS** |
 
-**Total verified passing: 579 tests across 24 test files**
+**Total verified passing: 598 tests across 28 test files**
 
 ---
 
@@ -54,6 +55,7 @@ Run: `npx vitest run`
 | `@agent-assistant/policy` | **IMPLEMENTED** | Stable approval / governance seam |
 | `@agent-assistant/sdk` | **IMPLEMENTED** | Top-level facade package |
 | `@agent-assistant/integration-tests` | **IMPLEMENTED** | Private integration package for cross-package coverage |
+| `@agent-assistant/webhook-runtime` | **IMPLEMENTED** | Shared webhook → fanout → specialist primitive; replaces hand-rolled plumbing in sage / nightcto / My-Senior-Dev |
 | `@agent-assistant/examples` | reference package | Reference adoption examples |
 
 ---
