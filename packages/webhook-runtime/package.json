@@ -1,0 +1,43 @@
+{
+  "name": "@agent-assistant/webhook-runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./http-runtime": {
+      "import": "./dist/http-runtime.js",
+      "types": "./dist/http-runtime.d.ts"
+    },
+    "./slack-parser": {
+      "import": "./dist/slack-parser.js",
+      "types": "./dist/slack-parser.d.ts"
+    },
+    "./specialist-bridge": {
+      "import": "./dist/specialist-bridge.js",
+      "types": "./dist/specialist-bridge.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "example:sim": "tsx examples/slack-to-github-sim.ts"
+  },
+  "dependencies": {
+    "@agent-assistant/specialists": "workspace:*",
+    "@hono/node-server": "^2.0.0",
+    "hono": "^4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
