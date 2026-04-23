@@ -17,6 +17,8 @@
   ],
   "exclude": [
     "src/**/*.test.ts",
+    "src/adapter/proof/**/*.ts",
+    "src/proof.ts",
     "dist"
   ]
 }
