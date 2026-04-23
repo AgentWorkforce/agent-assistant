@@ -24,7 +24,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && npm --prefix ../routing run build && npm --prefix ../connectivity run build && npm --prefix ../traits run build && npm --prefix ../coordination run build && tsc -p tsconfig.proof.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },

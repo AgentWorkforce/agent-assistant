@@ -177,7 +177,7 @@ export function createValidationSpecialist(
     description: 'Validates BYOH execution results and emits connectivity signals.',
     capabilities: ['execution-validation', 'proof-signals'],
     handler: {
-      async execute(instruction, context) {
+      async execute(instruction: string, context: { threadId?: string }) {
         const result = validateExecutionResult(instruction, {
           ...config,
           threadId: context.threadId || config.threadId,
