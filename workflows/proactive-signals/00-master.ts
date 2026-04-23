@@ -21,10 +21,15 @@ import { applyAgentAssistantRepoSetup } from '../lib/agent-assistant-repo-setup.
 const BRANCH = 'feat/proactive-signals';
 const LOG_DIR = 'logs/proactive-signals-master';
 
-// Wrapped in bash -c because cloud /bin/sh is dash, which doesn't support
-// ${PIPESTATUS[0]}. Per memory [agent-relay run exit code], the runner can
-// exit 0 even when the inner workflow fails, so we check both the pipeline
-// exit code AND the log text for "Workflow status: failed".
+// Wrapped in bash -c '...' (SINGLE quotes) because cloud /bin/sh is dash,
+// which doesn't support ${PIPESTATUS[0]}. Single quotes prevent sh from
+// expanding $status / ${PIPESTATUS[0]} before bash sees them. Using
+// double quotes (via JSON.stringify) caused "sh: Bad substitution" because
+// sh evaluated the bash-only array subscript first.
+//
+// Per memory [agent-relay run exit code], the runner can exit 0 even when
+// the inner workflow fails, so we check both the pipeline exit code AND
+// the log text for "Workflow status: failed".
 const SUB = (file: string) => {
   const logPath = `${LOG_DIR}/${file}.log`;
   const script = [
@@ -35,7 +40,7 @@ const SUB = (file: string) => {
     `if grep -q "Workflow status: failed" ${logPath}; then echo "SUB_WORKFLOW_REPORTED_FAILED"; exit 1; fi`,
     `echo "SUB_WORKFLOW_OK: ${file}"`,
   ].join('; ');
-  return `bash -c ${JSON.stringify(script)}`;
+  return `bash -c '${script}'`;
 };
 
 async function main() {
