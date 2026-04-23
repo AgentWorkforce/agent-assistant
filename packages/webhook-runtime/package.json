@@ -27,6 +27,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "pretest": "npm --prefix ../harness run build && npm --prefix ../specialists run build",
     "test": "vitest run",
     "cli": "tsx examples/cli.ts",
     "worker": "tsx examples/byoh-worker.ts",
