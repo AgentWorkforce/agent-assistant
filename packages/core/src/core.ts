@@ -319,19 +319,26 @@ export function createAssistant(
 
     drainWaiter ??= createDeferred();
     const drainTimeoutMs = constraints.handlerTimeoutMs + DRAIN_MARGIN_MS;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
-    await Promise.race([
-      drainWaiter.promise,
-      new Promise<void>((_, reject) => {
-        setTimeout(() => {
-          reject(
-            new Error(
-              `Timed out waiting ${drainTimeoutMs}ms for in-flight handlers to drain`,
-            ),
-          );
-        }, drainTimeoutMs);
-      }),
-    ]);
+    try {
+      await Promise.race([
+        drainWaiter.promise,
+        new Promise<void>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(
+              new Error(
+                `Timed out waiting ${drainTimeoutMs}ms for in-flight handlers to drain`,
+              ),
+            );
+          }, drainTimeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 
   function runNext(): void {
