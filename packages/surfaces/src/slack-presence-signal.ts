@@ -1,6 +1,14 @@
-import type { ProactiveSignal } from '@agent-assistant/proactive';
-
-type SlackPresenceSignal = Pick<ProactiveSignal, 'kind' | 'workspaceId' | 'subjectId' | 'payload'>;
+// Locally-defined structural type matching @agent-assistant/proactive's
+// ProactiveSignal partial. Duplicated here to avoid a circular type
+// dependency between surfaces and proactive (proactive also imports
+// BotChannel from this package). Structurally assignable to the wider
+// Pick<ProactiveSignal, ...> expected by recordSignal().
+type SlackPresenceSignal = {
+  kind: 'slack.presence' | 'slack.status';
+  workspaceId: string;
+  subjectId: string;
+  payload: Record<string, unknown>;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

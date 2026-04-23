@@ -118,10 +118,18 @@ jobs:
         working-directory: packages/sessions
         run: npx tsc --noEmit -p tsconfig.json
 
-      # proactive must be built BEFORE surfaces — surfaces imports the
-      # ProactiveSignal type from @agent-assistant/proactive for its signal
-      # classifiers.
-      - name: Build — proactive (surfaces dep)
+      - name: Build — surfaces
+        working-directory: packages/surfaces
+        run: npm run build
+
+      - name: Typecheck — surfaces
+        working-directory: packages/surfaces
+        run: npx tsc --noEmit -p tsconfig.json
+
+      # proactive must be built AFTER surfaces — proactive imports the
+      # BotChannel type from @agent-assistant/surfaces (added in #36's
+      # channel-picker and notify-channel-resolver).
+      - name: Build — proactive (needs surfaces)
         working-directory: packages/proactive
         run: npm run build
 
@@ -132,14 +140,6 @@ jobs:
       - name: Run tests — proactive
         working-directory: packages/proactive
         run: npx vitest run
-
-      - name: Build — surfaces
-        working-directory: packages/surfaces
-        run: npm run build
-
-      - name: Typecheck — surfaces
-        working-directory: packages/surfaces
-        run: npx tsc --noEmit -p tsconfig.json
 
       - name: Build — vfs
         working-directory: packages/vfs

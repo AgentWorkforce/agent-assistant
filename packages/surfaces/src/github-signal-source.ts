@@ -1,9 +1,14 @@
-import type { ProactiveSignal } from '@agent-assistant/proactive';
-
-type GithubProactiveSignal = Pick<
-  ProactiveSignal,
-  'kind' | 'workspaceId' | 'subjectId' | 'payload'
->;
+// Locally-defined structural type matching @agent-assistant/proactive's
+// ProactiveSignal partial. Duplicated here to avoid a circular type
+// dependency between surfaces and proactive (proactive also imports
+// BotChannel from this package). Structurally assignable to the wider
+// Pick<ProactiveSignal, ...> expected by recordSignal().
+type GithubProactiveSignal = {
+  kind: 'github.pr_closed' | 'github.pr_review_submitted';
+  workspaceId: string;
+  subjectId: string;
+  payload: Record<string, unknown>;
+};
 
 function readObject(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
