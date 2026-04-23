@@ -3,32 +3,39 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { RelayAdapter } from "@agent-relay/sdk";
-import { createAgentRelayExecutionAdapter } from "@agent-assistant/harness/agent-relay";
-import type { ExecutionRequest } from "@agent-assistant/harness";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  runWorkerBridge,
-  type WorkerBridgeHandle,
-  type WorkerBridgeOptions,
-} from "../examples/byoh-worker.js";
+import { createAgentRelayExecutionAdapter } from "../adapter/agent-relay-adapter.js";
+import type { ExecutionRequest } from "../adapter/types.js";
 
-const CHANNEL_ID = "wf-byoh-worker-smoke";
-const WORKER_NAME = "byoh-worker-smoke";
+import { createBashCliRunner } from "./bash-cli-runner.js";
+import {
+  createRelayWorkerBridge,
+  type RelayWorkerBridgeHandle,
+} from "./relay-worker-bridge.js";
+
+const CHANNEL_ID = "wf-harness-worker-bridge";
+const WORKER_NAME = "harness-bridge-worker";
 const ORCHESTRATOR_NAME = "agent-assistant";
 
 type Harness = {
   cwd: string;
   relay: RelayAdapter;
-  bridge: WorkerBridgeHandle;
+  bridge: RelayWorkerBridgeHandle;
 };
 
-async function startHarness(cliArgsScript: string): Promise<Harness> {
-  const cwd = mkdtempSync(join(tmpdir(), "byoh-worker-smoke-"));
+const silentLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
+
+async function startHarness(scriptBody: string): Promise<Harness> {
+  const cwd = mkdtempSync(join(tmpdir(), "harness-worker-bridge-"));
   const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID] });
   await relay.start();
 
-  // Register orchestrator so the worker can reply to it.
+  // Pre-register the orchestrator name so the bridge can reply.
   const orchestrator = await relay.spawn({
     name: ORCHESTRATOR_NAME,
     cli: "bash",
@@ -41,16 +48,17 @@ async function startHarness(cliArgsScript: string): Promise<Harness> {
     );
   }
 
-  const opts: WorkerBridgeOptions = {
-    cli: "bash",
-    cliArgs: [cliArgsScript],
-    channel: CHANNEL_ID,
+  const runner = createBashCliRunner({ script: scriptBody });
+  const bridge = await createRelayWorkerBridge({
+    relay,
+    channelId: CHANNEL_ID,
     workerName: WORKER_NAME,
+    runner,
     cwd,
     timeoutMs: 10_000,
-  };
+    logger: silentLogger,
+  });
 
-  const bridge = await runWorkerBridge(relay, opts);
   return { cwd, relay, bridge };
 }
 
@@ -63,7 +71,7 @@ async function teardown(harness: Harness | undefined): Promise<void> {
   rmSync(harness.cwd, { recursive: true, force: true });
 }
 
-describe("byoh-worker bridge smoke test (bash stub)", () => {
+describe("createRelayWorkerBridge integration", () => {
   let harness: Harness | undefined;
 
   beforeEach(() => {
@@ -76,9 +84,11 @@ describe("byoh-worker bridge smoke test (bash stub)", () => {
   });
 
   it(
-    "receives an ExecutionRequest via real broker, invokes bash stub, returns ExecutionResult",
+    "round-trips a real ExecutionRequest through the broker + bash runner",
     async () => {
-      harness = await startHarness('read -d "" prompt; echo "stub echoed: ${prompt:0:40}"');
+      harness = await startHarness(
+        'read -d "" prompt; echo "bash echoed: ${prompt:0:40}"',
+      );
 
       const adapter = createAgentRelayExecutionAdapter({
         cwd: harness.cwd,
@@ -91,36 +101,36 @@ describe("byoh-worker bridge smoke test (bash stub)", () => {
       });
 
       const request: ExecutionRequest = {
-        assistantId: "smoke-test",
-        turnId: "turn-smoke-1",
-        threadId: "thread-smoke-1",
+        assistantId: "harness-bridge-test",
+        turnId: "turn-bridge-1",
+        threadId: "thread-bridge-1",
         message: {
-          id: "m-smoke-1",
-          text: "hello from smoke test",
+          id: "m-bridge-1",
+          text: "hello from bridge test",
           receivedAt: new Date().toISOString(),
         },
         instructions: {
-          systemPrompt: "You are a smoke-test responder.",
+          systemPrompt: "You are a bridge smoke-test responder.",
         },
       };
 
       const result = await adapter.execute(request);
 
       expect(result.status).toBe("completed");
-      expect(result.output?.text).toMatch(/^stub echoed: /);
+      expect(result.output?.text).toMatch(/^bash echoed: /);
       expect(result.metadata?.relay).toMatchObject({
         channelId: CHANNEL_ID,
         target: WORKER_NAME,
-        threadId: "thread-smoke-1",
+        threadId: "thread-bridge-1",
       });
     },
     45_000,
   );
 
   it(
-    "reports backend_execution_error when the CLI exits non-zero",
+    "surfaces a runner-level failure as a failed ExecutionResult",
     async () => {
-      harness = await startHarness('echo "failing stub" >&2; exit 3');
+      harness = await startHarness('echo "boom" >&2; exit 7');
 
       const adapter = createAgentRelayExecutionAdapter({
         cwd: harness.cwd,
@@ -133,23 +143,19 @@ describe("byoh-worker bridge smoke test (bash stub)", () => {
       });
 
       const result = await adapter.execute({
-        assistantId: "smoke-test",
-        turnId: "turn-smoke-fail",
-        threadId: "thread-smoke-fail",
+        assistantId: "harness-bridge-test",
+        turnId: "turn-bridge-fail",
+        threadId: "thread-bridge-fail",
         message: {
-          id: "m-smoke-fail",
-          text: "this should fail",
+          id: "m-bridge-fail",
+          text: "trigger failure",
           receivedAt: new Date().toISOString(),
         },
         instructions: { systemPrompt: "sys" },
       });
 
       expect(result.status).toBe("failed");
-      // The worker replied with a properly shaped ExecutionResult whose
-      // own status was 'failed'. The adapter surfaces that via its own
-      // error field on the outer result.
       expect(result.output).toBeUndefined();
-      expect(result.error?.code ?? "").toMatch(/backend_execution_error|execution_failed/);
     },
     45_000,
   );

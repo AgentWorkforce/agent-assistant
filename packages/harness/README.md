@@ -254,6 +254,65 @@ such as `status: "ok"` plus `answer` and normalizes them into the same `Executio
 shape. This keeps Claude Code, Codex, OpenCode, or a custom local worker behind Relay
 instead of baking provider-specific CLI argv into the product.
 
+### spawnWorker vs worker-bridge
+
+`AgentRelayExecutionAdapter`'s `spawnWorker.enabled` spawns a bare CLI as a
+Relay agent and expects it to respond protocol-compliant messages on its own.
+That only works if the spawned CLI has MCP tools wired to send typed Relay
+messages — not the default for most CLIs. Leaving `spawnWorker.enabled`
+false and running a **worker-bridge** process separately (see next section)
+is the recommended shape; the bridge does the protocol translation so the
+CLI is just a prompt-in, text-out subprocess.
+
+## Worker-bridge (`@agent-assistant/harness/worker-bridge`)
+
+Dual of the adapter. Listens for `agent-assistant.execution-request.v1`
+messages on a Relay channel, invokes a non-interactive CLI session
+(`claude -p`, `codex exec`, `opencode run`, `gemini -p`, or a bash stub for
+testing), captures stdout, and replies with a correctly-shaped
+`agent-assistant.execution-result.v1` message.
+
+```ts
+import { RelayAdapter } from '@agent-relay/sdk';
+import {
+  createClaudeCliRunner,
+  createRelayWorkerBridge,
+} from '@agent-assistant/harness/worker-bridge';
+
+const relay = new RelayAdapter({ cwd: process.cwd(), channels: ['specialists'] });
+await relay.start();
+
+const bridge = await createRelayWorkerBridge({
+  relay,
+  channelId: 'specialists',
+  workerName: 'specialist-worker',
+  runner: createClaudeCliRunner(),
+  timeoutMs: 120_000,
+});
+
+// ... later
+bridge.dispose();
+await relay.shutdown();
+```
+
+Runners provided: `createClaudeCliRunner`, `createCodexCliRunner`,
+`createOpenCodeCliRunner`, `createGeminiCliRunner`, and
+`createBashCliRunner` (for token-free testing). Each takes an optional
+`{ command, spawnFn }` config for overriding the executable or injecting a
+mock `child_process.spawn`.
+
+`CliRunner` is a minimal interface (`{ id, run(input) }`) so you can plug in
+your own CLI or embedded function.
+
+The adapter + bridge are intentionally separate processes in production:
+the adapter lives wherever your orchestrator runs, the bridge lives on the
+machine/container that should actually invoke the CLI. Cross-process broker
+discovery happens via `{cwd}/.agent-relay/connection.json`.
+
+`packages/webhook-runtime/examples/byoh-worker.ts` is a thin wrapper over
+this API that exposes `--cli`, `--channel`, `--worker-name`, `--model`, and
+`--timeout-ms` flags for the two-terminal local-experimentation flow.
+
 ## Public API
 
 ```ts
