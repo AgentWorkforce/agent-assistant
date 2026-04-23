@@ -357,6 +357,18 @@ export function createAssistant(
     }
   }
 
+  function reportError(error: Error, message: InboundMessage): void {
+    const userHandler = frozenDefinition.hooks?.onError;
+    if (typeof userHandler === 'function') {
+      userHandler(error, message);
+      return;
+    }
+    console.error(
+      `[${frozenDefinition.id ?? 'agent'}] unhandled capability handler error (capability=${message.capability}, id=${message.id}):`,
+      error,
+    );
+  }
+
   async function executeDispatch(dispatchJob: QueuedDispatch): Promise<void> {
     const { message, resolve, reject } = dispatchJob;
 
@@ -369,7 +381,7 @@ export function createAssistant(
 
       const handler = capabilityMap.get(message.capability);
       if (!handler) {
-        frozenDefinition.hooks?.onError?.(
+        reportError(
           new Error(`No capability registered for '${message.capability}'`),
           message,
         );
@@ -389,16 +401,13 @@ export function createAssistant(
       try {
         await withTimeout(handler, message, context, constraints.handlerTimeoutMs);
       } catch (error) {
-        frozenDefinition.hooks?.onError?.(
-          error instanceof Error ? error : new Error(String(error)),
-          message,
-        );
+        reportError(error instanceof Error ? error : new Error(String(error)), message);
       }
 
       resolve();
     } catch (error) {
       const wrappedError = error instanceof Error ? error : new Error(String(error));
-      frozenDefinition.hooks?.onError?.(wrappedError, message);
+      reportError(wrappedError, message);
       reject(wrappedError);
     } finally {
       inFlightCount -= 1;
