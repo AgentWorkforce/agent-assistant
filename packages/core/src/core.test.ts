@@ -401,6 +401,65 @@ describe('runtime lifecycle and dispatch', () => {
     ).rejects.toThrowError(OutboundEventError);
   });
 
+  it('logs handler errors to console.error when no onError hook is provided', async () => {
+    const adapters = createStubAdapters();
+    const failure = new Error('boom');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const runtime = createAssistant(
+      createDefinition({
+        capabilities: {
+          reply: () => {
+            throw failure;
+          },
+        },
+      }),
+      adapters,
+    );
+
+    try {
+      await runtime.start();
+      await runtime.dispatch(createMessage());
+
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      const [formatArg, errorArg] = consoleErrorSpy.mock.calls[0] ?? [];
+      expect(String(formatArg)).toContain('[assistant-1]');
+      expect(String(formatArg)).toContain('capability=reply');
+      expect(String(formatArg)).toContain('id=msg-1');
+      expect(errorArg).toBe(failure);
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
+  it('does not call console.error when an onError hook is provided', async () => {
+    const adapters = createStubAdapters();
+    const failure = new Error('boom');
+    const onError = vi.fn();
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const runtime = createAssistant(
+      createDefinition({
+        capabilities: {
+          reply: () => {
+            throw failure;
+          },
+        },
+        hooks: { onError },
+      }),
+      adapters,
+    );
+
+    try {
+      await runtime.start();
+      await runtime.dispatch(createMessage());
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith(failure, expect.objectContaining({ id: 'msg-1' }));
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
   it('wires inbound adapter messages into dispatch on start', async () => {
     const adapters = createStubAdapters();
     const handler = vi.fn();
