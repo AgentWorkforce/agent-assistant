@@ -66,3 +66,23 @@ export type {
   ResolvedNotifyChannel,
   ResolveNotifyChannelInput,
 } from './notify-channel-resolver.js';
+
+// ── Quiet hours + event-signal inbox ────────────────────────────────────────
+// Per-user timing gates and an inbox for event-driven proactive signals
+// (Slack presence, GitHub PR events, etc.) that the engine drains each tick.
+export { isInQuietHours, shouldDeferForQuietHours } from './quiet-hours.js';
+export type { QuietHoursConfig, QuietHoursStore } from './quiet-hours.js';
+
+export {
+  DEFAULT_TTL_MS_BY_KIND,
+  clearSignal,
+  drainSignals,
+  recordSignal,
+} from './signal-inbox.js';
+export type {
+  DrainOptions,
+  ProactiveSignal,
+  ProactiveSignalKind,
+  RecordSignalInput,
+  SignalInboxStore,
+} from './signal-inbox.js';

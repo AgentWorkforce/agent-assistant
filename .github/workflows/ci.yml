@@ -126,6 +126,21 @@ jobs:
         working-directory: packages/surfaces
         run: npx tsc --noEmit -p tsconfig.json
 
+      # proactive must be built AFTER surfaces — proactive imports the
+      # BotChannel type from @agent-assistant/surfaces (added in #36's
+      # channel-picker and notify-channel-resolver).
+      - name: Build — proactive (needs surfaces)
+        working-directory: packages/proactive
+        run: npm run build
+
+      - name: Typecheck — proactive
+        working-directory: packages/proactive
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Run tests — proactive
+        working-directory: packages/proactive
+        run: npx vitest run
+
       - name: Build — vfs
         working-directory: packages/vfs
         run: npm run build

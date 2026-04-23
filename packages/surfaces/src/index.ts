@@ -40,6 +40,10 @@ export type {
   SlackIngressKind,
 } from "./slack-ingress.js";
 
+export { classifySlackPresenceSignal } from './slack-presence-signal.js';
+
+export { classifyGithubProactiveSignal } from './github-signal-source.js';
+
 export {
   SlackEventDedupGate,
   getSlackDeduplicationKey,
