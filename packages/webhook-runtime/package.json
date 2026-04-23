@@ -39,7 +39,7 @@
     "hono": "^4"
   },
   "peerDependencies": {
-    "@agent-assistant/harness": "^0.3.8"
+    "@agent-assistant/harness": "^0.4.0"
   },
   "peerDependenciesMeta": {
     "@agent-assistant/harness": {
@@ -47,7 +47,7 @@
     }
   },
   "devDependencies": {
-    "@agent-assistant/harness": "^0.3.8",
+    "@agent-assistant/harness": "^0.4.0",
     "@types/node": "^24.6.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",

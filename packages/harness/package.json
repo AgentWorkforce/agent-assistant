@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@agent-assistant/connectivity": "^0.2.6",
-    "@agent-assistant/core": "^0.1.3",
+    "@agent-assistant/core": "^0.2.0",
     "@agent-assistant/coordination": "^0.2.6",
     "@agent-assistant/traits": "^0.2.0",
     "@agent-assistant/turn-context": "^0.2.0",
