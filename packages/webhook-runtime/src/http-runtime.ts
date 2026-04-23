@@ -87,7 +87,15 @@ function routeUrlHost(address: AddressInfo, fallback: string): string {
   return address.address.includes(":") ? `[${address.address}]` : address.address;
 }
 
-function resolveServerUrl(server: ServerType, fallbackHostname: string): string {
+function resolveServerUrl(
+  server: ServerType,
+  requestedPort: number,
+  fallbackHostname: string,
+): string {
+  if (requestedPort !== 0) {
+    return `http://${fallbackHostname}:${requestedPort}`;
+  }
+
   const address = server.address();
   if (!address || typeof address === "string") {
     throw new Error("HTTP runtime server address was not available");
@@ -166,7 +174,7 @@ export function startHttpRuntime({
     fetch: app.fetch,
     port,
   });
-  const url = resolveServerUrl(server, DEFAULT_HOSTNAME);
+  const url = resolveServerUrl(server, port, DEFAULT_HOSTNAME);
   let stopped = false;
 
   return {

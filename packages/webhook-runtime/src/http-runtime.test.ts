@@ -1,8 +1,22 @@
+import { createServer, type AddressInfo } from "node:net";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { startHttpRuntime } from "./http-runtime.js";
 import type { NormalizedWebhook, RegistryLogger } from "./types.js";
 import { createWebhookRegistry } from "./webhook-registry.js";
+
+async function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.unref();
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as AddressInfo;
+      probe.close(() => resolve(port));
+    });
+  });
+}
 
 function quietLogger(): Required<RegistryLogger> {
   return {
@@ -186,6 +200,28 @@ describe("startHttpRuntime", () => {
           },
         },
       });
+    } finally {
+      await runtime.stop();
+    }
+  });
+
+  it("resolves the URL synchronously when given a fixed port", async () => {
+    const logger = quietLogger();
+    const registry = createWebhookRegistry({ logger });
+    const port = await getFreePort();
+
+    const runtime = startHttpRuntime({ registry, port, logger });
+
+    try {
+      expect(runtime.url).toBe(`http://127.0.0.1:${port}`);
+
+      const response = await fetch(`${runtime.url}/webhooks/slack`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "not-json",
+      });
+
+      expect(response.status).toBe(400);
     } finally {
       await runtime.stop();
     }
