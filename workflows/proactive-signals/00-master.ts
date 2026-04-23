@@ -1,10 +1,11 @@
 /**
  * proactive-signals 00: Master executor
  *
- * Wave 1 (parallel): 01 quiet-hours | 02 signal-inbox
+ *   Phase 0: setup-branch + install-deps (via applyAgentAssistantRepoSetup)
+ *   Wave 1 (parallel): 01 quiet-hours | 02 signal-inbox
  *                         │ both edit only packages/proactive, different files
- *                         ▼  barrier: workspace typecheck
- * Wave 2 (parallel): 03 slack-presence  | 04 github-signal
+ *                         ▼  barrier: packages/proactive rebuild
+ *   Wave 2 (parallel): 03 slack-presence  | 04 github-signal
  *                         │ both depend on 02's ProactiveSignal type, edit surfaces
  *                         ▼  final: full workspace build + all tests
  *
@@ -15,6 +16,9 @@
 import { workflow } from '@agent-relay/sdk/workflows';
 import { mkdirSync } from 'node:fs';
 
+import { applyAgentAssistantRepoSetup } from '../lib/agent-assistant-repo-setup.ts';
+
+const BRANCH = 'feat/proactive-signals';
 const LOG_DIR = 'logs/proactive-signals-master';
 
 const SUB = (file: string) => `set -o pipefail; \
@@ -27,37 +31,31 @@ echo "SUB_WORKFLOW_OK: ${file}"`;
 async function main() {
   mkdirSync(LOG_DIR, { recursive: true });
 
-  const result = await workflow('aa-proactive-signals-master')
-    .description('Master — runs 01+02 in parallel, then 03+04 in parallel, with typecheck barriers')
+  const baseWf = workflow('aa-proactive-signals-master')
+    .description('Master — runs 01+02 in parallel, then 03+04 in parallel, with build barriers')
     .pattern('dag')
     .channel('wf-aa-proactive-signals-master')
     .maxConcurrency(3)
-    .timeout(7_200_000) // 2h
+    .timeout(7_200_000); // 2h
 
-    .step('preflight-git', {
-      type: 'deterministic',
-      command: 'git rev-parse --abbrev-ref HEAD && git status --short && echo PREFLIGHT_OK',
-      captureOutput: true,
-      failOnError: true,
-    })
-    .step('preflight-build', {
-      type: 'deterministic',
-      dependsOn: ['preflight-git'],
-      command: 'npm run build --workspaces --if-present 2>&1 | tail -10 && echo BASELINE_BUILD_OK',
-      failOnError: true,
-    })
+  // ─── Phase 0: Setup branch + deps (shared helper) ───────
+  const wf = applyAgentAssistantRepoSetup(baseWf, {
+    branch: BRANCH,
+    committerName: 'Proactive Signals Bot',
+  });
 
+  const result = await wf
     // ── Wave 1: primitives in @agent-assistant/proactive ────
     .step('wave1-01-quiet-hours', {
       type: 'deterministic',
-      dependsOn: ['preflight-build'],
+      dependsOn: ['install-deps'],
       command: SUB('01-quiet-hours.ts'),
       captureOutput: true,
       failOnError: true,
     })
     .step('wave1-02-signal-inbox', {
       type: 'deterministic',
-      dependsOn: ['preflight-build'],
+      dependsOn: ['install-deps'],
       command: SUB('02-signal-inbox.ts'),
       captureOutput: true,
       failOnError: true,
