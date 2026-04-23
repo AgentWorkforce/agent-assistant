@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/proactive",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "description": "Proactive decision engine for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-assistant/surfaces": ">=0.1.0",
+    "@agent-assistant/surfaces": ">=0.2.19",
     "nanoid": "^5.0.7"
   },
   "devDependencies": {
