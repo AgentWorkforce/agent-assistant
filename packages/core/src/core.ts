@@ -10,9 +10,9 @@ import type {
   RelayOutboundAdapter,
 } from './types.js';
 
-const DEFAULT_HANDLER_TIMEOUT_MS = 30_000;
+const DEFAULT_HANDLER_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_MAX_CONCURRENT_HANDLERS = 10;
-const STOP_DRAIN_TIMEOUT_MS = 30_000;
+const DRAIN_MARGIN_MS = 5_000;
 
 type RuntimeLifecycleState = 'created' | 'started' | 'stopped';
 
@@ -318,6 +318,7 @@ export function createAssistant(
     }
 
     drainWaiter ??= createDeferred();
+    const drainTimeoutMs = constraints.handlerTimeoutMs + DRAIN_MARGIN_MS;
 
     await Promise.race([
       drainWaiter.promise,
@@ -325,10 +326,10 @@ export function createAssistant(
         setTimeout(() => {
           reject(
             new Error(
-              `Timed out waiting ${STOP_DRAIN_TIMEOUT_MS}ms for in-flight handlers to drain`,
+              `Timed out waiting ${drainTimeoutMs}ms for in-flight handlers to drain`,
             ),
           );
-        }, STOP_DRAIN_TIMEOUT_MS);
+        }, drainTimeoutMs);
       }),
     ]);
   }
