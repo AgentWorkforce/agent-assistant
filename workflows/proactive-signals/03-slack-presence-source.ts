@@ -93,7 +93,7 @@ Key points for impl:
 - Defensive parsing: every field access behind a typeof check. Never throw on malformed input.
 - The envelope shape is { type: 'event_callback', team_id?, event: { type, ... } } — match slack-ingress style.
 - Return null for any event.type that's not presence_change or user_status_changed.
-- Add "@agent-assistant/proactive": ">=0.2.19" to packages/surfaces/package.json dependencies.
+- Add "@agent-assistant/proactive": ">=0.1.0" to packages/surfaces/package.json dependencies.
 - Barrel exports to add to packages/surfaces/src/index.ts:
     export { classifySlackPresenceSignal } from './slack-presence-signal.js';
 
@@ -112,7 +112,7 @@ Keep plan to 8 bullets max.`,
     .step('impl-pkg-dep', {
       agent: 'impl',
       dependsOn: ['plan'],
-      task: `Edit ONLY packages/surfaces/package.json. Add "@agent-assistant/proactive": ">=0.2.19" to dependencies, keeping the dependency list alphabetically sorted. Do not touch any other file.`,
+      task: `Edit ONLY packages/surfaces/package.json. Add "@agent-assistant/proactive": ">=0.1.0" to dependencies, keeping the dependency list alphabetically sorted. Do not touch any other file.`,
       verification: { type: 'exit_code' },
       retries: 2,
     })

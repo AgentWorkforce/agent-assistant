@@ -111,16 +111,10 @@ async function main() {
       captureOutput: true,
       failOnError: true,
     })
-    .step('read-prefs-pattern', {
-      type: 'deterministic',
-      command: 'sed -n "1,80p" packages/proactive/src/notify-channel-prefs.ts',
-      captureOutput: true,
-      failOnError: true,
-    })
 
     .step('plan', {
       agent: 'lead',
-      dependsOn: ['read-index', 'read-prefs-pattern'],
+      dependsOn: ['read-index'],
       task: `Post a short plan on the channel confirming the signal-inbox contract (see workflow header).
 
 Key impl notes:
@@ -138,10 +132,7 @@ Barrel exports in @agent-assistant/proactive index.ts:
 Current index:
 {{steps.read-index.output}}
 
-Prefs module for pattern reference:
-{{steps.read-prefs-pattern.output}}
-
-Keep plan to 8 bullets max.`,
+Keep plan to 8 bullets max. The contract in this workflow's header comment is the source of truth — the impl agent reads the workflow file directly.`,
     })
 
     .step('impl-signal-inbox', {

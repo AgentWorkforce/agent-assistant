@@ -70,16 +70,10 @@ async function main() {
       captureOutput: true,
       failOnError: true,
     })
-    .step('read-prefs-pattern', {
-      type: 'deterministic',
-      command: 'sed -n "1,60p" packages/proactive/src/notify-channel-prefs.ts',
-      captureOutput: true,
-      failOnError: true,
-    })
 
     .step('plan', {
       agent: 'lead',
-      dependsOn: ['read-index', 'read-prefs-pattern'],
+      dependsOn: ['read-index'],
       task: `Post a short plan on the channel confirming the quiet-hours contract as defined in the workflow header. Key points to call out to the impl:
 
 - Use Intl.DateTimeFormat with timeZone to extract the local hour; do NOT add any dep like date-fns-tz
@@ -95,10 +89,7 @@ Barrel export list in @agent-assistant/proactive index.ts:
 Current index:
 {{steps.read-index.output}}
 
-Pattern match with prefs module:
-{{steps.read-prefs-pattern.output}}
-
-Keep plan to 8 bullets max.`,
+Keep plan to 8 bullets max. The contract in this workflow's header comment is the source of truth — the impl agent reads the workflow file directly.`,
     })
 
     .step('impl-quiet-hours', {

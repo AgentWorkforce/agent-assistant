@@ -21,12 +21,22 @@ import { applyAgentAssistantRepoSetup } from '../lib/agent-assistant-repo-setup.
 const BRANCH = 'feat/proactive-signals';
 const LOG_DIR = 'logs/proactive-signals-master';
 
-const SUB = (file: string) => `set -o pipefail; \
-agent-relay run workflows/proactive-signals/${file} 2>&1 | tee ${LOG_DIR}/${file}.log; \
-status=\${PIPESTATUS[0]}; \
-if [ "$status" -ne 0 ]; then echo "SUB_WORKFLOW_EXIT_NONZERO: $status"; exit $status; fi; \
-if grep -q "Workflow status: failed" ${LOG_DIR}/${file}.log; then echo "SUB_WORKFLOW_REPORTED_FAILED"; exit 1; fi; \
-echo "SUB_WORKFLOW_OK: ${file}"`;
+// Wrapped in bash -c because cloud /bin/sh is dash, which doesn't support
+// ${PIPESTATUS[0]}. Per memory [agent-relay run exit code], the runner can
+// exit 0 even when the inner workflow fails, so we check both the pipeline
+// exit code AND the log text for "Workflow status: failed".
+const SUB = (file: string) => {
+  const logPath = `${LOG_DIR}/${file}.log`;
+  const script = [
+    `set -o pipefail`,
+    `agent-relay run workflows/proactive-signals/${file} 2>&1 | tee ${logPath}`,
+    `status=\${PIPESTATUS[0]}`,
+    `if [ "$status" -ne 0 ]; then echo "SUB_WORKFLOW_EXIT_NONZERO: $status"; exit $status; fi`,
+    `if grep -q "Workflow status: failed" ${logPath}; then echo "SUB_WORKFLOW_REPORTED_FAILED"; exit 1; fi`,
+    `echo "SUB_WORKFLOW_OK: ${file}"`,
+  ].join('; ');
+  return `bash -c ${JSON.stringify(script)}`;
+};
 
 async function main() {
   mkdirSync(LOG_DIR, { recursive: true });
