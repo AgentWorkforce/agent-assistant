@@ -10,7 +10,7 @@ import type {
   RelayOutboundAdapter,
 } from './types.js';
 
-const DEFAULT_HANDLER_TIMEOUT_MS = 30_000;
+const DEFAULT_HANDLER_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_MAX_CONCURRENT_HANDLERS = 10;
 const STOP_DRAIN_TIMEOUT_MS = 30_000;
 
