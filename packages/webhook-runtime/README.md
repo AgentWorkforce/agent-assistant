@@ -69,7 +69,7 @@ with `use <id>`.
 Environment prerequisites for the non-default personas:
 
 - **`github-real`** — `@agent-assistant/specialists` built and its runtime deps resolvable.
-- **`byoh-relay`** — install `@agent-assistant/harness` (declared as an optional peer dep; the persona dynamic-imports `@agent-assistant/harness/agent-relay`). Needs a running Relay broker and a worker already registered on the channel (the adapter rejects `sendMessage` to unknown agent names with `Agent "<name>" not found`). Either spawn the worker yourself before POSTing or set `RELAY_AUTO_SPAWN=true`. Env vars: `RELAY_CHANNEL`, `RELAY_WORKER`, `RELAY_AUTO_SPAWN`, `RELAY_CLI`, `RELAY_MODEL`.
+- **`byoh-relay`** — install `@agent-assistant/harness` (declared as an optional peer dep; the persona dynamic-imports `@agent-assistant/harness/agent-relay`). Needs a running Relay broker and a worker already registered on the channel (the adapter rejects `sendMessage` to unknown agent names with `Agent "<name>" not found`). Easiest path: run the bundled worker bridge in a separate terminal — see "BYOH end-to-end locally" below. Env vars: `RELAY_CHANNEL`, `RELAY_WORKER`, `RELAY_AUTO_SPAWN`, `RELAY_CLI`, `RELAY_MODEL`.
 - **`http-forward`** — `HTTP_FORWARD_URL` pointing at any JSON-accepting endpoint.
 
 Example session:
@@ -82,6 +82,79 @@ webhook> drop failer
 webhook> use http-forward          # HTTP_FORWARD_URL must be set before this
 webhook> mention ping              # same event now fans out to the HTTP target too
 ```
+
+## BYOH end-to-end locally
+
+The `byoh-relay` persona publishes an `agent-assistant.execution-request.v1`
+message over a real Relay broker to a **named worker** that must be registered
+on the channel before the request arrives. The bundled bridge at
+`examples/byoh-worker.ts` is that worker — it listens, invokes a
+non-interactive CLI session (claude / codex / opencode / gemini), and emits a
+protocol-compliant `agent-assistant.execution-result.v1` back.
+
+Run it alongside the REPL in two terminals:
+
+**Terminal 1 — the worker:**
+
+```bash
+# from the repo root
+npm run worker -- --cli claude --model claude-sonnet-4-6
+
+# or whichever CLI you have installed:
+npm run worker -- --cli codex
+npm run worker -- --cli opencode --model anthropic/claude-sonnet-4-5
+npm run worker -- --cli gemini
+```
+
+You'll see:
+
+```
+[byoh-worker] registered as 'specialist-worker' on channel 'specialists' (cli=claude, cwd=/Users/you/...)
+[byoh-worker] invoking 'claude' per request; timeout=120000ms
+```
+
+**Terminal 2 — the webhook runtime:**
+
+```bash
+# from the repo root
+npm run agent
+```
+
+That starts the REPL with `RELAY_AUTO_SPAWN=false` (the worker you started in
+terminal 1 owns that responsibility) and env set for the `specialists` channel
+and `specialist-worker` name. Then at the prompt:
+
+```
+webhook> use byoh-relay
+webhook> mention summarize the open github issues
+```
+
+The `byoh-relay` persona's `createAgentRelayExecutionAdapter` will publish
+the request to `specialist-worker`. The worker in terminal 1 receives it,
+invokes the configured CLI with the instruction as the prompt, captures stdout,
+and replies with the result. You'll see the final response logged back in
+terminal 2 as `[byoh-relay] channel=C_CLI eventType=app_mention -> <CLI output>`.
+
+### Bash stub for testing without spending API tokens
+
+```bash
+npm run worker -- --cli bash --cli-args 'read -d "" prompt; echo "stub echoed: ${prompt:0:40}"'
+```
+
+Useful for validating the transport without invoking any real AI. The same
+pattern drives the `src/byoh-worker-bridge.test.ts` smoke tests.
+
+### Worker flags
+
+| flag | meaning | default |
+|---|---|---|
+| `--cli <name>` | `claude` / `codex` / `opencode` / `gemini` / `bash` | `claude` |
+| `--cli-args <string>` | shell-split extra args, only meaningful for `--cli bash` | (empty) |
+| `--channel <id>` | Relay channel to listen on | `$RELAY_CHANNEL` or `specialists` |
+| `--worker-name <name>` | agent name registered with broker | `$RELAY_WORKER` or `specialist-worker` |
+| `--cwd <path>` | broker cwd (for `.agent-relay/connection.json` discovery) | `process.cwd()` |
+| `--model <id>` | model passed to the CLI | `$RELAY_MODEL` or CLI default |
+| `--timeout-ms <n>` | per-invocation CLI subprocess timeout | `120000` |
 
 ## What the CLI proves
 
