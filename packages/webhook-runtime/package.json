@@ -36,6 +36,14 @@
     "@hono/node-server": "^2.0.0",
     "hono": "^4"
   },
+  "peerDependencies": {
+    "@agent-assistant/harness": "^0.3.8"
+  },
+  "peerDependenciesMeta": {
+    "@agent-assistant/harness": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@agent-assistant/harness": "^0.3.8",
     "@types/node": "^24.6.0",

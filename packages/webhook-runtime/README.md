@@ -69,7 +69,7 @@ with `use <id>`.
 Environment prerequisites for the non-default personas:
 
 - **`github-real`** — `@agent-assistant/specialists` built and its runtime deps resolvable.
-- **`byoh-relay`** — `@agent-assistant/harness` built, a running Relay broker, and these env vars: `RELAY_CHANNEL`, `RELAY_WORKER`, `RELAY_AUTO_SPAWN` (`true` to auto-spawn), `RELAY_CLI`, `RELAY_MODEL`.
+- **`byoh-relay`** — install `@agent-assistant/harness` (declared as an optional peer dep; the persona dynamic-imports `@agent-assistant/harness/agent-relay`). Needs a running Relay broker and a worker already registered on the channel (the adapter rejects `sendMessage` to unknown agent names with `Agent "<name>" not found`). Either spawn the worker yourself before POSTing or set `RELAY_AUTO_SPAWN=true`. Env vars: `RELAY_CHANNEL`, `RELAY_WORKER`, `RELAY_AUTO_SPAWN`, `RELAY_CLI`, `RELAY_MODEL`.
 - **`http-forward`** — `HTTP_FORWARD_URL` pointing at any JSON-accepting endpoint.
 
 Example session:
