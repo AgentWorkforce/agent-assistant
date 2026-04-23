@@ -51,3 +51,6 @@ export type {
   SlackEventDedupInput,
   SlackEventDedupStore,
 } from "./slack-event-dedup.js";
+
+export { listBotChannels } from "./slack-bot-channels.js";
+export type { BotChannel } from "./slack-bot-channels.js";
