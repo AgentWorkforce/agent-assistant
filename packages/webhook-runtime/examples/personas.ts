@@ -88,7 +88,11 @@ export const personaCatalog: Record<string, Persona> = {
         egress: ({ consumerId, event, response }) =>
           logEgress(consumerId, event, response),
         specialistFactory: async ({ event, instruction }) => {
-          const moduleName = "@agent-assistant/harness";
+          // createAgentRelayExecutionAdapter is intentionally exposed only
+          // on the /agent-relay subpath so workerd bundles of the harness
+          // package stay clean. Importing from the main entry silently
+          // returns a module without the function.
+          const moduleName = "@agent-assistant/harness/agent-relay";
           const mod = (await import(moduleName)) as {
             createAgentRelayExecutionAdapter?: (config: unknown) => {
               execute: (request: unknown) => Promise<unknown>;
@@ -96,7 +100,7 @@ export const personaCatalog: Record<string, Persona> = {
           };
           if (!mod.createAgentRelayExecutionAdapter) {
             throw new Error(
-              "createAgentRelayExecutionAdapter not exported from @agent-assistant/harness",
+              "createAgentRelayExecutionAdapter not exported from @agent-assistant/harness/agent-relay — ensure @agent-assistant/harness >=0.3.8 is installed",
             );
           }
 

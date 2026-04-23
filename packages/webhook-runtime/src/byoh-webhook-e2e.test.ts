@@ -8,7 +8,7 @@ import { createWebhookRegistry } from "./webhook-registry.js";
 
 const executeCalls = vi.hoisted(() => [] as ExecutionRequest[]);
 
-vi.mock("@agent-assistant/harness", () => ({
+vi.mock("@agent-assistant/harness/agent-relay", () => ({
   createAgentRelayExecutionAdapter: vi.fn(() => ({
     async execute(request: ExecutionRequest) {
       executeCalls.push(request);
