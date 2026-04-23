@@ -9,6 +9,7 @@ import { createAgentRelayExecutionAdapter } from "../adapter/agent-relay-adapter
 import type { ExecutionRequest } from "../adapter/types.js";
 
 import { createBashCliRunner } from "./bash-cli-runner.js";
+import type { CliRunner } from "./cli-runner.js";
 import {
   createRelayWorkerBridge,
   type RelayWorkerBridgeHandle,
@@ -49,6 +50,36 @@ async function startHarness(scriptBody: string): Promise<Harness> {
   }
 
   const runner = createBashCliRunner({ script: scriptBody });
+  const bridge = await createRelayWorkerBridge({
+    relay,
+    channelId: CHANNEL_ID,
+    workerName: WORKER_NAME,
+    runner,
+    cwd,
+    timeoutMs: 10_000,
+    logger: silentLogger,
+  });
+
+  return { cwd, relay, bridge };
+}
+
+async function startHarnessWithRunner(runner: CliRunner): Promise<Harness> {
+  const cwd = mkdtempSync(join(tmpdir(), "harness-worker-bridge-"));
+  const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID] });
+  await relay.start();
+
+  const orchestrator = await relay.spawn({
+    name: ORCHESTRATOR_NAME,
+    cli: "bash",
+    task: "cat >/dev/null",
+    includeWorkflowConventions: false,
+  });
+  if (!orchestrator.success) {
+    throw new Error(
+      `Failed to register orchestrator: ${orchestrator.error ?? "unknown"}`,
+    );
+  }
+
   const bridge = await createRelayWorkerBridge({
     relay,
     channelId: CHANNEL_ID,
@@ -158,5 +189,48 @@ describe("createRelayWorkerBridge integration", () => {
       expect(result.output).toBeUndefined();
     },
     45_000,
+  );
+
+  it(
+    "catches a throwing runner and still responds with a failed ExecutionResult",
+    async () => {
+      const throwingRunner: CliRunner = {
+        id: "throwing-test-runner",
+        async run() {
+          throw new Error("synthetic runner crash");
+        },
+      };
+      harness = await startHarnessWithRunner(throwingRunner);
+
+      const adapter = createAgentRelayExecutionAdapter({
+        cwd: harness.cwd,
+        channelId: CHANNEL_ID,
+        workerName: WORKER_NAME,
+        orchestratorName: ORCHESTRATOR_NAME,
+        spawnWorker: { enabled: false, cli: "bash" },
+        timeoutMs: 15_000,
+        relay: harness.relay,
+      });
+
+      const result = await adapter.execute({
+        assistantId: "harness-bridge-test",
+        turnId: "turn-bridge-throw",
+        threadId: "thread-bridge-throw",
+        message: {
+          id: "m-bridge-throw",
+          text: "this will throw in the runner",
+          receivedAt: new Date().toISOString(),
+        },
+        instructions: { systemPrompt: "sys" },
+      });
+
+      // The bridge must translate the rejected promise into a typed
+      // ExecutionResult so the orchestrator doesn't wait for a full
+      // adapter timeout.
+      expect(result.status).toBe("failed");
+      expect(result.error?.message ?? "").toContain("synthetic runner crash");
+      expect(result.error?.message ?? "").toContain("throwing-test-runner");
+    },
+    30_000,
   );
 });

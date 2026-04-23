@@ -140,13 +140,29 @@ export async function createRelayWorkerBridge(
       promptPreview: prompt.slice(0, 80),
     });
 
-    const runnerResult = await config.runner.run({
-      prompt,
-      timeoutMs,
-      cwd: config.cwd,
-      env: config.env,
-      model: config.model,
-    });
+    // CliRunner is a public interface — third-party runners may throw
+    // rather than returning a typed failure. Also, built-in runners
+    // could reject if their injected spawnFn throws synchronously.
+    // Without this guard the rejection would propagate out of the
+    // fire-and-forget `void handleEvent(event)` call site and crash the
+    // long-running bridge process on Node 20+ default unhandledRejection
+    // behavior. Catching here lets us send a well-formed failure result
+    // back to the orchestrator so it doesn't wait until adapter timeout.
+    let runnerResult: Awaited<ReturnType<CliRunner["run"]>>;
+    try {
+      runnerResult = await config.runner.run({
+        prompt,
+        timeoutMs,
+        cwd: config.cwd,
+        env: config.env,
+        model: config.model,
+      });
+    } catch (error) {
+      runnerResult = {
+        status: "failed",
+        error: `Runner '${config.runner.id}' threw: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
 
     if (runnerResult.status === "completed") {
       logger.info("completed", {
