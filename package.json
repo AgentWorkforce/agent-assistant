@@ -26,7 +26,9 @@
     "packages/webhook-runtime"
   ],
   "scripts": {
-    "build:sdk": "npm run build -w @agent-assistant/sdk"
+    "build:sdk": "npm run build -w @agent-assistant/sdk",
+    "agent": "RELAY_AUTO_SPAWN=false RELAY_CHANNEL=specialists RELAY_WORKER=specialist-worker RELAY_CLI=claude RELAY_MODEL=claude-sonnet-4-6 npm run cli -w @agent-assistant/webhook-runtime",
+    "worker": "npm run worker -w @agent-assistant/webhook-runtime --"
   },
   "devDependencies": {
     "@agentworkforce/workload-router": "^0.2.0"

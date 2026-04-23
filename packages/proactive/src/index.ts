@@ -28,6 +28,51 @@ export {
 
 export { createProactiveEngine, InMemorySchedulerBinding } from './proactive.js';
 
+// ── Notify-channel resolution ───────────────────────────────────────────────
+// Dynamic channel picking for proactive Slack posts: discover bot-member
+// channels, pick one with an injected LLM, persist the user's confirmation
+// in a pluggable pref store.
+export {
+  getNotifyChannelPref,
+  hasPrefStore,
+  incrementUnconfirmedPosts,
+  setNotifyChannelPref,
+} from './notify-channel-prefs.js';
+export type { NotifyChannelPref, PrefStore } from './notify-channel-prefs.js';
+
+export { pickChannel } from './channel-picker.js';
+export type {
+  ChatFn,
+  ChatMessage,
+  ChatOptions,
+  PickedChannel,
+  ProactivePayload,
+} from './channel-picker.js';
+
+export {
+  CONFIRM_PROMPT_SUFFIX,
+  normalizeChannelName,
+  parseConfirmReply,
+  parseRedirectChannelName,
+} from './notify-channel-reply.js';
+export type { ConfirmReplyParse } from './notify-channel-reply.js';
+
+export {
+  AUTO_CONFIRM_AFTER_UNCONFIRMED_POSTS,
+  resolveNotifyChannel,
+} from './notify-channel-resolver.js';
+export type {
+  ListBotChannelsFn,
+  ResolvedNotifyChannel,
+  ResolveNotifyChannelInput,
+} from './notify-channel-resolver.js';
+
+// ── Quiet hours + event-signal inbox ────────────────────────────────────────
+// Per-user timing gates and an inbox for event-driven proactive signals
+// (Slack presence, GitHub PR events, etc.) that the engine drains each tick.
+export { isInQuietHours, shouldDeferForQuietHours } from './quiet-hours.js';
+export type { QuietHoursConfig, QuietHoursStore } from './quiet-hours.js';
+
 export {
   DEFAULT_TTL_MS_BY_KIND,
   clearSignal,
@@ -41,5 +86,3 @@ export type {
   RecordSignalInput,
   SignalInboxStore,
 } from './signal-inbox.js';
-export { isInQuietHours, shouldDeferForQuietHours } from './quiet-hours.js';
-export type { QuietHoursConfig, QuietHoursStore } from './quiet-hours.js';

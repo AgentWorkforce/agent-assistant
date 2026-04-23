@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/webhook-runtime",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,12 +29,21 @@
     "build": "tsc",
     "test": "vitest run",
     "cli": "tsx examples/cli.ts",
+    "worker": "tsx examples/byoh-worker.ts",
     "example:sim": "tsx examples/slack-to-github-sim.ts"
   },
   "dependencies": {
     "@agent-assistant/specialists": "^0.3.5",
     "@hono/node-server": "^2.0.0",
     "hono": "^4"
+  },
+  "peerDependencies": {
+    "@agent-assistant/harness": "^0.3.8"
+  },
+  "peerDependenciesMeta": {
+    "@agent-assistant/harness": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@agent-assistant/harness": "^0.3.8",
