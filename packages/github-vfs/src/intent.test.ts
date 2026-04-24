@@ -17,6 +17,26 @@ describe('parseGitHubRepoRefFromText', () => {
       repo: 'cloud',
     });
   });
+
+  it('prefers an anchored repo ref over an earlier path-like token', () => {
+    expect(
+      parseGitHubRepoRefFromText(
+        'list open PRs in packages/specialist-worker in AgentWorkforce/cloud',
+      ),
+    ).toEqual({
+      owner: 'AgentWorkforce',
+      repo: 'cloud',
+    });
+  });
+
+  it('prefers an anchor word like for over a leading path-like token', () => {
+    expect(
+      parseGitHubRepoRefFromText('compare packages/specialist-worker for AgentWorkforce/cloud'),
+    ).toEqual({
+      owner: 'AgentWorkforce',
+      repo: 'cloud',
+    });
+  });
 });
 
 describe('detectOpenPrListIntent', () => {

@@ -136,8 +136,7 @@ export async function listOpenPullRequestsFromVfs(
     if (!metadata) continue;
     const pr = normalizePullRequest(path, metadata);
     if (pr) prs.push(pr);
-    if (prs.length >= limit) break;
   }
 
-  return prs.sort(compareUpdatedDescending);
+  return prs.sort(compareUpdatedDescending).slice(0, limit);
 }

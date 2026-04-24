@@ -58,6 +58,30 @@ describe('listOpenPullRequestsFromVfs', () => {
     ]);
   });
 
+  it('returns the newest open PRs by updatedAt when more than limit are present', async () => {
+    const files: Record<string, unknown> = {};
+    // Create 5 open PRs with ascending PR numbers (which sorts first in path order)
+    // but DESCENDING dates so PR #1 is newest. Limit=3 must return [1,2,3] not [3,4,5].
+    for (let i = 1; i <= 5; i += 1) {
+      const day = String(25 - i).padStart(2, '0');
+      files[`/github/repos/AgentWorkforce/cloud/pulls/${i}/metadata.json`] = {
+        number: i,
+        title: `PR ${i}`,
+        state: 'open',
+        updated_at: `2026-04-${day}T12:00:00Z`,
+      };
+    }
+    const provider = makeProvider(files);
+
+    const prs = await listOpenPullRequestsFromVfs(
+      provider,
+      { owner: 'AgentWorkforce', repo: 'cloud' },
+      { limit: 3 },
+    );
+
+    expect(prs.map((pr) => pr.number)).toEqual([1, 2, 3]);
+  });
+
   it('sorts open pull requests by updated timestamp descending', async () => {
     const provider = makeProvider({
       '/github/repos/AgentWorkforce/cloud/pulls/10/metadata.json': {

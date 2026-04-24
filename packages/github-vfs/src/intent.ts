@@ -30,9 +30,21 @@ function hasContentFilterPredicate(text: string): boolean {
 
 export function parseGitHubRepoRefFromText(text: string): GitHubRepoRef | null {
   const explicit = /\brepo:([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\b/i.exec(text);
-  const match = explicit ?? /\b([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\b/.exec(text);
-  if (!match) return null;
-  return { owner: match[1] ?? '', repo: match[2] ?? '' };
+  if (explicit) {
+    return { owner: explicit[1] ?? '', repo: explicit[2] ?? '' };
+  }
+  const anchoredPattern = /\b(?:in|for|on|of|from)\s+([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\b/gi;
+  let anchoredMatch: RegExpExecArray | null = null;
+  let lastAnchored: RegExpExecArray | null = null;
+  while ((anchoredMatch = anchoredPattern.exec(text)) !== null) {
+    lastAnchored = anchoredMatch;
+  }
+  if (lastAnchored) {
+    return { owner: lastAnchored[1] ?? '', repo: lastAnchored[2] ?? '' };
+  }
+  const fallback = /\b([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\b/.exec(text);
+  if (!fallback) return null;
+  return { owner: fallback[1] ?? '', repo: fallback[2] ?? '' };
 }
 
 export function detectOpenPrListIntent(text: string): GitHubRepoRef | null {

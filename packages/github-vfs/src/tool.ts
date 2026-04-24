@@ -35,7 +35,7 @@ const GITHUB_LIST_OPEN_PRS_TOOL: HarnessToolDefinition = {
     properties: {
       owner: { type: 'string', minLength: 1 },
       repo: { type: 'string', minLength: 1 },
-      limit: { type: 'number', minimum: 1, maximum: 100 },
+      limit: { type: 'integer', minimum: 1, maximum: 100 },
     },
   },
 };
@@ -56,7 +56,7 @@ function readRequiredString(
   if (typeof value !== 'string' || value.trim().length < 1) {
     return { ok: false, message: `input.${key} must be a non-empty string` };
   }
-  return { ok: true, value };
+  return { ok: true, value: value.trim() };
 }
 
 function readOptionalInteger(
