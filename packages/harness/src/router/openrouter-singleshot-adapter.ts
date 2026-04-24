@@ -59,7 +59,10 @@ export class OpenRouterSingleShotAdapter implements SingleShotAdapter {
     this.apiKey = config.apiKey;
     this.model = config.model ?? DEFAULT_MODEL;
     this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
-    this.fetchImpl = config.fetchImpl ?? fetch;
+    // See .claude/rules/workers-fetch.md — read `globalThis.fetch` at call
+    // time, not module load, to survive Workers + nodejs_compat + esbuild.
+    this.fetchImpl =
+      config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.defaultTemperature = config.defaultTemperature;
   }

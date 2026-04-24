@@ -167,3 +167,12 @@ Your trajectory helps others understand:
 
 Future agents can query past trajectories to learn from your decisions.
 <!-- prpm:snippet:end @agent-workforce/trail-snippet@1.1.2 -->
+
+# Cloudflare Workers compatibility
+
+Several downstream consumers of `@agent-assistant/*` deploy to Cloudflare Workers (cloud/specialist-worker, sage, relayfile, cataloging-agent, web). When adding or modifying any `fetch()` call site in this repo, follow `.claude/rules/workers-fetch.md`. The short version:
+
+- **Never** store a bare `fetch` reference at module load or in a constructor: `this.fetchImpl = config.fetchImpl ?? fetch;` is wrong.
+- **Always** fall back to a lambda that reads `globalThis.fetch` at call time: `this.fetchImpl = config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));`
+
+The bare-fetch pattern has caused `Illegal invocation` runtime failures in Worker consumers downstream (cloud#328, sage#110, and most recently an entire specialist incident on 2026-04-24 where every OpenRouter call through `createOpenRouterModelAdapter` threw on first invocation). Tests use `vi.stubGlobal("fetch", fetchMock)` — the lambda variant stays stubbable while the bare `fetch` variant does not.

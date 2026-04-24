@@ -28,7 +28,11 @@ const FROZEN_FETCHED_AT = '2026-04-20T00:00:00.000Z';
 export async function refreshPricingTable(
   options?: { fetchImpl?: typeof fetch; endpoint?: string },
 ): Promise<PricingTable> {
-  const fetchImpl = options?.fetchImpl ?? fetch;
+  // See .claude/rules/workers-fetch.md — read `globalThis.fetch` at call
+  // time, not module load, to survive Workers + nodejs_compat + esbuild.
+  const fetchImpl =
+    options?.fetchImpl ??
+    ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
   const endpoint = options?.endpoint ?? OPENROUTER_MODELS_ENDPOINT;
   const response = await fetchImpl(endpoint);
 

@@ -235,7 +235,10 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
     this.apiKey = config.apiKey;
     this.model = config.model ?? 'openai/gpt-5-mini';
     this.baseUrl = config.baseUrl ?? 'https://openrouter.ai/api/v1/chat/completions';
-    this.fetchImpl = config.fetchImpl ?? fetch;
+    // See .claude/rules/workers-fetch.md — read `globalThis.fetch` at call
+    // time, not module load, to survive Workers + nodejs_compat + esbuild.
+    this.fetchImpl =
+      config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     this.now = config.now ?? Date.now;
     this.timeoutMs = config.timeoutMs ?? 30_000;
   }
