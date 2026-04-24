@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/proactive",
-  "version": "0.2.25",
+  "version": "0.3.0",
   "description": "Proactive decision engine for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
