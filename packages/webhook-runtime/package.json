@@ -26,6 +26,7 @@
     "dist"
   ],
   "scripts": {
+    "prepack": "npm run build",
     "build": "tsc",
     "pretest": "npm --prefix ../harness run build && npm --prefix ../specialists run build",
     "test": "vitest run",
