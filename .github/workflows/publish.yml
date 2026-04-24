@@ -133,10 +133,8 @@ jobs:
           echo "Packages: ${{ needs.resolve-packages.outputs.package_list }}"
 
       # Harness tests import from @agent-assistant/{traits,connectivity,
-      # coordination,turn-context}, several of which are file: workspace deps
-      # with stale or missing committed dists. Build the chain before running
-      # vitest so its resolver can find each package's dist/. Mirrors
-      # .github/workflows/ci.yml. Note: connectivity + coordination are not
+      # coordination,turn-context,vfs,core}. dist/ is not committed, so build
+      # the chain before running vitest. connectivity + coordination are not
       # in the publish matrix, so the dependency-aware Build step below does
       # not cover them.
       - name: Prepare harness test dependencies
@@ -147,7 +145,9 @@ jobs:
           npm run build -w @agent-assistant/memory
           npm run build -w @agent-assistant/connectivity
           npm run build -w @agent-assistant/coordination
-          rm -rf packages/turn-context/dist
+          npm run build -w @agent-assistant/vfs
+          npm run build -w @agent-assistant/core
+          npm run build -w @agent-assistant/harness
           npm run build -w @agent-assistant/turn-context
 
       - name: Run tests
@@ -165,7 +165,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORDER=(traits connectivity coordination core sessions surfaces policy proactive harness telemetry memory turn-context inbox continuation sdk vfs specialists webhook-runtime)
+          # Topological build order. dist/ is no longer committed, so each
+          # package's tsc needs its workspace deps' dist on disk first.
+          ORDER=(traits connectivity memory vfs core coordination surfaces sessions policy harness turn-context proactive inbox continuation telemetry specialists sdk webhook-runtime)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
@@ -311,10 +313,22 @@ jobs:
           name: publish-artifacts
           path: /tmp/publish-artifacts
 
+      # Restore dist/ for ALL matrix packages, not just the one being
+      # published. `npm publish` runs each package's prepack hook
+      # (`npm run build`), which re-runs tsc and needs sibling dist/
+      # folders on disk to resolve `@agent-assistant/*` workspace imports.
+      # @agent-assistant/sdk re-exports many siblings, so this is mandatory
+      # for sdk; other packages benefit too because they import sibling
+      # types. Note: @agent-assistant/sdk has no prepack hook (see its
+      # package.json) — its dist comes from the build job's artifact.
       - name: Restore package artifacts
         run: |
-          rm -rf "packages/${{ matrix.package }}/dist"
-          cp -R "/tmp/publish-artifacts/dist-${{ matrix.package }}" "packages/${{ matrix.package }}/dist"
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ -d "/tmp/publish-artifacts/dist-$pkg" ]; then
+              rm -rf "packages/$pkg/dist"
+              cp -R "/tmp/publish-artifacts/dist-$pkg" "packages/$pkg/dist"
+            fi
+          done
           cp "/tmp/publish-artifacts/manifest-${{ matrix.package }}.json" "packages/${{ matrix.package }}/package.json"
 
       - name: Publish package

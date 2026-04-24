@@ -15,6 +15,7 @@
     "dist"
   ],
   "scripts": {
+    "prepack": "npm run build",
     "prebuild": "npm --prefix ../routing run build && npm --prefix ../connectivity run build",
     "build": "tsc -p tsconfig.json",
     "pretest": "npm --prefix ../routing run build && npm --prefix ../connectivity run build",
