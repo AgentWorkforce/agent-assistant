@@ -13,6 +13,7 @@
     "packages/sessions",
     "packages/surfaces",
     "packages/vfs",
+    "packages/github-vfs",
     "packages/routing",
     "packages/connectivity",
     "packages/coordination",

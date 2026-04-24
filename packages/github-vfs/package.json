@@ -1,0 +1,39 @@
+{
+  "name": "@agent-assistant/github-vfs",
+  "version": "0.1.0",
+  "description": "GitHub RelayFile VFS path helpers, queries, intent detection, and tools for agent assistants",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "npm --prefix ../harness run build && npm --prefix ../vfs run build",
+    "build": "tsc -p tsconfig.json",
+    "pretest": "npm --prefix ../harness run build && npm --prefix ../vfs run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@agent-assistant/harness": "^0.5.0",
+    "@agent-assistant/vfs": "^0.2.23"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgentWorkforce/agent-assistant"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
