@@ -45,11 +45,11 @@ jobs:
         working-directory: packages/vfs
         run: npx vitest run
 
-      # Harness depends on traits, connectivity, coordination, and turn-context via
-      # workspace file: links. None of those dists (except turn-context's, which is
-      # stale and references a `memory-retriever.js` that isn't in the committed
-      # dist) are ready for vitest on a fresh checkout. Build them in dependency
-      # order before running harness tests.
+      # Harness depends on traits, connectivity, coordination, turn-context, and
+      # vfs via workspace file: links. None of those dists (except turn-context's,
+      # which is stale and references a `memory-retriever.js` that isn't in the
+      # committed dist) are ready for vitest on a fresh checkout. Build them in
+      # dependency order before running harness tests.
       #
       # Chain:
       #   traits        — leaf (no workspace deps)
@@ -57,6 +57,7 @@ jobs:
       #   connectivity  — leaf (no workspace deps)
       #   coordination  — needs connectivity
       #   turn-context  — needs memory + traits (type-only); rebuilt to refresh stale dist
+      #   vfs           — leaf; harness imports types from @agent-assistant/vfs
       - name: Build — traits (harness dep)
         working-directory: packages/traits
         run: npm run build
@@ -78,6 +79,10 @@ jobs:
         run: |
           rm -rf dist
           npm run build
+
+      - name: Build — vfs (harness dep)
+        working-directory: packages/vfs
+        run: npm run build
 
       - name: Run tests — harness
         working-directory: packages/harness

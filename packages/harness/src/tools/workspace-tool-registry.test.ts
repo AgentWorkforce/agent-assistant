@@ -203,7 +203,7 @@ describe('createWorkspaceToolRegistry execute workspace_read', () => {
     expect(result.output).toBe(fileContent);
   });
 
-  it('returns not_found when the provider returns null for the path', async () => {
+  it('returns retryable not_found when the provider returns null for the path', async () => {
     const provider = makeProvider({
       read: vi.fn().mockResolvedValue(null),
     });
@@ -218,8 +218,49 @@ describe('createWorkspaceToolRegistry execute workspace_read', () => {
     expect(result.status).toBe('error');
     expect(result.error).toMatchObject({
       code: 'not_found',
-      retryable: false,
+      retryable: true,
     });
+  });
+
+  it('truncates content larger than 50KB and emits a _truncated marker', async () => {
+    const largeContent = 'x'.repeat(60 * 1024);
+    const provider = makeProvider({
+      read: vi
+        .fn()
+        .mockResolvedValue(readResult('/github/repos/acme/widgets/src/big.ts', largeContent)),
+    });
+    const registry = createWorkspaceToolRegistry({ provider });
+    const call = makeCall('workspace_read', {
+      path: '/github/repos/acme/widgets/src/big.ts',
+    });
+
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
+
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual(expect.any(String));
+    expect(new TextEncoder().encode(result.output ?? '').byteLength).toBeLessThanOrEqual(
+      50 * 1024,
+    );
+    expect(result.output).not.toBe(largeContent);
+    expect(result.output).toContain('"_truncated": true');
+  });
+
+  it('returns raw content unchanged when the file is well under the 50KB cap', async () => {
+    const fileContent = 'tiny payload';
+    const provider = makeProvider({
+      read: vi
+        .fn()
+        .mockResolvedValue(readResult('/github/repos/acme/widgets/src/tiny.ts', fileContent)),
+    });
+    const registry = createWorkspaceToolRegistry({ provider });
+    const call = makeCall('workspace_read', {
+      path: '/github/repos/acme/widgets/src/tiny.ts',
+    });
+
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
+
+    expect(result.status).toBe('success');
+    expect(result.output).toBe(fileContent);
   });
 });
 
@@ -244,6 +285,24 @@ describe('createWorkspaceToolRegistry execute workspace_read_json', () => {
     expect(JSON.parse(result.output ?? 'null')).toEqual({
       path: '/github/repos/acme/widgets/pulls/1/metadata.json',
       json: { title: 'Widget', state: 'open' },
+    });
+  });
+
+  it('returns retryable not_found when the provider returns null for the path', async () => {
+    const provider = makeProvider({
+      read: vi.fn().mockResolvedValue(null),
+    });
+    const registry = createWorkspaceToolRegistry({ provider });
+    const call = makeCall('workspace_read_json', {
+      path: '/github/repos/acme/widgets/pulls/999/metadata.json',
+    });
+
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
+
+    expect(result.status).toBe('error');
+    expect(result.error).toMatchObject({
+      code: 'not_found',
+      retryable: true,
     });
   });
 

@@ -196,6 +196,16 @@ function stringifyObjectOutput(value: unknown): string {
   });
 }
 
+function truncateRawContent(content: string): string {
+  if (byteLength(content) <= MAX_OUTPUT_BYTES) {
+    return content;
+  }
+  return stringifyOutput({
+    _truncated: true,
+    message: 'Output exceeded 50KB; narrow the query or read a smaller file.',
+  });
+}
+
 function successResult(call: HarnessToolCall, output: string): HarnessToolResult {
   return {
     callId: call.id,
@@ -241,7 +251,11 @@ function invalidInputResult(call: HarnessToolCall, message: string): HarnessTool
 }
 
 function notFoundResult(call: HarnessToolCall, path: string): HarnessToolResult {
-  return errorResult(call, 'not_found', `Workspace file not found: ${path}`, false);
+  // Mark `not_found` as retryable so the model can recover by trying a
+  // different path. harness `runTurn` treats any tool error with
+  // `retryable !== true` as `tool_error_unrecoverable` and ends the turn —
+  // a routine missing-file lookup should not be terminal.
+  return errorResult(call, 'not_found', `Workspace file not found: ${path}`, true);
 }
 
 function thrownErrorResult(call: HarnessToolCall, error: unknown): HarnessToolResult {
@@ -522,7 +536,7 @@ export function createWorkspaceToolRegistry(
           return successResult(call, stringifyObjectOutput(output));
         }
 
-        return successResult(call, result.content);
+        return successResult(call, truncateRawContent(result.content));
       } catch (error) {
         return thrownErrorResult(call, error);
       }
