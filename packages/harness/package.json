@@ -39,6 +39,7 @@
     "@agent-assistant/coordination": "^0.2.6",
     "@agent-assistant/traits": "^0.2.0",
     "@agent-assistant/turn-context": "^0.2.0",
+    "@agent-assistant/vfs": "^0.2.23",
     "@agent-relay/sdk": "^4.0.22"
   },
   "devDependencies": {
