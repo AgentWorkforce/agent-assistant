@@ -102,7 +102,10 @@ export class WebhookRegistry {
   private readonly log: RegistryLogger;
 
   constructor(options: WebhookRegistryOptions = {}) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // See .claude/rules/workers-fetch.md — read `globalThis.fetch` at call
+    // time, not module load, to survive Workers + nodejs_compat + esbuild.
+    this.fetchImpl =
+      options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     this.log = options.logger ?? consoleLogger;
   }
 

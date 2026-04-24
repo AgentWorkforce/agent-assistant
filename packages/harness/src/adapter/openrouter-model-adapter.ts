@@ -233,7 +233,13 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
     this.apiKey = config.apiKey;
     this.model = config.model ?? DEFAULT_MODEL;
     this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
-    this.fetchImpl = config.fetchImpl ?? fetch;
+    // Default to a lambda that reads `globalThis.fetch` at CALL time, not
+    // a bare `fetch` reference. Bare references can be detached from
+    // globalThis under Cloudflare Workers + nodejs_compat + esbuild,
+    // throwing "Illegal invocation" on first use. See
+    // .claude/rules/workers-fetch.md for background.
+    this.fetchImpl =
+      config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.defaultTemperature = config.defaultTemperature;
   }
