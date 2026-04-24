@@ -402,7 +402,12 @@ async function handleInvalidOutput(
     return buildResult(input, state, {
       outcome: 'failed',
       stopReason: 'model_invalid_response',
-      metadata: { reason: output.reason },
+      metadata: {
+        reason: output.reason,
+        ...(output.kind ? { kind: output.kind } : {}),
+        ...(output.httpStatus !== undefined ? { httpStatus: output.httpStatus } : {}),
+        ...(output.retriedAt ? { retriedAt: output.retriedAt } : {}),
+      },
     });
   }
 
@@ -577,7 +582,7 @@ function toAssistantStep(iteration: number, output: HarnessModelOutput): Harness
     case 'refusal':
       return { type: 'assistant_step', iteration, outputType: output.type, text: output.reason, metadata: output.metadata };
     case 'invalid':
-      return { type: 'assistant_step', iteration, outputType: output.type, text: output.reason };
+      return { type: 'assistant_step', iteration, outputType: output.type, text: output.reason, metadata: output.metadata };
     case 'tool_request':
       return { type: 'assistant_step', iteration, outputType: output.type, metadata: output.metadata };
   }

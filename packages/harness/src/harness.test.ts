@@ -287,7 +287,13 @@ describe('harness runtime', () => {
   it('retries once after invalid model output then succeeds', async () => {
     const onInvalidModelOutput = vi.fn();
     const steps: HarnessModelOutput[] = [
-      { type: 'invalid', reason: 'bad schema', raw: { foo: 'bar' } },
+      {
+        type: 'invalid',
+        kind: 'schema_mismatch',
+        reason: 'bad schema',
+        raw: { foo: 'bar' },
+        httpStatus: 422,
+      },
       { type: 'final_answer', text: 'Recovered' },
     ];
 
@@ -299,6 +305,12 @@ describe('harness runtime', () => {
 
     const result = await harness.runTurn(createInput());
     expect(onInvalidModelOutput).toHaveBeenCalledOnce();
+    expect(onInvalidModelOutput.mock.calls[0][0]).toMatchObject({
+      type: 'invalid',
+      kind: 'schema_mismatch',
+      reason: 'bad schema',
+      httpStatus: 422,
+    });
     expect(result.outcome).toBe('completed');
     expect(result.traceSummary.iterationCount).toBe(2);
   });
@@ -395,7 +407,7 @@ describe('harness runtime', () => {
 
   it('fails after exceeding invalid model output limit', async () => {
     const harness = createHarness({
-      model: { nextStep: async () => ({ type: 'invalid', reason: 'still bad' }) },
+      model: { nextStep: async () => ({ type: 'invalid', kind: 'empty_response', reason: 'still bad' }) },
       limits: { maxConsecutiveInvalidModelOutputs: 2 },
       clock: createClock([0, 1, 2, 3, 4, 5, 6]),
     });
@@ -404,6 +416,7 @@ describe('harness runtime', () => {
     expect(result.outcome).toBe('failed');
     expect(result.stopReason).toBe('model_invalid_response');
     expect(result.metadata?.reason).toBe('still bad');
+    expect(result.metadata?.kind).toBe('empty_response');
   });
 
   describe('onTurnFinished hook', () => {

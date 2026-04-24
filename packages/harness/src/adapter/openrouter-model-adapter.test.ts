@@ -148,6 +148,7 @@ describe('OpenRouterModelAdapter', () => {
 
     expect(result.type).toBe('invalid');
     if (result.type === 'invalid') {
+      expect(result.kind).toBe('provider_error');
       expect(result.reason).toBe('Invalid model specified');
     }
   });
@@ -169,6 +170,7 @@ describe('OpenRouterModelAdapter', () => {
 
     expect(result.type).toBe('invalid');
     if (result.type === 'invalid') {
+      expect(result.kind).toBe('transient');
       expect(result.reason).toBe('timeout');
     }
   }, 3000);
@@ -198,6 +200,7 @@ describe('OpenRouterModelAdapter', () => {
 
     expect(result.type).toBe('invalid');
     if (result.type === 'invalid') {
+      expect(result.kind).toBe('provider_error');
       expect(result.reason.toLowerCase()).toContain('api key');
     }
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -227,6 +230,7 @@ describe('OpenRouterModelAdapter', () => {
 
     expect(result.type).toBe('invalid');
     if (result.type === 'invalid') {
+      expect(result.kind).toBe('schema_mismatch');
       expect(result.reason.toUpperCase()).toContain('JSON');
     }
   });
@@ -240,6 +244,7 @@ describe('OpenRouterModelAdapter', () => {
 
     expect(result.type).toBe('invalid');
     if (result.type === 'invalid') {
+      expect(result.kind).toBe('missing_message');
       expect(result.reason).toContain('did not include a message choice');
     }
   });
@@ -255,7 +260,170 @@ describe('OpenRouterModelAdapter', () => {
 
     expect(result.type).toBe('invalid');
     if (result.type === 'invalid') {
+      expect(result.kind).toBe('empty_response');
       expect(result.reason).toContain('usable assistant content');
+    }
+  });
+
+  it('attaches Claude message.reasoning metadata while returning tool_request', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        id: 'resp_reasoning_1',
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              content: null,
+              reasoning: 'Need repository facts before answering.',
+              tool_calls: [
+                {
+                  id: 'call_search',
+                  type: 'function',
+                  function: { name: 'search', arguments: '{"query":"repo"}' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    const result = await adapter.nextStep(makeInput());
+
+    expect(result.type).toBe('tool_request');
+    if (result.type === 'tool_request') {
+      expect(result.calls[0]).toMatchObject({
+        id: 'call_search',
+        name: 'search',
+        input: { query: 'repo' },
+      });
+      expect(result.metadata?.reasoning).toBe('Need repository facts before answering.');
+      expect(result.metadata?.responseId).toBe('resp_reasoning_1');
+      expect(result.metadata?.finishReason).toBe('tool_calls');
+    }
+  });
+
+  it('strips inline Claude <thinking> content into reasoning metadata while preserving tool calls', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [
+          {
+            message: {
+              content: '<thinking>Use the lookup tool.</thinking>',
+              tool_calls: [
+                {
+                  id: 'call_lookup',
+                  type: 'function',
+                  function: { name: 'lookup', arguments: '{"id":"123"}' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    const result = await adapter.nextStep(makeInput());
+
+    expect(result.type).toBe('tool_request');
+    if (result.type === 'tool_request') {
+      expect(result.calls[0].input).toEqual({ id: '123' });
+      expect(result.metadata?.reasoning).toBe('Use the lookup tool.');
+      expect(result.metadata?.rawReasoningBlocks).toEqual([
+        { type: 'thinking_tag', text: 'Use the lookup tool.' },
+      ]);
+    }
+  });
+
+  it('normalizes GPT-5.5-style Responses API reasoning and function_call items', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        id: 'resp_gpt55',
+        output: [
+          {
+            type: 'reasoning',
+            summary: [{ type: 'summary_text', text: 'Need to inspect the workspace.' }],
+          },
+          {
+            type: 'function_call',
+            call_id: 'call_workspace',
+            name: 'workspace_search',
+            arguments: '{"query":"open prs"}',
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 7 },
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    const result = await adapter.nextStep(makeInput());
+
+    expect(result.type).toBe('tool_request');
+    if (result.type === 'tool_request') {
+      expect(result.calls).toEqual([
+        { id: 'call_workspace', name: 'workspace_search', input: { query: 'open prs' } },
+      ]);
+      expect(result.metadata?.reasoning).toBe('Need to inspect the workspace.');
+      expect(result.usage?.inputTokens).toBe(5);
+      expect(result.usage?.outputTokens).toBe(7);
+    }
+  });
+
+  it('retries one transient 503 internally and returns the successful retry output', async () => {
+    const fetchImpl = vi.fn()
+      .mockReturnValueOnce(makeOkResponse({ error: { message: 'upstream unavailable' } }, 503))
+      .mockReturnValueOnce(makeOkResponse({
+        choices: [{ message: { content: 'Recovered.' } }],
+      }));
+    const adapter = new OpenRouterModelAdapter({
+      apiKey: 'test-key',
+      fetchImpl,
+      transientRetryDelayMs: 0,
+    });
+
+    const result = await adapter.nextStep(makeInput());
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.type).toBe('final_answer');
+    if (result.type === 'final_answer') {
+      expect(result.text).toBe('Recovered.');
+    }
+  });
+
+  it('surfaces transient kind after a 503 retry also fails', async () => {
+    const fetchImpl = vi.fn()
+      .mockReturnValueOnce(makeOkResponse({ error: { message: 'upstream unavailable' } }, 503))
+      .mockReturnValueOnce(makeOkResponse({ error: { message: 'still unavailable' } }, 503));
+    const adapter = new OpenRouterModelAdapter({
+      apiKey: 'test-key',
+      fetchImpl,
+      transientRetryDelayMs: 0,
+    });
+
+    const result = await adapter.nextStep(makeInput());
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.type).toBe('invalid');
+    if (result.type === 'invalid') {
+      expect(result.kind).toBe('transient');
+      expect(result.httpStatus).toBe(503);
+      expect(result.reason).toBe('still unavailable');
+      expect(result.retriedAt).toEqual(expect.any(String));
+    }
+  });
+
+  it('classifies model refusals separately from empty content', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: '', refusal: 'I cannot help with that.' } }],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    const result = await adapter.nextStep(makeInput());
+
+    expect(result.type).toBe('invalid');
+    if (result.type === 'invalid') {
+      expect(result.kind).toBe('model_refused');
+      expect(result.reason).toBe('I cannot help with that.');
     }
   });
 });

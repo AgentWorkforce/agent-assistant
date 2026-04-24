@@ -312,7 +312,12 @@ async function handleInvalidOutput(config, input, state, startedAt, output) {
         return buildResult(input, state, {
             outcome: 'failed',
             stopReason: 'model_invalid_response',
-            metadata: { reason: output.reason },
+            metadata: {
+                reason: output.reason,
+                ...(output.kind ? { kind: output.kind } : {}),
+                ...(output.httpStatus !== undefined ? { httpStatus: output.httpStatus } : {}),
+                ...(output.retriedAt ? { retriedAt: output.retriedAt } : {}),
+            },
         });
     }
     return checkLimits(config, input, state, startedAt);
@@ -445,7 +450,7 @@ function toAssistantStep(iteration, output) {
         case 'refusal':
             return { type: 'assistant_step', iteration, outputType: output.type, text: output.reason, metadata: output.metadata };
         case 'invalid':
-            return { type: 'assistant_step', iteration, outputType: output.type, text: output.reason };
+            return { type: 'assistant_step', iteration, outputType: output.type, text: output.reason, metadata: output.metadata };
         case 'tool_request':
             return { type: 'assistant_step', iteration, outputType: output.type, metadata: output.metadata };
     }
