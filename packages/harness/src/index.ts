@@ -1,4 +1,5 @@
 export { createHarness } from './harness.js';
+export { USING_RELAYFILE_VFS_SKILL } from './skills/using-relayfile-vfs.js';
 export { HarnessConfigError } from './types.js';
 export * from './adapter/index.js';
 
