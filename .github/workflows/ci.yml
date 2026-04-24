@@ -24,6 +24,41 @@ jobs:
 
       - run: npm ci
 
+      # Build all packages in dependency order before tests/typecheck. dist/ is
+      # no longer committed (see chore/untrack-dist-artifacts), so every
+      # workspace consumer needs its dep's dist on disk before tsc/vitest can
+      # resolve `@agent-assistant/*` imports.
+      #
+      # Topological order:
+      #   traits, routing, connectivity, memory, vfs    — leaves
+      #   core (traits), coordination (connectivity, routing)
+      #   surfaces, sessions, policy
+      #   harness (traits, core, connectivity, coordination, vfs)
+      #   turn-context (traits, harness, memory)
+      #   proactive (surfaces), inbox (turn-context), continuation
+      #   telemetry (harness), specialists (coordination, vfs)
+      #   sdk (re-exports), webhook-runtime (specialists)
+      - name: Build packages in dependency order
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORDER=(
+            traits routing connectivity memory vfs
+            core coordination
+            surfaces sessions policy
+            harness
+            turn-context
+            proactive inbox continuation
+            telemetry specialists
+            sdk webhook-runtime
+          )
+          for pkg in "${ORDER[@]}"; do
+            if [ -f "packages/$pkg/package.json" ] && jq -e '.scripts.build' "packages/$pkg/package.json" >/dev/null; then
+              echo "==> Building $pkg"
+              npm run build -w "@agent-assistant/$pkg"
+            fi
+          done
+
       # Tests — publishable packages only
       - name: Run tests — traits
         working-directory: packages/traits
@@ -45,118 +80,43 @@ jobs:
         working-directory: packages/vfs
         run: npx vitest run
 
-      # Harness depends on traits, connectivity, coordination, turn-context, and
-      # vfs via workspace file: links. None of those dists (except turn-context's,
-      # which is stale and references a `memory-retriever.js` that isn't in the
-      # committed dist) are ready for vitest on a fresh checkout. Build them in
-      # dependency order before running harness tests.
-      #
-      # Chain:
-      #   traits        — leaf (no workspace deps)
-      #   memory        — leaf (no workspace deps); needed by turn-context type imports
-      #   connectivity  — leaf (no workspace deps)
-      #   coordination  — needs connectivity
-      #   turn-context  — needs memory + traits (type-only); rebuilt to refresh stale dist
-      #   vfs           — leaf; harness imports types from @agent-assistant/vfs
-      - name: Build — traits (harness dep)
-        working-directory: packages/traits
-        run: npm run build
-
-      - name: Build — memory (turn-context dep)
-        working-directory: packages/memory
-        run: npm run build
-
-      - name: Build — connectivity (harness dep)
-        working-directory: packages/connectivity
-        run: npm run build
-
-      - name: Build — coordination (harness dep)
-        working-directory: packages/coordination
-        run: npm run build
-
-      - name: Rebuild — turn-context (committed dist is stale)
-        working-directory: packages/turn-context
-        run: |
-          rm -rf dist
-          npm run build
-
-      - name: Build — vfs (harness dep)
-        working-directory: packages/vfs
-        run: npm run build
-
       - name: Run tests — harness
         working-directory: packages/harness
         run: npx vitest run
-
-      # Telemetry depends on harness types (HarnessUsage / HarnessResult).
-      # Build harness first so the workspace file: link resolves, then test.
-      - name: Build — harness (telemetry dep)
-        working-directory: packages/harness
-        run: npm run build
 
       - name: Run tests — telemetry
         working-directory: packages/telemetry
         run: npx vitest run
 
-      # Build/typecheck in dependency order so downstream workspace imports resolve
-      - name: Build — traits
-        working-directory: packages/traits
-        run: npm run build
+      - name: Run tests — proactive
+        working-directory: packages/proactive
+        run: npx vitest run
 
+      # Typecheck — runs after the dependency-ordered build above so all
+      # workspace dist/ folders are populated.
       - name: Typecheck — traits
         working-directory: packages/traits
         run: npx tsc --noEmit -p tsconfig.json
-
-      - name: Build — core
-        working-directory: packages/core
-        run: npm run build
 
       - name: Typecheck — core
         working-directory: packages/core
         run: npx tsc --noEmit -p tsconfig.json
 
-      - name: Build — sessions
-        working-directory: packages/sessions
-        run: npm run build
-
       - name: Typecheck — sessions
         working-directory: packages/sessions
         run: npx tsc --noEmit -p tsconfig.json
-
-      - name: Build — surfaces
-        working-directory: packages/surfaces
-        run: npm run build
 
       - name: Typecheck — surfaces
         working-directory: packages/surfaces
         run: npx tsc --noEmit -p tsconfig.json
 
-      # proactive must be built AFTER surfaces — proactive imports the
-      # BotChannel type from @agent-assistant/surfaces (added in #36's
-      # channel-picker and notify-channel-resolver).
-      - name: Build — proactive (needs surfaces)
-        working-directory: packages/proactive
-        run: npm run build
-
       - name: Typecheck — proactive
         working-directory: packages/proactive
         run: npx tsc --noEmit -p tsconfig.json
 
-      - name: Run tests — proactive
-        working-directory: packages/proactive
-        run: npx vitest run
-
-      - name: Build — vfs
-        working-directory: packages/vfs
-        run: npm run build
-
       - name: Typecheck — vfs
         working-directory: packages/vfs
         run: npx tsc --noEmit -p tsconfig.json
-
-      - name: Build — telemetry
-        working-directory: packages/telemetry
-        run: npm run build
 
       - name: Typecheck — telemetry
         working-directory: packages/telemetry
