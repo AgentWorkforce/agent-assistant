@@ -117,10 +117,19 @@ export interface HarnessRefusalOutput {
 }
 export interface HarnessInvalidOutput {
     type: 'invalid';
+    /**
+     * Machine-readable invalid-output class. Consumers should prefer this over
+     * string matching `reason`; `reason` remains the stable human-readable field.
+     */
+    kind?: HarnessInvalidOutputKind;
     reason: string;
     raw?: unknown;
+    httpStatus?: number;
+    retriedAt?: string;
+    metadata?: Record<string, unknown>;
     usage?: HarnessUsage;
 }
+export type HarnessInvalidOutputKind = 'transient' | 'schema_mismatch' | 'empty_response' | 'missing_message' | 'model_refused' | 'provider_error';
 export interface HarnessToolRegistry {
     listAvailable(input: HarnessToolAvailabilityInput): Promise<HarnessToolDefinition[]>;
     execute(call: HarnessToolCall, context: HarnessToolExecutionContext): Promise<HarnessToolResult>;
