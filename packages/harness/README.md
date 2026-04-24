@@ -30,6 +30,10 @@ It exists to fill the gap between a thin one-shot assistant runtime and an unbou
 npm install @agent-assistant/harness
 ```
 
+## Workspace VFS Tools
+
+`createWorkspaceToolRegistry` exposes provider-neutral `workspace_search`, `workspace_list`, `workspace_read`, and `workspace_read_json` tools for assistants that have a `VfsProvider` from `@agent-assistant/vfs`. The tools emit VFS paths, including `sourcePath`-style structured outputs for JSON reads, so callers can cite file paths in user-visible replies instead of answering workspace questions from memory.
+
 ## Quick Example
 
 ```ts
