@@ -88,7 +88,7 @@ jobs:
               # DelegationRequest types) — must build + publish after it. Same
               # max-parallel: 1 contract keeps webhook-runtime's publish after
               # specialists'.
-              PACKAGES='["traits","connectivity","coordination","core","sessions","surfaces","policy","proactive","harness","telemetry","memory","turn-context","inbox","continuation","sdk","vfs","specialists","webhook-runtime"]'
+              PACKAGES='["traits","connectivity","coordination","core","sessions","surfaces","policy","proactive","harness","telemetry","memory","turn-context","inbox","continuation","sdk","vfs","specialists","webhook-runtime","cloudflare-runtime"]'
               FIRST='traits'
               ;;
             *)
@@ -132,12 +132,23 @@ jobs:
           echo "Publishing Agent Assistant package group: ${{ github.event.inputs.package_group }}"
           echo "Packages: ${{ needs.resolve-packages.outputs.package_list }}"
 
-      # Harness tests import from @agent-assistant/{traits,connectivity,
-      # coordination,turn-context,vfs,core}. dist/ is not committed, so build
-      # the chain before running vitest. connectivity + coordination are not
-      # in the publish matrix, so the dependency-aware Build step below does
-      # not cover them.
-      - name: Prepare harness test dependencies
+      # Tests import from @agent-assistant/* siblings whose package.json
+      # exports point at dist/. dist/ is not committed, so every dep that
+      # any test in the matrix imports must be built before vitest runs.
+      # The publish matrix's dependency-aware Build step further down only
+      # runs AFTER tests, so this step has to cover the full pre-test
+      # dep closure.
+      #
+      # Coverage:
+      #   - Harness tests pull traits/connectivity/coordination/turn-context/vfs/core.
+      #   - cloudflare-runtime tests pull surfaces (SlackEventDedupGate),
+      #     continuation, and webhook-runtime (and webhook-runtime in turn
+      #     pulls specialists at runtime via specialist-bridge re-exports).
+      #
+      # Build order respects deps: traits → memory → connectivity →
+      # coordination → vfs → core → harness → turn-context, then surfaces,
+      # specialists, continuation, webhook-runtime on top.
+      - name: Pre-build workspace deps for tests
         shell: bash
         run: |
           set -euo pipefail
@@ -149,6 +160,10 @@ jobs:
           npm run build -w @agent-assistant/core
           npm run build -w @agent-assistant/harness
           npm run build -w @agent-assistant/turn-context
+          npm run build -w @agent-assistant/surfaces
+          npm run build -w @agent-assistant/specialists
+          npm run build -w @agent-assistant/continuation
+          npm run build -w @agent-assistant/webhook-runtime
 
       - name: Run tests
         shell: bash
@@ -167,7 +182,7 @@ jobs:
           set -euo pipefail
           # Topological build order. dist/ is no longer committed, so each
           # package's tsc needs its workspace deps' dist on disk first.
-          ORDER=(traits connectivity memory vfs core coordination surfaces sessions policy harness turn-context proactive inbox continuation telemetry specialists sdk webhook-runtime)
+          ORDER=(traits connectivity memory vfs core coordination surfaces sessions policy harness turn-context proactive inbox continuation telemetry specialists sdk webhook-runtime cloudflare-runtime)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
