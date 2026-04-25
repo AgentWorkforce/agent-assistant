@@ -172,6 +172,15 @@ describe("wrapCloudflareWorker", () => {
     expect(innerFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("does not attach a stub queue handler", () => {
+    const worker = wrapCloudflareWorker<TestEnv>({
+      webhookRoutes: {},
+      queueBinding: "TURN_QUEUE",
+    });
+
+    expect(worker.queue).toBeUndefined();
+  });
+
   it("fails loud when a Slack route is missing signature verification", () => {
     expect(() =>
       wrapCloudflareWorker<TestEnv>({

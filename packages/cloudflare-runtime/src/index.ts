@@ -1,6 +1,5 @@
 export {
   CfIngressConfigurationError,
-  handleCfQueue,
   wrapCloudflareWorker,
 } from './ingress/cf-ingress.js';
 export type {
@@ -28,6 +27,7 @@ export type {
 } from './executor/fake-execution-context.js';
 export {
   createCfTurnExecutor,
+  handleCfQueue,
   handleCfQueue as handleCfTurnQueue,
 } from './executor/cf-turn-executor.js';
 export type {

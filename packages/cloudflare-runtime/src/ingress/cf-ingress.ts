@@ -130,13 +130,7 @@ export function wrapCloudflareWorker<Env>(
 
       return result.response;
     },
-
-    queue: handleCfQueue,
   };
-}
-
-export async function handleCfQueue(): Promise<void> {
-  throw new Error("executor not wired — see W3");
 }
 
 async function shouldDispatchWebhook<Env>(

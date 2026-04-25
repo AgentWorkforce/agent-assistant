@@ -41,8 +41,7 @@ class ConsoleJsonLogger implements CfLogger {
   constructor(opts: ConsoleJsonLoggerOptions = {}) {
     this.level = opts.level ?? "info";
     this.bindings = opts.bindings ?? {};
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.sink = opts.sink ?? (globalThis.console as any);
+    this.sink = opts.sink ?? globalThis.console;
   }
 
   debug(event: string, data?: Record<string, unknown>): void {
