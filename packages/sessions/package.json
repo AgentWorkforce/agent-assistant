@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/sessions",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Session lifecycle, storage, and affinity for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
