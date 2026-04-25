@@ -3,7 +3,7 @@ import type { VfsEntry } from '@agent-assistant/vfs';
 import { parseQuery } from './query-syntax.js';
 
 export type LibrarianStatus = 'complete' | 'partial' | 'failed';
-export type LibrarianSource = 'vfs' | 'apiFallback' | 'mixed';
+export type LibrarianSource = 'vfs-list' | 'vfs-enumerate' | 'vfs-search' | 'apiFallback' | 'mixed';
 
 export interface LibrarianEvidence {
   id: string;
@@ -33,6 +33,25 @@ export interface LibrarianAdapter<TType extends string = string> {
 export interface LibrarianVfs {
   list?(path: string, options?: { depth?: number; limit?: number }): Promise<readonly VfsEntry[]>;
   search?(query: string, options?: { provider?: string; limit?: number }): Promise<readonly VfsEntry[]>;
+  /**
+   * Optional metadata-bearing enumeration. Returns entries with `properties`
+   * populated so the engine can filter by structured fields (state, label, type).
+   * Providers without an indexed/property-aware backend leave this undefined.
+   *
+   * Filter semantics: OR within a key (any value matches), AND across keys
+   * (all keys must match). Implementations MUST NOT silently drop unsupported
+   * filter keys - return entries the engine can re-filter defensively, and
+   * the engine WILL post-filter for correctness.
+   *
+   * Roots are normalized path prefixes (no globs in v1). Multiple roots are
+   * legitimate for cross-repo / cross-collection enumeration; the provider
+   * may batch internally.
+   */
+  enumerate?(input: {
+    roots: string[];
+    filters: Record<string, string[]>;
+    limit: number;
+  }): Promise<VfsEntry[]>;
 }
 
 export interface LibrarianFallbackRequest<TType extends string = string> {
@@ -111,26 +130,45 @@ export function createLibrarian<TType extends string>(
         const parsed = parseQuery(instruction);
         const filters = cloneFilters(adapter.inferFilters(parsed.text, cloneFilters(parsed.filters)));
         const types = requestedTypes(adapter, filters);
+        const hasFilters = Object.values(filters).some((values) => values.length > 0);
         const errors: string[] = [];
-        let source: LibrarianSource = 'vfs';
+        let source: LibrarianSource = 'vfs-list';
         let entries: EnumerationEntry<TType>[] = [];
 
-        try {
-          if (types.length > 0) {
-            entries = await listEnumerationEntries(adapter, options.vfs, types, filters, errors, {
+        if (hasFilters && options.vfs.enumerate) {
+          try {
+            const enumerated = await options.vfs.enumerate({
+              roots: adapter.listRoots(types, filters),
+              filters,
               limit,
-              listDepth,
             });
-          } else if (hasNoFilters(filters)) {
-            entries = await searchEntries(adapter, options.vfs, parsed.text, errors, limit);
-          } else {
-            entries = await listEnumerationEntries(adapter, options.vfs, adapter.entityTypes, filters, errors, {
-              limit,
-              listDepth,
-            });
+            entries = enumerated.map((entry) => ({
+              entry,
+              enumerationType: adapter.inferEntityType(entry),
+            }));
+            source = 'vfs-enumerate';
+          } catch (error) {
+            errors.push(errorMessage(error));
           }
-        } catch (error) {
-          errors.push(errorMessage(error));
+        } else if (options.vfs.list || options.vfs.search) {
+          try {
+            if (types.length > 0) {
+              entries = await listEnumerationEntries(adapter, options.vfs, types, filters, errors, {
+                limit,
+                listDepth,
+              });
+            } else if (hasNoFilters(filters)) {
+              entries = await searchEntries(adapter, options.vfs, parsed.text, errors, limit);
+              source = 'vfs-search';
+            } else {
+              entries = await listEnumerationEntries(adapter, options.vfs, adapter.entityTypes, filters, errors, {
+                limit,
+                listDepth,
+              });
+            }
+          } catch (error) {
+            errors.push(errorMessage(error));
+          }
         }
 
         if (entries.length === 0 && options.apiFallback) {
@@ -153,9 +191,37 @@ export function createLibrarian<TType extends string>(
           }
         }
 
-        const matchedEntries = dedupeEntries(entries)
+        let matchedEntries = dedupeEntries(entries)
           .filter(({ entry }) => matchesRequestedFilters(adapter, entry, filters))
           .sort(compareEntries);
+
+        if (hasFilters && matchedEntries.length === 0 && entries.length > 0 && options.apiFallback) {
+          try {
+            const fallbackEntries = await loadFallbackEntries(options.apiFallback, {
+              instruction,
+              text: parsed.text,
+              filters,
+              types,
+            });
+            if (fallbackEntries.length > 0) {
+              const fallbackMatched = dedupeEntries(
+                fallbackEntries.map((entry) => ({
+                  entry,
+                  enumerationType: adapter.inferEntityType(entry),
+                })),
+              )
+                .filter(({ entry }) => matchesRequestedFilters(adapter, entry, filters))
+                .sort(compareEntries);
+              if (fallbackMatched.length > 0) {
+                matchedEntries = fallbackMatched;
+                source = errors.length > 0 ? 'mixed' : 'apiFallback';
+              }
+            }
+          } catch (error) {
+            errors.push(errorMessage(error));
+          }
+        }
+
         const evidence = matchedEntries.map(({ entry, enumerationType }) =>
           adapter.toEvidence(entry, enumerationType),
         );
