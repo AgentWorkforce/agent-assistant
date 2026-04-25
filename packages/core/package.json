@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/core",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Assistant definition, lifecycle, and runtime composition for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",

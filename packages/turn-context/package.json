@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/turn-context",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Turn-scoped context assembly for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
