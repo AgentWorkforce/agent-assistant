@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/webhook-runtime",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,7 +41,7 @@
     "hono": "^4"
   },
   "peerDependencies": {
-    "@agent-assistant/harness": "^0.4.0"
+    "@agent-assistant/harness": "^0.4.0 || ^0.6.0"
   },
   "peerDependenciesMeta": {
     "@agent-assistant/harness": {
@@ -49,7 +49,7 @@
     }
   },
   "devDependencies": {
-    "@agent-assistant/harness": "^0.4.0",
+    "@agent-assistant/harness": "^0.6.4",
     "@types/node": "^24.6.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
