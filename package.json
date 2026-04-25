@@ -5,6 +5,7 @@
   "workspaces": [
     "packages/traits",
     "packages/core",
+    "packages/vfs",
     "packages/harness",
     "packages/memory",
     "packages/inbox",
@@ -12,7 +13,6 @@
     "packages/turn-context",
     "packages/sessions",
     "packages/surfaces",
-    "packages/vfs",
     "packages/routing",
     "packages/connectivity",
     "packages/coordination",
