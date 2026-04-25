@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/vfs",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Provider-neutral virtual filesystem contracts and Bash-oriented CLI runner for assistant products",
   "type": "module",
   "main": "dist/index.js",
