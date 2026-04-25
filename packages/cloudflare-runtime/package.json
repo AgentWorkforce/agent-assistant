@@ -18,9 +18,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent-assistant/continuation": "workspace:*",
-    "@agent-assistant/webhook-runtime": "workspace:*",
-    "@agent-assistant/surfaces": "workspace:*"
+    "@agent-assistant/continuation": "^0.2.24",
+    "@agent-assistant/webhook-runtime": "^0.2.0",
+    "@agent-assistant/surfaces": "^0.3.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260417.1",
