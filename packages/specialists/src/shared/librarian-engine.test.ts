@@ -190,4 +190,67 @@ describe('createLibrarian VFS enumeration flow', () => {
     expect(result.metadata.errors).toEqual(['indexed enumeration unavailable']);
     expect(evidenceIds(result)).toEqual(['fallback-hit']);
   });
+
+  // Regression for codex P1 review on PR #61 — when the query has no
+  // explicit/inferred `type` filter, `requestedTypes()` returns []. The
+  // previous code passed that empty array straight into
+  // `adapter.listRoots(types, filters)`. For adapters whose listRoots is
+  // `types.map(...)` (every current adapter), the result was `roots: []`,
+  // and the property-bearing backend was queried with no roots → zero results.
+  it('expands empty types to adapter.entityTypes when computing enumerate roots', async () => {
+    const enumerate = vi.fn(async () => [entry('pr-hit', { state: 'open', type: 'pr' })]);
+    const librarian = createTestLibrarian({ enumerate });
+
+    // `state:open` is a non-type filter, so `hasFilters` is true but
+    // `types` is []. Without the `effectiveTypes = adapter.entityTypes`
+    // expansion, `roots` would be [] and enumerate would never see the data.
+    await librarian.handler.execute('state:open');
+
+    expect(enumerate).toHaveBeenCalledOnce();
+    const callArg = enumerate.mock.calls[0]?.[0] as { roots: string[] };
+    expect(callArg.roots).toEqual(['/root/pr', '/root/issue']);
+  });
+
+  // Regression for codex P2 review on PR #61 — enumerated entries used to
+  // be accepted directly via `entries.map(entry => ({entry, enumerationType: inferEntityType(entry)}))`,
+  // bypassing `toEnumerationEntry`'s type-constraint enforcement. For
+  // adapters where `type` is not in `filterKeys`, `matchesRequestedFilters`
+  // would not catch wrong-type entries, so an enumerate backend returning
+  // mixed kinds could leak the wrong type past a `type:`-scoped query.
+  it('rejects enumerate results whose inferred type is not in the requested types', async () => {
+    const enumerate = vi.fn(async () => [
+      entry('pr-hit', { state: 'open', type: 'pr' }),
+      entry('issue-hit', { state: 'open', type: 'issue' }),
+    ]);
+    const librarian = createTestLibrarian({ enumerate });
+
+    const result = await librarian.handler.execute('type:pr state:open');
+
+    expect(enumerate).toHaveBeenCalledOnce();
+    // Only the 'pr' entry survives — the 'issue' entry is dropped by
+    // toEnumerationEntry because it's not in the requested types.
+    expect(evidenceIds(result)).toEqual(['pr-hit']);
+  });
+
+  // Regression for devin P1 review on PR #61 — when the zero-entry gate
+  // already invoked apiFallback and got back entries that all failed the
+  // post-filter, the post-filter-empty safety net would call apiFallback
+  // AGAIN with identical params. Track `apiFallbackAttempted` and skip the
+  // second call.
+  it('does not call apiFallback twice when the zero-entry gate already tried it', async () => {
+    // VFS returns nothing → first fallback fires.
+    const enumerate = vi.fn(async () => []);
+    // apiFallback returns an entry that does NOT match the filter (state=closed
+    // when query asks for state=open), so post-filter empties the result.
+    const apiFallback = vi.fn(async () => [entry('mismatch', { state: 'closed', type: 'pr' })]);
+    const librarian = createTestLibrarian({ enumerate }, apiFallback);
+
+    const result = await librarian.handler.execute('type:pr state:open');
+
+    // Critical: exactly ONE call. The post-filter-empty safety net must
+    // not re-invoke apiFallback with identical parameters.
+    expect(apiFallback).toHaveBeenCalledOnce();
+    expect(evidenceIds(result)).toEqual([]);
+    expect(result.status).toBe('failed');
+  });
 });

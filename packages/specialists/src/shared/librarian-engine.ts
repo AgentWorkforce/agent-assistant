@@ -130,22 +130,38 @@ export function createLibrarian<TType extends string>(
         const parsed = parseQuery(instruction);
         const filters = cloneFilters(adapter.inferFilters(parsed.text, cloneFilters(parsed.filters)));
         const types = requestedTypes(adapter, filters);
+        // When the query supplies no `type:` filter, fall back to every entity
+        // type the adapter advertises. This mirrors the existing list-path
+        // behavior at the `else { listEnumerationEntries(..., adapter.entityTypes, ...) }`
+        // branch and is required for adapters whose `listRoots` is `types.map(...)` —
+        // passing `[]` would collapse the search space to `roots: []`.
+        const effectiveTypes = types.length > 0 ? types : adapter.entityTypes;
         const hasFilters = Object.values(filters).some((values) => values.length > 0);
         const errors: string[] = [];
         let source: LibrarianSource = 'vfs-list';
         let entries: EnumerationEntry<TType>[] = [];
+        // Track whether apiFallback has already been invoked with the current
+        // request shape so the post-filter-empty safety net at the bottom does
+        // not double-call it with identical params after the zero-entry gate
+        // already tried.
+        let apiFallbackAttempted = false;
 
         if (hasFilters && options.vfs.enumerate) {
           try {
             const enumerated = await options.vfs.enumerate({
-              roots: adapter.listRoots(types, filters),
+              roots: adapter.listRoots(effectiveTypes, filters),
               filters,
               limit,
             });
-            entries = enumerated.map((entry) => ({
-              entry,
-              enumerationType: adapter.inferEntityType(entry),
-            }));
+            // Route enumerated entries through `toEnumerationEntry` so type
+            // constraints are enforced on adapters where `type` is not in
+            // `filterKeys` (e.g., Linear). A property-bearing backend that
+            // returns mixed entity kinds must not leak the wrong type past
+            // a `type:`-scoped query just because `matchesRequestedFilters`
+            // doesn't see `type` as a filter key on that adapter.
+            entries = enumerated.flatMap((entry) =>
+              toEnumerationEntry(adapter, entry, effectiveTypes),
+            );
             source = 'vfs-enumerate';
           } catch (error) {
             errors.push(errorMessage(error));
@@ -173,6 +189,7 @@ export function createLibrarian<TType extends string>(
 
         if (entries.length === 0 && options.apiFallback) {
           try {
+            apiFallbackAttempted = true;
             const fallbackEntries = await loadFallbackEntries(options.apiFallback, {
               instruction,
               text: parsed.text,
@@ -181,10 +198,9 @@ export function createLibrarian<TType extends string>(
             });
             if (fallbackEntries.length > 0) {
               source = errors.length > 0 ? 'mixed' : 'apiFallback';
-              entries = fallbackEntries.map((entry) => ({
-                entry,
-                enumerationType: adapter.inferEntityType(entry),
-              }));
+              entries = fallbackEntries.flatMap((entry) =>
+                toEnumerationEntry(adapter, entry, effectiveTypes),
+              );
             }
           } catch (error) {
             errors.push(errorMessage(error));
@@ -195,8 +211,20 @@ export function createLibrarian<TType extends string>(
           .filter(({ entry }) => matchesRequestedFilters(adapter, entry, filters))
           .sort(compareEntries);
 
-        if (hasFilters && matchedEntries.length === 0 && entries.length > 0 && options.apiFallback) {
+        // Post-filter-empty safety net: when filters reduce VFS results to
+        // zero AND apiFallback exists AND it hasn't already been tried for
+        // this turn, retry via fallback then re-filter. Skipping when
+        // `apiFallbackAttempted` is true avoids duplicate identical-param
+        // round-trips when the zero-entry gate above already ran.
+        if (
+          hasFilters &&
+          matchedEntries.length === 0 &&
+          entries.length > 0 &&
+          options.apiFallback &&
+          !apiFallbackAttempted
+        ) {
           try {
+            apiFallbackAttempted = true;
             const fallbackEntries = await loadFallbackEntries(options.apiFallback, {
               instruction,
               text: parsed.text,
@@ -205,10 +233,9 @@ export function createLibrarian<TType extends string>(
             });
             if (fallbackEntries.length > 0) {
               const fallbackMatched = dedupeEntries(
-                fallbackEntries.map((entry) => ({
-                  entry,
-                  enumerationType: adapter.inferEntityType(entry),
-                })),
+                fallbackEntries.flatMap((entry) =>
+                  toEnumerationEntry(adapter, entry, effectiveTypes),
+                ),
               )
                 .filter(({ entry }) => matchesRequestedFilters(adapter, entry, filters))
                 .sort(compareEntries);
