@@ -80,3 +80,14 @@ export type {
   WebhookQueueMessage,
   ResumeQueueMessage,
 } from './types.js';
+export {
+  consoleJsonLogger,
+  createConsoleJsonLogger,
+  nullLogger,
+  createCapturingLogger,
+} from './observability/index.js';
+export type {
+  CfLogger,
+  LogLevel,
+  CapturedLogRecord,
+} from './observability/index.js';

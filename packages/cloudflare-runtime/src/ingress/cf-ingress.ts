@@ -8,6 +8,7 @@ import type {
   KVNamespace,
   Queue,
 } from "@cloudflare/workers-types";
+import { consoleJsonLogger, type CfLogger } from "../observability/index.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -52,6 +53,11 @@ export interface CfIngressOptions<Env> {
   dedupTtlSeconds?: number;
   continuationBinding?: keyof Env & string;
   turnExecutorDoBinding?: keyof Env & string;
+  // Persona-injectable logger. Defaults to consoleJsonLogger (JSON to stdout,
+  // surfaces in `wrangler tail --format json`). Pass a custom logger to ship
+  // events to Workers Analytics Engine, Datadog, etc., or `nullLogger` to
+  // silence in tests.
+  logger?: CfLogger;
 }
 
 export class CfIngressConfigurationError extends Error {
@@ -77,32 +83,50 @@ export function wrapCloudflareWorker<Env>(
   opts: CfIngressOptions<Env>,
 ): CfWorkerHandler<Env> {
   validateOptions(opts);
+  const baseLogger = opts.logger ?? consoleJsonLogger;
 
   return {
     async fetch(req, env, ctx) {
-      const route = opts.webhookRoutes[new URL(req.url).pathname];
+      const url = new URL(req.url);
+      const route = opts.webhookRoutes[url.pathname];
+      const log = baseLogger.child({ component: "cf-ingress", path: url.pathname });
+
       if (!route) {
+        log.debug("non-webhook request — delegating to inner");
         return opts.inner?.fetch?.(req, env, ctx) ?? new Response("Not Found", { status: 404 });
       }
 
+      const routeLog = log.child({ provider: route.provider });
+      routeLog.info("webhook received");
+
       const verification = await route.verify?.(req.clone(), env);
       if (verification && !verification.ok) {
+        routeLog.warn("signature verification failed", { reason: verification.reason });
         return new Response("Unauthorized", { status: 401 });
       }
 
       const result = await route.parse(req, env);
-      if (result.kind === "ack") return result.response;
+      routeLog.debug("parse complete", { kind: result.kind, hasDedupKey: Boolean(result.dedupKey) });
+      if (result.kind === "ack") {
+        routeLog.info("ack-only response", { status: result.response.status });
+        return result.response;
+      }
 
-      const shouldDispatch = await shouldDispatchWebhook(req, env, route, result, opts);
-      if (!shouldDispatch) return new Response("OK", { status: 200 });
+      const shouldDispatch = await shouldDispatchWebhook(req, env, route, result, opts, routeLog);
+      if (!shouldDispatch) {
+        routeLog.info("duplicate event — skipping enqueue");
+        return new Response("OK", { status: 200 });
+      }
 
       const queue = env[opts.queueBinding] as Queue;
+      const receivedAt = new Date().toISOString();
       await queue.send({
         type: "webhook",
         provider: route.provider,
         descriptor: result.turn,
-        receivedAt: new Date().toISOString(),
+        receivedAt,
       });
+      routeLog.info("turn enqueued", { receivedAt });
 
       return result.response;
     },
@@ -121,9 +145,13 @@ async function shouldDispatchWebhook<Env>(
   route: WebhookRouteConfig<Env>,
   result: ParseResult,
   opts: CfIngressOptions<Env>,
+  log: CfLogger,
 ): Promise<boolean> {
   const key = getProviderDedupKey(req, route.provider, result);
-  if (!key) return true;
+  if (!key) {
+    log.debug("no dedup key — letting through");
+    return true;
+  }
 
   if (!opts.dedupBinding) {
     throw new CfIngressConfigurationError("dedupBinding is required for webhook ingress");
@@ -134,6 +162,7 @@ async function shouldDispatchWebhook<Env>(
     ttlSeconds: opts.dedupTtlSeconds,
   });
   const decision = await gate.claim({ eventId: key });
+  log.debug("dedup decision", { dedupKey: key, proceed: decision.proceed, reason: decision.reason });
   return decision.proceed;
 }
 
