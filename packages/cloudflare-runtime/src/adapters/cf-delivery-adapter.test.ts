@@ -63,4 +63,51 @@ describe('CfDeliveryAdapter', () => {
 
     expect(seen).toEqual(['slack', 'github', 'a2a-callback']);
   });
+
+  it('returns failure when the matching handler is not registered', async () => {
+    const adapter = new CfDeliveryAdapter({});
+
+    expect(await adapter.deliver(makeInput('slack'))).toEqual({
+      delivered: false,
+      failureReason: 'no_slack_handler',
+    });
+    expect(await adapter.deliver(makeInput('github'))).toEqual({
+      delivered: false,
+      failureReason: 'no_github_handler',
+    });
+    expect(await adapter.deliver(makeInput('a2a-callback'))).toEqual({
+      delivered: false,
+      failureReason: 'no_a2a_callback_handler',
+    });
+  });
+
+  it('returns failure for unknown target kinds', async () => {
+    const adapter = new CfDeliveryAdapter({
+      slack: () => undefined,
+    });
+    const input = makeInput('slack');
+    // Force the target into an unknown kind that still has a kind field —
+    // simulates a future delivery target that the adapter doesn't yet understand.
+    (input.continuation.delivery.target as { kind: string }).kind = 'unknown-future-channel';
+
+    const result = await adapter.deliver(input);
+    expect(result).toEqual({
+      delivered: false,
+      failureReason: 'unsupported_target_kind:unknown-future-channel',
+    });
+  });
+
+  it('still surfaces handler exceptions as failure (not delivered:true)', async () => {
+    const adapter = new CfDeliveryAdapter({
+      slack: () => {
+        throw new Error('upstream slack 500');
+      },
+    });
+
+    const result = await adapter.deliver(makeInput('slack'));
+    expect(result).toEqual({
+      delivered: false,
+      failureReason: 'upstream slack 500',
+    });
+  });
 });

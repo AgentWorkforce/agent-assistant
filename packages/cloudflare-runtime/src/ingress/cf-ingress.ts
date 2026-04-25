@@ -180,7 +180,13 @@ function getProviderDedupKey<Env>(
     return getSlackDeduplicationKey(result.dedupKey ?? {});
   }
 
-  return getSlackDeduplicationKey(result.dedupKey ?? {});
+  // For nango (and any future provider), the persona's parse() supplies the
+  // dedup key explicitly via result.dedupKey. We do NOT fall back to Slack-
+  // shaped extraction — nango envelopes don't have Slack's eventId/ts fields,
+  // and silently returning undefined would mean dedup is skipped entirely.
+  // Personas wire result.dedupKey from whatever stable header / payload field
+  // their provider exposes (e.g. nango delivery_id).
+  return result.dedupKey?.eventId ?? result.dedupKey?.ts ?? undefined;
 }
 
 function validateOptions<Env>(opts: CfIngressOptions<Env>): void {

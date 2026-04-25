@@ -198,4 +198,51 @@ describe("wrapCloudflareWorker", () => {
       }),
     ).toThrow(CfIngressConfigurationError);
   });
+
+  it("dedups nango webhooks via the persona-supplied dedupKey (no Slack fall-through)", async () => {
+    const env = createEnv();
+    const parse = vi.fn(async (): Promise<ParseResult> => ({
+      kind: "dispatch",
+      response: new Response("accepted", { status: 200 }),
+      turn: { id: "n-1" },
+      dedupKey: { eventId: "nango-delivery-abc" },
+    }));
+    const worker = wrapCloudflareWorker<TestEnv>({
+      webhookRoutes: {
+        "/api/webhooks/nango": { provider: "nango", parse },
+      },
+      queueBinding: "TURN_QUEUE",
+      dedupBinding: "DEDUP",
+    });
+
+    await worker.fetch?.(request("/api/webhooks/nango"), env, {} as ExecutionContext);
+    await worker.fetch?.(request("/api/webhooks/nango"), env, {} as ExecutionContext);
+
+    // Second delivery with the same persona-supplied dedup key is skipped —
+    // proves dedup runs for nango (regression: previously fell through to
+    // Slack-shaped extraction which silently returned undefined and skipped).
+    expect(env.TURN_QUEUE.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not dedup nango when the persona supplies no dedupKey", async () => {
+    const env = createEnv();
+    const parse = vi.fn(async (): Promise<ParseResult> => ({
+      kind: "dispatch",
+      response: new Response("accepted", { status: 200 }),
+      turn: { id: "n-1" },
+      // No dedupKey — persona explicitly opts out.
+    }));
+    const worker = wrapCloudflareWorker<TestEnv>({
+      webhookRoutes: {
+        "/api/webhooks/nango": { provider: "nango", parse },
+      },
+      queueBinding: "TURN_QUEUE",
+      dedupBinding: "DEDUP",
+    });
+
+    await worker.fetch?.(request("/api/webhooks/nango"), env, {} as ExecutionContext);
+    await worker.fetch?.(request("/api/webhooks/nango"), env, {} as ExecutionContext);
+
+    expect(env.TURN_QUEUE.send).toHaveBeenCalledTimes(2);
+  });
 });

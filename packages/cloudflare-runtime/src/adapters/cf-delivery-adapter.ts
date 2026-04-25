@@ -27,14 +27,31 @@ export class CfDeliveryAdapter implements ContinuationDeliveryAdapter {
     try {
       switch (target.kind) {
         case 'slack':
-          await this.options.slack?.(target, input);
+          if (!this.options.slack) {
+            return { delivered: false, failureReason: 'no_slack_handler' };
+          }
+          await this.options.slack(target, input);
           return { delivered: true };
         case 'github':
-          await this.options.github?.(target, input);
+          if (!this.options.github) {
+            return { delivered: false, failureReason: 'no_github_handler' };
+          }
+          await this.options.github(target, input);
           return { delivered: true };
         case 'a2a-callback':
-          await this.options.a2aCallback?.(target, input);
+          if (!this.options.a2aCallback) {
+            return { delivered: false, failureReason: 'no_a2a_callback_handler' };
+          }
+          await this.options.a2aCallback(target, input);
           return { delivered: true };
+        default: {
+          // Unknown / future delivery target kind. Don't silently succeed.
+          const unknownKind = (target as { kind?: string }).kind;
+          return {
+            delivered: false,
+            failureReason: `unsupported_target_kind:${unknownKind ?? 'unknown'}`,
+          };
+        }
       }
     } catch (error) {
       return {
