@@ -1,5 +1,7 @@
 export { createHarness } from './harness.js';
 export { HarnessConfigError } from './types.js';
+export { stopReasonToUserMessage } from './stop-reason-message.js';
+export type { StopReasonMessageOptions } from './stop-reason-message.js';
 export * from './adapter/index.js';
 
 export { OpenRouterModelAdapter, createOpenRouterModelAdapter } from './adapter/openrouter-model-adapter.js';
