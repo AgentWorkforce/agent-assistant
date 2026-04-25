@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/telemetry",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Usage, cost, and response telemetry primitives for Agent Assistant",
   "type": "module",
   "main": "dist/index.js",
@@ -37,7 +37,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent-assistant/harness": "^0.4.0"
+    "@agent-assistant/harness": "^0.4.0 || ^0.6.0"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/continuation",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Bounded continuation primitive — turns resumable harness outcomes into explicit state, validated resume triggers, and real follow-up delivery",
   "type": "module",
   "main": "dist/index.js",
@@ -21,7 +21,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent-assistant/harness": "^0.4.0"
+    "@agent-assistant/harness": "^0.4.0 || ^0.6.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

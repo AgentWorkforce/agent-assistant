@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/turn-context",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Turn-scoped context assembly for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@agent-assistant/traits": "^0.2.0",
-    "@agent-assistant/harness": "^0.4.0",
+    "@agent-assistant/harness": "^0.4.0 || ^0.6.0",
     "@agent-assistant/memory": "^0.2.0"
   },
   "devDependencies": {
