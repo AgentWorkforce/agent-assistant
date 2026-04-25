@@ -6,6 +6,54 @@ local or HTTP consumers, and fanning events out consistently.
 This package removes duplicated webhook plumbing that sage / nightcto /
 my-senior-dev all hand-roll today.
 
+## Persona contract (cf-runtime)
+
+Every persona package that targets the Cloudflare runtime exports two functions
+per ingress surface:
+
+```ts
+// Ingress side: signature verify + parse + persona-side policy
+// (rate-limit, thread-gate, etc.). Returns a turn descriptor that is safe to
+// enqueue, or an "ack-only" sentinel.
+export function parseSlackWebhook(
+  req: Request,
+  env: PersonaBindings,
+): Promise<PersonaTurnDescriptor | PersonaAckResponse>;
+
+// Consumer side: runs the harness work synchronously relative to the queue
+// handler. Any internal ctx.waitUntil is for legitimately out-of-band telemetry
+// only; the turn itself is awaited.
+export function runPersonaTurn(
+  descriptor: PersonaTurnDescriptor,
+  env: PersonaBindings,
+  ctx: ExecutionContext,
+): Promise<void>;
+```
+
+Why this shape, matching `cloud/workflows/cf-runtime/SPEC.md` invariant 6:
+
+- Dedup is owned by the cf-runtime ingress wrapper, once per delivery. Personas
+  must not re-implement Slack/GitHub event dedup. A descriptor that arrives at
+  `runPersonaTurn` is deduped by construction. Use `SlackEventDedupGate`
+  (re-exported here from `@agent-assistant/surfaces`) as the canonical
+  primitive, with your own KV-backed `SlackEventDedupStore`.
+- Signature verification stays inside `parseSlackWebhook` because the persona
+  owns the per-workspace signing-secret lookup.
+- `runPersonaTurn` must not orphan promises past return. The fake
+  `ExecutionContext` provided by cf-runtime collects `waitUntil` promises and
+  awaits them before the consumer returns, which fixes the Slack-silence bug.
+
+The first concrete example is sage's W0 split: `parseSlackWebhook` plus
+`runSageTurn` shipped in `@agentworkforce/sage@1.5.0`. New personas
+(`nightcto`, `my-senior-dev`) follow the same pattern.
+
+Do not wire personas via `registerSlackSpecialistConsumer` from
+`./specialist-bridge` in the cf-runtime architecture. That bridge runs the
+specialist call synchronously inside the webhook fanout, which is the
+orphaned-promise pattern the cf-runtime is designed to remove. Enqueue a
+`specialist_call` queue message and resume on a
+`specialist_result:<turnId>` trigger instead.
+
 ## Interactive CLI
 
 The fastest way to exercise the runtime end-to-end is the REPL at

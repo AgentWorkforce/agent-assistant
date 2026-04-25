@@ -99,6 +99,13 @@ async function defaultSpecialistFactory({
   throw new Error(`Unsupported Slack specialist kind: ${specialistKind}`);
 }
 
+/**
+ * Register an in-process Slack fanout consumer for local/BYOH deployments.
+ *
+ * cf-runtime personas should not use this bridge: enqueue a `specialist_call`
+ * queue message and resume on `specialist_result:<turnId>` instead, so the
+ * persona turn is awaited by the runtime rather than orphaned inside fanout.
+ */
 export function registerSlackSpecialistConsumer(
   registry: SlackSpecialistConsumerRegistry,
   opts: RegisterSlackSpecialistConsumerOptions,
