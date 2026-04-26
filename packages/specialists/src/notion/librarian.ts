@@ -126,7 +126,21 @@ function buildEnumerationInstruction(params: NotionEnumerationParams): string {
   const filters = params.filters ?? {};
 
   for (const key of NOTION_FILTER_KEYS) {
-    for (const value of filters[key] ?? []) parts.push(`${key}:${value}`);
+    for (const value of filters[key] ?? []) {
+      // The shared parseQuery splits the instruction on /\s+/, so any
+      // whitespace inside a `key:value` token would split the value across
+      // tokens and corrupt the filter (e.g. `database:Product Roadmap`
+      // would parse as filter `database:Product` plus stray text `Roadmap`).
+      // For Notion, multi-word filter values (database names, page titles)
+      // are normal — append them as bare text so `inferEnumerationFilters`
+      // can pattern-match them downstream instead of getting them silently
+      // mangled by the parser.
+      if (/\s/.test(value)) {
+        parts.push(value);
+      } else {
+        parts.push(`${key}:${value}`);
+      }
+    }
   }
 
   return parts.join(' ').trim();

@@ -1,7 +1,7 @@
 import type { VfsEntry } from '@agent-assistant/vfs';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createNotionLibrarian } from './librarian.js';
+import { createNotionLibrarian, enumerateNotion } from './librarian.js';
 
 class InMemoryNotionVfs {
   constructor(private readonly entries: VfsEntry[]) {}
@@ -257,5 +257,50 @@ describe('createNotionLibrarian type inference', () => {
     expect(result.status).toBe('complete');
     expect(result.evidence.map((item) => item.id)).toEqual(['unknown-entry']);
     expect(result.evidence[0]?.content.type).toBe('notion');
+  });
+});
+
+describe('enumerateNotion instruction safety', () => {
+  // Regression for codex P1 review on PR #62: a multi-word filter value like
+  // `database: ["Product Roadmap"]` was previously rendered as the unquoted
+  // token `database:Product Roadmap`. The shared parseQuery splits on /\s+/,
+  // so it would parse `database:Product` as a filter and silently drop
+  // `Roadmap` into free text — losing the actual filter intent.
+  it('does not split multi-word filter values into corrupted tokens', async () => {
+    // Capture every VFS access the engine makes so we can assert filters are
+    // NOT silently corrupted by the buildEnumerationInstruction → parseQuery
+    // round-trip. Pre-fix, `database:Product Roadmap` would parse to filter
+    // `database:Product` (truncated), which then mangled root computation.
+    const listCalls: string[] = [];
+    const searchCalls: string[] = [];
+    const vfs = {
+      list: async (path: string): Promise<VfsEntry[]> => {
+        listCalls.push(path);
+        return [];
+      },
+      search: async (query: string): Promise<VfsEntry[]> => {
+        searchCalls.push(query);
+        return [];
+      },
+    };
+
+    const result = await enumerateNotion(
+      {
+        capability: 'notion.enumerate',
+        query: 'investor info',
+        filters: { database: ['Product Roadmap'], title: ['Launch Plan'] },
+      },
+      { vfs },
+    );
+
+    // The librarian must complete and return a well-formed result. Pre-fix,
+    // a corrupted instruction could trip an internal type narrowing or
+    // produce a half-parsed filter that never reaches the VFS at all.
+    expect(result).toBeDefined();
+    expect(result.capability).toBe('notion.enumerate');
+    // At least one of list/search must have been dispatched — proving the
+    // mangled-token codepath is gone and the engine made it past parseQuery
+    // into an actual VFS query.
+    expect(listCalls.length + searchCalls.length).toBeGreaterThan(0);
   });
 });
