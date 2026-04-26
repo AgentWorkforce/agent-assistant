@@ -41,6 +41,7 @@ type MutableState = {
   transcript: HarnessTranscriptItem[];
   modelCalls: HarnessModelCallRecord[];
   usage: HarnessAggregateUsage;
+  recentToolResultHashes?: { toolName: string; outputHash: number }[];
   consecutiveInvalidOutputs: number;
   finalEventType: string;
 };
@@ -138,6 +139,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       modelCalls: 0,
       toolCalls: 0,
     },
+    recentToolResultHashes: [],
     consecutiveInvalidOutputs: 0,
     finalEventType: 'turn_started',
   };
@@ -326,6 +328,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             state.transcript.push({ type: 'tool_result', iteration, result });
 
             if (result.status === 'error') {
+              state.recentToolResultHashes = [];
               await emit(config, input, state, { type: 'tool_failed', result });
               await config.hooks?.onToolError?.(result, executionState(input, state, startedAt, config));
               if (result.error?.retryable !== true) {
@@ -338,6 +341,29 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
               }
             } else {
               await emit(config, input, state, { type: 'tool_finished', result });
+              const hash = djb2Hash(result.output ?? JSON.stringify(result.structuredOutput ?? {}));
+              state.recentToolResultHashes ??= [];
+              state.recentToolResultHashes.push({ toolName: result.toolName, outputHash: hash });
+              if (state.recentToolResultHashes.length > 5) state.recentToolResultHashes.shift();
+
+              const lastThree = state.recentToolResultHashes.slice(-3);
+              const [first] = lastThree;
+              if (
+                first &&
+                lastThree.length === 3 &&
+                lastThree.every(
+                  (entry) =>
+                    entry.toolName === first.toolName && entry.outputHash === first.outputHash,
+                )
+              ) {
+                finalResult = await buildLimitResult(
+                  config,
+                  input,
+                  state,
+                  'redundant_tool_loop',
+                );
+                return finalResult;
+              }
             }
 
             finalResult = await checkLimits(config, input, state, startedAt);
@@ -446,18 +472,29 @@ async function buildLimitResult(
   config: NormalizedConfig,
   input: HarnessTurnInput,
   state: MutableState,
-  stopReason: Extract<HarnessStopReason, 'max_iterations_reached' | 'max_tool_calls_reached' | 'timeout_reached' | 'budget_reached'>,
+  stopReason: Extract<
+    HarnessStopReason,
+    | 'max_iterations_reached'
+    | 'max_tool_calls_reached'
+    | 'timeout_reached'
+    | 'budget_reached'
+    | 'redundant_tool_loop'
+  >,
 ): Promise<HarnessResult> {
   await emit(config, input, state, { type: 'limit_reached', stopReason });
+  const outcome = stopReason === 'redundant_tool_loop' ? 'failed' : 'deferred';
   return buildResult(input, state, {
-    outcome: 'deferred',
+    outcome,
     stopReason,
-    continuation: createContinuation(config, input, 'deferred', {
-      stopReason,
-      transcript: summarizeTranscript(state.transcript),
-      iteration: state.iteration,
-      toolCallCount: state.toolCallCount,
-    }),
+    continuation:
+      outcome === 'deferred'
+        ? createContinuation(config, input, 'deferred', {
+            stopReason,
+            transcript: summarizeTranscript(state.transcript),
+            iteration: state.iteration,
+            toolCallCount: state.toolCallCount,
+          })
+        : undefined,
   });
 }
 
@@ -617,6 +654,12 @@ function remainingBudget(config: NormalizedConfig, usage: HarnessAggregateUsage)
 
 function getElapsedMs(config: NormalizedConfig, startedAt: number): number {
   return Math.max(0, config.clock.now() - startedAt);
+}
+
+function djb2Hash(s: string): number {
+  let hash = 5381;
+  for (let i = 0; i < s.length; i++) hash = ((hash * 33) ^ s.charCodeAt(i)) | 0;
+  return hash;
 }
 
 async function emit(

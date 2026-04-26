@@ -38,6 +38,10 @@ export function stopReasonToUserMessage(
       return canRetry
         ? "I got stuck looping on tools and didn't reach an answer. Retrying with a simpler path."
         : "I got stuck looping on tools and didn't reach an answer. Try rephrasing or breaking the request into smaller pieces.";
+    case 'redundant_tool_loop':
+      return canRetry
+        ? 'I got stuck in a loop on that tool call — let me retry with a different approach.'
+        : 'I got stuck repeating the same tool call without making progress. Try rephrasing or asking about a more specific entity.';
     case 'timeout_reached':
       return canRetry
         ? "That took too long to gather. Retrying with a simpler path."

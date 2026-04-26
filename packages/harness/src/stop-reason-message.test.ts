@@ -9,6 +9,7 @@ const ALL_STOP_REASONS: HarnessStopReason[] = [
   'approval_required',
   'max_iterations_reached',
   'max_tool_calls_reached',
+  'redundant_tool_loop',
   'timeout_reached',
   'budget_reached',
   'tool_unavailable',
@@ -71,5 +72,10 @@ describe('stopReasonToUserMessage', () => {
 
   it('signals cancellation on cancelled', () => {
     expect(stopReasonToUserMessage('cancelled').toLowerCase()).toContain('cancel');
+  });
+
+  it('uses loop-oriented copy for redundant_tool_loop', () => {
+    const message = stopReasonToUserMessage('redundant_tool_loop').toLowerCase();
+    expect(['loop', 'stuck', 'repeating'].some((signal) => message.includes(signal))).toBe(true);
   });
 });
