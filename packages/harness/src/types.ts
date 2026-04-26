@@ -446,6 +446,7 @@ export interface HarnessLimitReachedEvent extends HarnessBaseTraceEvent {
 }
 
 export interface HarnessHooks {
+  clarifyOnToolResult?: HarnessToolEvidenceClarificationHook;
   onInvalidModelOutput?: (
     output: HarnessInvalidOutput,
     state: HarnessExecutionState,
@@ -459,6 +460,27 @@ export interface HarnessHooks {
     state: HarnessExecutionState,
   ) => Promise<void> | void;
 }
+
+export type HarnessToolEvidenceClarificationReason =
+  | 'empty_results'
+  | 'ambiguous_identifier'
+  | 'transient_provider_error'
+  | 'custom';
+
+export interface HarnessToolEvidenceClarification {
+  question: string;
+  reason: HarnessToolEvidenceClarificationReason;
+  metadata?: Record<string, unknown>;
+}
+
+export type HarnessToolEvidenceClarificationHook = (
+  result: HarnessToolResult,
+  state: HarnessExecutionState,
+) =>
+  | Promise<HarnessToolEvidenceClarification | null | undefined>
+  | HarnessToolEvidenceClarification
+  | null
+  | undefined;
 
 export interface HarnessExecutionState {
   assistantId: string;

@@ -14,6 +14,7 @@ import type {
   HarnessResult,
   HarnessStopReason,
   HarnessToolCall,
+  HarnessToolEvidenceClarification,
   HarnessToolResult,
   HarnessTraceEvent,
   HarnessTraceSummary,
@@ -331,6 +332,10 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
               state.recentToolResultHashes = [];
               await emit(config, input, state, { type: 'tool_failed', result });
               await config.hooks?.onToolError?.(result, executionState(input, state, startedAt, config));
+              finalResult = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
+              if (finalResult) {
+                return finalResult;
+              }
               if (result.error?.retryable !== true) {
                 finalResult = buildResult(input, state, {
                   outcome: 'failed',
@@ -341,6 +346,10 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
               }
             } else {
               await emit(config, input, state, { type: 'tool_finished', result });
+              finalResult = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
+              if (finalResult) {
+                return finalResult;
+              }
               // Compute a hash signature of the tool result so we can detect
               // the model dead-looping on the same tool call. Two safety
               // guards (codex P1 + P2 review on PR #63):
@@ -481,6 +490,73 @@ async function checkLimits(
   }
 
   return null;
+}
+
+async function maybeClarifyFromToolResult(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  startedAt: number,
+  result: HarnessToolResult,
+): Promise<HarnessResult | null> {
+  if (!config.hooks?.clarifyOnToolResult) {
+    return null;
+  }
+
+  const clarification = await config.hooks.clarifyOnToolResult(
+    result,
+    executionState(input, state, startedAt, config),
+  );
+  const question = normalizeClarificationQuestion(clarification);
+  if (!question) {
+    return null;
+  }
+
+  const limitResult = await checkLimits(config, input, state, startedAt);
+  if (limitResult) {
+    return limitResult;
+  }
+
+  state.transcript.push({
+    type: 'clarification_request',
+    iteration: state.iteration,
+    question,
+  });
+  await emit(config, input, state, {
+    type: 'clarification_requested',
+    question,
+  });
+
+  const toolEvidence = {
+    callId: result.callId,
+    toolName: result.toolName,
+    status: result.status,
+    reason: clarification?.reason,
+    metadata: clarification?.metadata,
+  };
+  return buildResult(input, state, {
+    outcome: 'needs_clarification',
+    stopReason: 'clarification_required',
+    assistantMessage: { text: question },
+    continuation: createContinuation(config, input, 'clarification', {
+      stopReason: 'clarification_required',
+      question,
+      toolEvidence,
+      transcript: summarizeTranscript(state.transcript),
+    }),
+    metadata: { clarification: toolEvidence },
+  });
+}
+
+function normalizeClarificationQuestion(
+  clarification: HarnessToolEvidenceClarification | null | undefined,
+): string | null {
+  if (!clarification || typeof clarification.question !== 'string') {
+    return null;
+  }
+
+  const question = clarification.question.trim();
+  return question.length > 0 ? question : null;
 }
 
 async function buildLimitResult(

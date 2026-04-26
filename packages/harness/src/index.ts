@@ -24,6 +24,13 @@ export {
   WORKSPACE_TOOL_NAMES,
 } from './tools/workspace-tool-registry.js';
 export type { WorkspaceToolRegistryOptions } from './tools/workspace-tool-registry.js';
+export {
+  createToolEvidenceClarificationHook,
+  detectToolEvidenceClarification,
+} from './tool-evidence-clarification.js';
+export type {
+  ToolEvidenceClarificationOptions,
+} from './tool-evidence-clarification.js';
 
 export { OpenRouterSingleShotAdapter, createOpenRouterSingleShotAdapter } from './router/openrouter-singleshot-adapter.js';
 export type { OpenRouterSingleShotAdapterConfig } from './router/openrouter-singleshot-adapter.js';
@@ -79,6 +86,9 @@ export type {
   HarnessStopReason,
   HarnessToolAvailabilityInput,
   HarnessToolCall,
+  HarnessToolEvidenceClarification,
+  HarnessToolEvidenceClarificationHook,
+  HarnessToolEvidenceClarificationReason,
   HarnessToolDefinition,
   HarnessToolError,
   HarnessToolExecutionContext,
