@@ -324,6 +324,7 @@ export type HarnessStopReason =
   | 'approval_required'
   | 'max_iterations_reached'
   | 'max_tool_calls_reached'
+  | 'redundant_tool_loop'
   | 'timeout_reached'
   | 'budget_reached'
   | 'tool_unavailable'
@@ -439,6 +440,7 @@ export interface HarnessLimitReachedEvent extends HarnessBaseTraceEvent {
   stopReason:
     | 'max_iterations_reached'
     | 'max_tool_calls_reached'
+    | 'redundant_tool_loop'
     | 'timeout_reached'
     | 'budget_reached';
 }

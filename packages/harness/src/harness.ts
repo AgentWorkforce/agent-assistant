@@ -41,6 +41,7 @@ type MutableState = {
   transcript: HarnessTranscriptItem[];
   modelCalls: HarnessModelCallRecord[];
   usage: HarnessAggregateUsage;
+  recentToolResultHashes?: { toolName: string; outputHash: number }[];
   consecutiveInvalidOutputs: number;
   finalEventType: string;
 };
@@ -138,6 +139,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       modelCalls: 0,
       toolCalls: 0,
     },
+    recentToolResultHashes: [],
     consecutiveInvalidOutputs: 0,
     finalEventType: 'turn_started',
   };
@@ -326,6 +328,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             state.transcript.push({ type: 'tool_result', iteration, result });
 
             if (result.status === 'error') {
+              state.recentToolResultHashes = [];
               await emit(config, input, state, { type: 'tool_failed', result });
               await config.hooks?.onToolError?.(result, executionState(input, state, startedAt, config));
               if (result.error?.retryable !== true) {
@@ -338,6 +341,44 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
               }
             } else {
               await emit(config, input, state, { type: 'tool_finished', result });
+              // Compute a hash signature of the tool result so we can detect
+              // the model dead-looping on the same tool call. Two safety
+              // guards (codex P1 + P2 review on PR #63):
+              //
+              // 1. Skip the detector when the tool returned no payload (no
+              //    `output`, no `structuredOutput`). Side-effect tools that
+              //    intentionally return nothing would otherwise all hash to
+              //    `"{}"` and trip the detector after 3 calls even though
+              //    each call had different inputs and made real progress.
+              //
+              // 2. Wrap JSON.stringify in try/catch so non-serializable values
+              //    (BigInt, circular refs) cannot throw and convert a
+              //    successful tool execution into a runtime_error.
+              const signature = computeToolResultSignature(result);
+              if (signature !== null) {
+                state.recentToolResultHashes ??= [];
+                state.recentToolResultHashes.push({ toolName: result.toolName, outputHash: signature });
+                if (state.recentToolResultHashes.length > 5) state.recentToolResultHashes.shift();
+
+                const lastThree = state.recentToolResultHashes.slice(-3);
+                const [first] = lastThree;
+                if (
+                  first &&
+                  lastThree.length === 3 &&
+                  lastThree.every(
+                    (entry) =>
+                      entry.toolName === first.toolName && entry.outputHash === first.outputHash,
+                  )
+                ) {
+                  finalResult = await buildLimitResult(
+                    config,
+                    input,
+                    state,
+                    'redundant_tool_loop',
+                  );
+                  return finalResult;
+                }
+              }
             }
 
             finalResult = await checkLimits(config, input, state, startedAt);
@@ -446,18 +487,29 @@ async function buildLimitResult(
   config: NormalizedConfig,
   input: HarnessTurnInput,
   state: MutableState,
-  stopReason: Extract<HarnessStopReason, 'max_iterations_reached' | 'max_tool_calls_reached' | 'timeout_reached' | 'budget_reached'>,
+  stopReason: Extract<
+    HarnessStopReason,
+    | 'max_iterations_reached'
+    | 'max_tool_calls_reached'
+    | 'timeout_reached'
+    | 'budget_reached'
+    | 'redundant_tool_loop'
+  >,
 ): Promise<HarnessResult> {
   await emit(config, input, state, { type: 'limit_reached', stopReason });
+  const outcome = stopReason === 'redundant_tool_loop' ? 'failed' : 'deferred';
   return buildResult(input, state, {
-    outcome: 'deferred',
+    outcome,
     stopReason,
-    continuation: createContinuation(config, input, 'deferred', {
-      stopReason,
-      transcript: summarizeTranscript(state.transcript),
-      iteration: state.iteration,
-      toolCallCount: state.toolCallCount,
-    }),
+    continuation:
+      outcome === 'deferred'
+        ? createContinuation(config, input, 'deferred', {
+            stopReason,
+            transcript: summarizeTranscript(state.transcript),
+            iteration: state.iteration,
+            toolCallCount: state.toolCallCount,
+          })
+        : undefined,
   });
 }
 
@@ -617,6 +669,45 @@ function remainingBudget(config: NormalizedConfig, usage: HarnessAggregateUsage)
 
 function getElapsedMs(config: NormalizedConfig, startedAt: number): number {
   return Math.max(0, config.clock.now() - startedAt);
+}
+
+function djb2Hash(s: string): number {
+  let hash = 5381;
+  for (let i = 0; i < s.length; i++) hash = ((hash * 33) ^ s.charCodeAt(i)) | 0;
+  return hash;
+}
+
+/**
+ * Compute a stable signature for a tool result, used by the redundant-tool-loop
+ * detector. Returns null when the result has no payload to compare — side-effect
+ * tools that intentionally return nothing should NOT trigger loop detection
+ * just because their empty results all hash identically.
+ *
+ * Wraps JSON.stringify in try/catch so non-serializable values (BigInt,
+ * circular references) in structuredOutput cannot throw. A serialization
+ * failure is treated as "no comparable signature" — the detector skips this
+ * call rather than risk converting a successful tool execution into a
+ * runtime_error via the outer catch.
+ */
+function computeToolResultSignature(result: HarnessToolResult): number | null {
+  if (typeof result.output === 'string' && result.output.length > 0) {
+    return djb2Hash(result.output);
+  }
+  if (result.structuredOutput !== undefined) {
+    try {
+      const serialized = JSON.stringify(result.structuredOutput);
+      // JSON.stringify returns undefined for values that cannot be
+      // serialized (e.g. plain `BigInt` at the root). Treat that as no
+      // comparable signature too.
+      if (typeof serialized !== 'string' || serialized.length === 0 || serialized === '{}') {
+        return null;
+      }
+      return djb2Hash(serialized);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 async function emit(
