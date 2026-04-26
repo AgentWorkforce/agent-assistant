@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-04-25T22:35:56.918Z",
+  "lastUpdated": "2026-04-26T00:42:05.580Z",
   "trajectories": {
     "traj_34202idd4b5w": {
       "title": "aa-proactive-signals-03-slack-presence-workflow",
@@ -316,6 +316,18 @@
       "startedAt": "2026-04-25T22:31:06.254Z",
       "completedAt": "2026-04-25T22:35:56.838Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-vfs-query/.trajectories/completed/2026-04/traj_8senjkr25v60.json"
+    },
+    "traj_8b12bu65l1qt": {
+      "title": "add-notion-librarian-to-agent-assistant-workflow",
+      "status": "active",
+      "startedAt": "2026-04-26T00:41:50.459Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_8b12bu65l1qt.json"
+    },
+    "traj_znshefbf3jtn": {
+      "title": "fix-harness-redundant-tool-loop-workflow",
+      "status": "active",
+      "startedAt": "2026-04-26T00:41:52.014Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_znshefbf3jtn.json"
     }
   }
 }
