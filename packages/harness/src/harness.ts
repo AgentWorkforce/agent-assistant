@@ -341,28 +341,43 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
               }
             } else {
               await emit(config, input, state, { type: 'tool_finished', result });
-              const hash = djb2Hash(result.output ?? JSON.stringify(result.structuredOutput ?? {}));
-              state.recentToolResultHashes ??= [];
-              state.recentToolResultHashes.push({ toolName: result.toolName, outputHash: hash });
-              if (state.recentToolResultHashes.length > 5) state.recentToolResultHashes.shift();
+              // Compute a hash signature of the tool result so we can detect
+              // the model dead-looping on the same tool call. Two safety
+              // guards (codex P1 + P2 review on PR #63):
+              //
+              // 1. Skip the detector when the tool returned no payload (no
+              //    `output`, no `structuredOutput`). Side-effect tools that
+              //    intentionally return nothing would otherwise all hash to
+              //    `"{}"` and trip the detector after 3 calls even though
+              //    each call had different inputs and made real progress.
+              //
+              // 2. Wrap JSON.stringify in try/catch so non-serializable values
+              //    (BigInt, circular refs) cannot throw and convert a
+              //    successful tool execution into a runtime_error.
+              const signature = computeToolResultSignature(result);
+              if (signature !== null) {
+                state.recentToolResultHashes ??= [];
+                state.recentToolResultHashes.push({ toolName: result.toolName, outputHash: signature });
+                if (state.recentToolResultHashes.length > 5) state.recentToolResultHashes.shift();
 
-              const lastThree = state.recentToolResultHashes.slice(-3);
-              const [first] = lastThree;
-              if (
-                first &&
-                lastThree.length === 3 &&
-                lastThree.every(
-                  (entry) =>
-                    entry.toolName === first.toolName && entry.outputHash === first.outputHash,
-                )
-              ) {
-                finalResult = await buildLimitResult(
-                  config,
-                  input,
-                  state,
-                  'redundant_tool_loop',
-                );
-                return finalResult;
+                const lastThree = state.recentToolResultHashes.slice(-3);
+                const [first] = lastThree;
+                if (
+                  first &&
+                  lastThree.length === 3 &&
+                  lastThree.every(
+                    (entry) =>
+                      entry.toolName === first.toolName && entry.outputHash === first.outputHash,
+                  )
+                ) {
+                  finalResult = await buildLimitResult(
+                    config,
+                    input,
+                    state,
+                    'redundant_tool_loop',
+                  );
+                  return finalResult;
+                }
               }
             }
 
@@ -660,6 +675,39 @@ function djb2Hash(s: string): number {
   let hash = 5381;
   for (let i = 0; i < s.length; i++) hash = ((hash * 33) ^ s.charCodeAt(i)) | 0;
   return hash;
+}
+
+/**
+ * Compute a stable signature for a tool result, used by the redundant-tool-loop
+ * detector. Returns null when the result has no payload to compare — side-effect
+ * tools that intentionally return nothing should NOT trigger loop detection
+ * just because their empty results all hash identically.
+ *
+ * Wraps JSON.stringify in try/catch so non-serializable values (BigInt,
+ * circular references) in structuredOutput cannot throw. A serialization
+ * failure is treated as "no comparable signature" — the detector skips this
+ * call rather than risk converting a successful tool execution into a
+ * runtime_error via the outer catch.
+ */
+function computeToolResultSignature(result: HarnessToolResult): number | null {
+  if (typeof result.output === 'string' && result.output.length > 0) {
+    return djb2Hash(result.output);
+  }
+  if (result.structuredOutput !== undefined) {
+    try {
+      const serialized = JSON.stringify(result.structuredOutput);
+      // JSON.stringify returns undefined for values that cannot be
+      // serialized (e.g. plain `BigInt` at the root). Treat that as no
+      // comparable signature too.
+      if (typeof serialized !== 'string' || serialized.length === 0 || serialized === '{}') {
+        return null;
+      }
+      return djb2Hash(serialized);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 async function emit(

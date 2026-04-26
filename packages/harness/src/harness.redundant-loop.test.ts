@@ -215,4 +215,60 @@ describe('createHarness redundant tool loop detection', () => {
     expect(result.outcome).toBe('completed');
     expect(result.stopReason).toBe('answer_finalized');
   });
+
+  // Codex P1 review on PR #63: side-effect tools that return no payload would
+  // all hash to "{}" and false-trigger the redundant_tool_loop detector after
+  // 3 calls, even though each call had different inputs and made progress.
+  it('does not detect a loop when consecutive results have no payload (side-effect tools)', async () => {
+    const harness = createHarnessForResults([
+      // No `output`, no `structuredOutput` — empty success, common for
+      // side-effect tools (writes, notifications, etc).
+      { callId: 'call-1', toolName: 'notify', status: 'success' },
+      { callId: 'call-2', toolName: 'notify', status: 'success' },
+      { callId: 'call-3', toolName: 'notify', status: 'success' },
+      { callId: 'call-4', toolName: 'notify', status: 'success' },
+    ]);
+
+    const result = await harness.runTurn(createInput());
+
+    // The detector should have stayed inert. Final outcome is the model
+    // emitting answer_finalized after the side-effect chain.
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+  });
+
+  // Codex P2 review on PR #63: JSON.stringify on structuredOutput could throw
+  // on non-serializable values (BigInt at root, circular refs). Pre-fix this
+  // bubbled to the outer harness catch and converted a successful tool
+  // execution into a runtime_error. Now: serialization failures are treated
+  // as "no comparable signature" — the detector skips, the turn continues.
+  it('handles non-serializable structuredOutput without crashing the turn', async () => {
+    const cyclicObject: Record<string, unknown> = { kind: 'cyclic' };
+    cyclicObject.self = cyclicObject;
+
+    const harness = createHarnessForResults([
+      // BigInt inside the structuredOutput — JSON.stringify would normally
+      // throw "Do not know how to serialize a BigInt".
+      {
+        callId: 'call-1',
+        toolName: 'lookup',
+        status: 'success',
+        structuredOutput: { count: 9007199254740993n as unknown as number },
+      },
+      // Circular reference — JSON.stringify throws "Converting circular structure to JSON".
+      {
+        callId: 'call-2',
+        toolName: 'lookup',
+        status: 'success',
+        structuredOutput: cyclicObject,
+      },
+    ]);
+
+    const result = await harness.runTurn(createInput());
+
+    // Critical: must NOT be runtime_error. The successful tool calls survive
+    // the serialization failure and the harness continues to model finalization.
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+  });
 });
