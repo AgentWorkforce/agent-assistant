@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createHarness, HarnessConfigError, type HarnessModelOutput, type HarnessTraceEvent } from './index.js';
+import {
+  createHarness,
+  createToolEvidenceClarificationHook,
+  HarnessConfigError,
+  type HarnessModelOutput,
+  type HarnessTraceEvent,
+} from './index.js';
 
 function createInput() {
   return {
@@ -282,6 +288,221 @@ describe('harness runtime', () => {
     const result = await harness.runTurn(createInput());
     expect(result.outcome).toBe('failed');
     expect(result.stopReason).toBe('tool_error_unrecoverable');
+  });
+
+  it('asks for clarification when tool evidence shows empty results', async () => {
+    const trace: HarnessTraceEvent[] = [];
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'search', input: { query: 'repo' } }] },
+      { type: 'final_answer', text: 'should not be reached' },
+    ];
+
+    const harness = createHarness({
+      model: { nextStep: vi.fn(async () => steps.shift() as HarnessModelOutput) },
+      tools: {
+        listAvailable: async () => [{ name: 'search', description: 'Search' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'search',
+          status: 'success',
+          structuredOutput: { results: [] },
+        }),
+      },
+      hooks: { clarifyOnToolResult: createToolEvidenceClarificationHook() },
+      trace: { emit: (event) => trace.push(event) },
+      clock: createClock([0, 1, 2, 3, 4, 5]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('needs_clarification');
+    expect(result.stopReason).toBe('clarification_required');
+    expect(result.assistantMessage?.text).toContain('current search query');
+    expect(result.continuation?.type).toBe('clarification');
+    expect(result.continuation?.state.toolEvidence).toMatchObject({
+      callId: 'call-1',
+      toolName: 'search',
+      reason: 'empty_results',
+    });
+    expect(result.usage.modelCalls).toBe(1);
+    expect(trace.map((event) => event.type)).toContain('clarification_requested');
+  });
+
+  it('asks for clarification when tool evidence shows ambiguous identifiers', async () => {
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({
+          type: 'tool_request',
+          calls: [{ id: 'call-1', name: 'issueLookup', input: { id: '123' } }],
+        }),
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'issueLookup', description: 'Issue lookup' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'issueLookup',
+          status: 'success',
+          structuredOutput: { ambiguous: true, candidates: [{ id: 'A-123' }, { id: 'B-123' }] },
+        }),
+      },
+      hooks: { clarifyOnToolResult: createToolEvidenceClarificationHook() },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('needs_clarification');
+    expect(result.assistantMessage?.text).toContain('Which exact identifier');
+    expect(result.metadata?.clarification).toMatchObject({
+      toolName: 'issueLookup',
+      reason: 'ambiguous_identifier',
+    });
+  });
+
+  it('asks for clarification instead of failing on transient provider tool errors', async () => {
+    const onToolError = vi.fn();
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({
+          type: 'tool_request',
+          calls: [{ id: 'call-1', name: 'providerSearch', input: { query: 'roadmap' } }],
+        }),
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'providerSearch', description: 'Provider search' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'providerSearch',
+          status: 'error',
+          error: { code: 'provider_timeout', message: 'provider timed out' },
+        }),
+      },
+      hooks: {
+        clarifyOnToolResult: createToolEvidenceClarificationHook(),
+        onToolError,
+      },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(onToolError).toHaveBeenCalledOnce();
+    expect(result.outcome).toBe('needs_clarification');
+    expect(result.stopReason).toBe('clarification_required');
+    expect(result.assistantMessage?.text).toContain('transient provider error');
+  });
+
+  it('does not crash when a tool error omits error.code', async () => {
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({
+          type: 'tool_request',
+          calls: [{ id: 'call-1', name: 'providerSearch', input: { query: 'roadmap' } }],
+        }),
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'providerSearch', description: 'Provider search' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'providerSearch',
+          status: 'error',
+          error: { code: undefined as unknown as string, message: 'provider timed out' },
+        }),
+      },
+      hooks: { clarifyOnToolResult: createToolEvidenceClarificationHook() },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('failed');
+    expect(result.stopReason).toBe('tool_error_unrecoverable');
+  });
+
+  it('does not ask for clarification on successful tools with blank output and no empty-result evidence', async () => {
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'lookup', input: {} }] },
+      { type: 'final_answer', text: 'Completed without clarification' },
+    ];
+
+    const harness = createHarness({
+      model: { nextStep: async () => steps.shift() as HarnessModelOutput },
+      tools: {
+        listAvailable: async () => [{ name: 'lookup', description: 'Lookup' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'lookup',
+          status: 'success',
+          output: '   ',
+        }),
+      },
+      hooks: { clarifyOnToolResult: createToolEvidenceClarificationHook() },
+      clock: createClock([0, 1, 2, 3, 4, 5]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+    expect(result.assistantMessage?.text).toBe('Completed without clarification');
+  });
+
+  it('prefers limit enforcement over clarification when the tool call budget is exhausted', async () => {
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({
+          type: 'tool_request',
+          calls: [{ id: 'call-1', name: 'search', input: { query: 'repo' } }],
+        }),
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'search', description: 'Search' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'search',
+          status: 'success',
+          structuredOutput: { results: [] },
+        }),
+      },
+      hooks: { clarifyOnToolResult: createToolEvidenceClarificationHook() },
+      limits: { maxToolCalls: 1 },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('deferred');
+    expect(result.stopReason).toBe('max_tool_calls_reached');
+  });
+
+  it('ignores malformed clarification hook payloads', async () => {
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'lookup', input: {} }] },
+      { type: 'final_answer', text: 'Completed without clarification' },
+    ];
+
+    const harness = createHarness({
+      model: { nextStep: async () => steps.shift() as HarnessModelOutput },
+      tools: {
+        listAvailable: async () => [{ name: 'lookup', description: 'Lookup' }],
+        execute: async () => ({
+          callId: 'call-1',
+          toolName: 'lookup',
+          status: 'success',
+          structuredOutput: { results: [] },
+        }),
+      },
+      hooks: {
+        clarifyOnToolResult: async () => ({ question: 42 as unknown as string, reason: 'custom' }),
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+    expect(result.assistantMessage?.text).toBe('Completed without clarification');
   });
 
   it('retries once after invalid model output then succeeds', async () => {
