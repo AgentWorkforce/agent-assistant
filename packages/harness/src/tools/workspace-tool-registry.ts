@@ -19,6 +19,7 @@ interface WorkspaceSearchOutput {
   provider: string;
   score?: number;
   preview?: string;
+  properties?: Record<string, string>;
 }
 
 interface WorkspaceReadJsonOutput {
@@ -411,18 +412,39 @@ function readScore(result: VfsSearchResult): number | undefined {
   return Number.isFinite(score) ? score : undefined;
 }
 
+function passthroughProperties(
+  properties: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!properties) {
+    return undefined;
+  }
+
+  // `score` is already projected onto the top-level `score` field; drop it
+  // from the passthrough to avoid duplicating it in the model-visible JSON.
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (key === 'score') continue;
+    filtered[key] = value;
+  }
+
+  return Object.keys(filtered).length > 0 ? filtered : undefined;
+}
+
 function mapSearchResult(result: VfsSearchResult): WorkspaceSearchOutput {
   const score = readScore(result);
   const preview = result.snippet ?? result.title;
+  const properties = passthroughProperties(result.properties);
   return {
     path: result.path,
     provider: result.provider ?? 'unknown',
     ...(score !== undefined ? { score } : {}),
     ...(preview ? { preview } : {}),
+    ...(properties ? { properties } : {}),
   };
 }
 
 function listOutputEntry(entry: VfsEntry): Record<string, unknown> {
+  const properties = passthroughProperties(entry.properties);
   return {
     path: entry.path,
     type: entry.type,
@@ -431,6 +453,7 @@ function listOutputEntry(entry: VfsEntry): Record<string, unknown> {
     ...(entry.revision ? { revision: entry.revision } : {}),
     ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
     ...(entry.size !== undefined ? { size: entry.size } : {}),
+    ...(properties ? { properties } : {}),
   };
 }
 

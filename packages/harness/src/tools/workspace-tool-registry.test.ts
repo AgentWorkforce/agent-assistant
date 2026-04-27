@@ -113,6 +113,46 @@ describe('createWorkspaceToolRegistry execute workspace_search', () => {
       provider: searchResults[0]?.provider,
       score: 42,
     });
+    // Score is the only property and it's already projected to top-level —
+    // no duplicate `properties.score` in the output.
+    expect(output[0]).not.toHaveProperty('properties');
+  });
+
+  it('passes VfsSearchResult.properties through (excluding score) to the model-visible JSON', async () => {
+    const searchResults: VfsSearchResult[] = [
+      {
+        path: '/github/repos/acme/widgets/_clone_requested.txt',
+        type: 'file',
+        provider: 'github',
+        properties: {
+          notice: 'clone_requested',
+          owner: 'acme',
+          repo: 'widgets',
+          score: '12',
+        },
+      },
+    ];
+    const provider = makeProvider({
+      search: vi.fn().mockResolvedValue(searchResults),
+    });
+    const registry = createWorkspaceToolRegistry({ provider });
+    const call = makeCall('workspace_search', { query: 'widget' });
+
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
+
+    expect(result.status).toBe('success');
+    const output = parseOutputArray(result);
+    expect(output[0]).toEqual(
+      expect.objectContaining({
+        path: '/github/repos/acme/widgets/_clone_requested.txt',
+        score: 12,
+        properties: {
+          notice: 'clone_requested',
+          owner: 'acme',
+          repo: 'widgets',
+        },
+      }),
+    );
   });
 
   it("returns invalid_input when query is missing and doesn't call provider.search", async () => {
@@ -180,6 +220,82 @@ describe('createWorkspaceToolRegistry execute workspace_list', () => {
         provider: listEntries[1]?.provider,
       }),
     ]);
+  });
+
+  it('passes VfsEntry.properties through to the model-visible JSON', async () => {
+    // Why: a provider that injects an advisory entry (e.g. clone_requested)
+    // relies on properties.notice / properties.message reaching the model.
+    // Dropping them silently — as this code did before — leaves the model
+    // unable to act on the advisory regardless of how the system prompt
+    // describes it.
+    const listEntries: VfsEntry[] = [
+      {
+        path: '/github/repos/acme/widgets/_clone_requested.txt',
+        type: 'file',
+        provider: 'github',
+        properties: {
+          notice: 'clone_requested',
+          owner: 'acme',
+          repo: 'widgets',
+          message: 'Source for acme/widgets is not yet indexed.',
+        },
+      },
+      {
+        path: '/github/repos/acme/widgets/issues/1/metadata.json',
+        type: 'file',
+        provider: 'github',
+        size: 9001,
+      },
+    ];
+    const provider = makeProvider({
+      list: vi.fn().mockResolvedValue(listEntries),
+    });
+    const registry = createWorkspaceToolRegistry({ provider });
+    const call = makeCall('workspace_list', {
+      path: '/github/repos/acme/widgets',
+    });
+
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
+
+    expect(result.status).toBe('success');
+    const parsed = parseOutputArray(result);
+    expect(parsed[0]).toEqual(
+      expect.objectContaining({
+        path: '/github/repos/acme/widgets/_clone_requested.txt',
+        properties: {
+          notice: 'clone_requested',
+          owner: 'acme',
+          repo: 'widgets',
+          message: 'Source for acme/widgets is not yet indexed.',
+        },
+      }),
+    );
+    // Plain entries with no properties stay clean — no empty `properties: {}` noise.
+    expect(parsed[1]).not.toHaveProperty('properties');
+  });
+
+  it('omits properties entirely when only score is present (still projected to top-level)', async () => {
+    // Score is hoisted onto the top-level `score` field for search results;
+    // the same convention applies here so we don't double-render it.
+    const listEntries: VfsEntry[] = [
+      {
+        path: '/github/repos/acme/widgets/score-only',
+        type: 'file',
+        provider: 'github',
+        properties: { score: '7' },
+      },
+    ];
+    const provider = makeProvider({
+      list: vi.fn().mockResolvedValue(listEntries),
+    });
+    const registry = createWorkspaceToolRegistry({ provider });
+    const call = makeCall('workspace_list', { path: '/github/repos/acme/widgets' });
+
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
+
+    expect(result.status).toBe('success');
+    const parsed = parseOutputArray(result);
+    expect(parsed[0]).not.toHaveProperty('properties');
   });
 });
 
