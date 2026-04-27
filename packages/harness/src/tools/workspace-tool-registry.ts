@@ -19,6 +19,7 @@ interface WorkspaceSearchOutput {
   provider: string;
   score?: number;
   preview?: string;
+  properties?: Record<string, string>;
 }
 
 interface WorkspaceReadJsonOutput {
@@ -411,18 +412,49 @@ function readScore(result: VfsSearchResult): number | undefined {
   return Number.isFinite(score) ? score : undefined;
 }
 
+function passthroughProperties(
+  properties: Record<string, string> | undefined,
+  options: { excludeKeys?: ReadonlyArray<string> } = {},
+): Record<string, string> | undefined {
+  if (!properties) {
+    return undefined;
+  }
+
+  const exclude = options.excludeKeys;
+  if (!exclude || exclude.length === 0) {
+    return Object.keys(properties).length > 0 ? { ...properties } : undefined;
+  }
+
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (exclude.includes(key)) continue;
+    filtered[key] = value;
+  }
+
+  return Object.keys(filtered).length > 0 ? filtered : undefined;
+}
+
 function mapSearchResult(result: VfsSearchResult): WorkspaceSearchOutput {
   const score = readScore(result);
   const preview = result.snippet ?? result.title;
+  // Drop `score` from the passthrough only here — it's hoisted to the
+  // top-level `score` field below, so leaving it in `properties` would
+  // duplicate it in the model-visible JSON. `listOutputEntry` does NOT
+  // hoist score, so it must NOT pass `excludeKeys: ['score']` (otherwise
+  // list entries would silently lose their score).
+  const properties = passthroughProperties(result.properties, { excludeKeys: ['score'] });
   return {
     path: result.path,
     provider: result.provider ?? 'unknown',
     ...(score !== undefined ? { score } : {}),
     ...(preview ? { preview } : {}),
+    ...(properties ? { properties } : {}),
   };
 }
 
 function listOutputEntry(entry: VfsEntry): Record<string, unknown> {
+  // No top-level score projection for list entries — pass everything through.
+  const properties = passthroughProperties(entry.properties);
   return {
     path: entry.path,
     type: entry.type,
@@ -431,6 +463,7 @@ function listOutputEntry(entry: VfsEntry): Record<string, unknown> {
     ...(entry.revision ? { revision: entry.revision } : {}),
     ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
     ...(entry.size !== undefined ? { size: entry.size } : {}),
+    ...(properties ? { properties } : {}),
   };
 }
 
