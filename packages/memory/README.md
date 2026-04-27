@@ -22,9 +22,12 @@ npm install @agent-assistant/memory
 
 ```typescript
 import {
+  createRelayBackedMemoryStore,
   createMemoryStore,
   InMemoryMemoryStoreAdapter,
   RelayMemoryStoreAdapter,
+  retrieveTurnMemoryContext,
+  promoteLatestSessionMemory,
 } from '@agent-assistant/memory';
 ```
 
@@ -152,6 +155,47 @@ const memory = createMemoryStore({
 ```
 
 The wrapped relay adapter must implement `list()` and `update()`. The constructor rejects adapters that do not provide both methods.
+
+## Turn Memory Helpers
+
+Consumers that build their own prompt formatting can use the raw turn helpers instead of reimplementing scoped retrieval and promotion:
+
+```typescript
+import {
+  createRelayBackedMemoryStore,
+  retrieveTurnMemoryContext,
+  promoteLatestSessionMemory,
+} from '@agent-assistant/memory';
+
+const { store, close } = await createRelayBackedMemoryStore({
+  config: {
+    type: 'supermemory',
+    apiKey: process.env.SUPERMEMORY_API_KEY,
+    defaultAgentId: 'sage',
+    defaultProjectId: 'workspace-123',
+  },
+});
+
+const context = await retrieveTurnMemoryContext({
+  store,
+  sessionId: 'thread-1',
+  userId: 'user-1',
+  workspaceId: 'workspace-123',
+  tags: ['conversation'],
+  limit: 5,
+});
+
+await promoteLatestSessionMemory({
+  store,
+  sessionId: 'thread-1',
+  userId: 'user-1',
+  tags: ['promotable'],
+});
+
+await close();
+```
+
+`retrieveTurnMemoryContext()` returns entries in session, user, then workspace order by default, deduped by entry id. `promoteLatestSessionMemory()` promotes the newest matching session entry to a user or caller-supplied target scope.
 
 ## Isolation
 

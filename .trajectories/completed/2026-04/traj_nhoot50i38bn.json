@@ -1,0 +1,53 @@
+{
+  "id": "traj_nhoot50i38bn",
+  "version": 1,
+  "task": {
+    "title": "Add memory turn-context helpers"
+  },
+  "status": "completed",
+  "startedAt": "2026-04-27T15:37:38.560Z",
+  "completedAt": "2026-04-27T15:42:47.931Z",
+  "agents": [
+    {
+      "name": "default",
+      "role": "lead",
+      "joinedAt": "2026-04-27T15:42:42.246Z"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "chap_jztv54oj7yku",
+      "title": "Work",
+      "agentName": "default",
+      "startedAt": "2026-04-27T15:42:42.246Z",
+      "endedAt": "2026-04-27T15:42:47.931Z",
+      "events": [
+        {
+          "ts": 1777304562247,
+          "type": "decision",
+          "content": "Added raw memory helpers in @agent-assistant/memory: Added raw memory helpers in @agent-assistant/memory",
+          "raw": {
+            "question": "Added raw memory helpers in @agent-assistant/memory",
+            "chosen": "Added raw memory helpers in @agent-assistant/memory",
+            "alternatives": [],
+            "reasoning": "Sage needs reusable scoped retrieval, relay-backed store construction, and latest-session promotion while keeping Slack-specific promotion policy and prompt formatting product-local."
+          },
+          "significance": "high"
+        }
+      ]
+    }
+  ],
+  "retrospective": {
+    "summary": "Added @agent-assistant/memory helpers for relay-backed store construction, scoped turn memory retrieval, latest session promotion, docs, and tests.",
+    "approach": "Standard approach",
+    "confidence": 0.9
+  },
+  "commits": [],
+  "filesChanged": [],
+  "projectId": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-issue-134-memory-adoption",
+  "tags": [],
+  "_trace": {
+    "startRef": "3091a5284b123c0e310b1283aff105c0b963def2",
+    "endRef": "3091a5284b123c0e310b1283aff105c0b963def2"
+  }
+}

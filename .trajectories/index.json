@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-04-26T00:42:05.580Z",
+  "lastUpdated": "2026-04-27T15:42:48.047Z",
   "trajectories": {
     "traj_34202idd4b5w": {
       "title": "aa-proactive-signals-03-slack-presence-workflow",
@@ -328,6 +328,13 @@
       "status": "active",
       "startedAt": "2026-04-26T00:41:52.014Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_znshefbf3jtn.json"
+    },
+    "traj_nhoot50i38bn": {
+      "title": "Add memory turn-context helpers",
+      "status": "completed",
+      "startedAt": "2026-04-27T15:37:38.560Z",
+      "completedAt": "2026-04-27T15:42:47.931Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-issue-134-memory-adoption/.trajectories/completed/2026-04/traj_nhoot50i38bn.json"
     }
   }
 }

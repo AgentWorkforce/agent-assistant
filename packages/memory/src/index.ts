@@ -5,6 +5,12 @@ export {
 } from './memory.js';
 
 export {
+  createRelayBackedMemoryStore,
+  promoteLatestSessionMemory,
+  retrieveTurnMemoryContext,
+} from './turn-memory.js';
+
+export {
   CompactionError,
   InvalidScopePromotionError,
   MemoryEntryNotFoundError,
@@ -24,3 +30,12 @@ export type {
   UpdateMemoryPatch,
   WriteMemoryInput,
 } from './types.js';
+
+export type {
+  CreateRelayBackedMemoryStoreOptions,
+  PromoteLatestSessionMemoryInput,
+  RelayBackedMemoryStore,
+  RetrieveTurnMemoryContextInput,
+  TurnMemoryContext,
+  TurnMemoryScopeKind,
+} from './turn-memory.js';
