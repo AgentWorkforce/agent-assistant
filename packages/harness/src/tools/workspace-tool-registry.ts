@@ -414,16 +414,20 @@ function readScore(result: VfsSearchResult): number | undefined {
 
 function passthroughProperties(
   properties: Record<string, string> | undefined,
+  options: { excludeKeys?: ReadonlyArray<string> } = {},
 ): Record<string, string> | undefined {
   if (!properties) {
     return undefined;
   }
 
-  // `score` is already projected onto the top-level `score` field; drop it
-  // from the passthrough to avoid duplicating it in the model-visible JSON.
+  const exclude = options.excludeKeys;
+  if (!exclude || exclude.length === 0) {
+    return Object.keys(properties).length > 0 ? { ...properties } : undefined;
+  }
+
   const filtered: Record<string, string> = {};
   for (const [key, value] of Object.entries(properties)) {
-    if (key === 'score') continue;
+    if (exclude.includes(key)) continue;
     filtered[key] = value;
   }
 
@@ -433,7 +437,12 @@ function passthroughProperties(
 function mapSearchResult(result: VfsSearchResult): WorkspaceSearchOutput {
   const score = readScore(result);
   const preview = result.snippet ?? result.title;
-  const properties = passthroughProperties(result.properties);
+  // Drop `score` from the passthrough only here — it's hoisted to the
+  // top-level `score` field below, so leaving it in `properties` would
+  // duplicate it in the model-visible JSON. `listOutputEntry` does NOT
+  // hoist score, so it must NOT pass `excludeKeys: ['score']` (otherwise
+  // list entries would silently lose their score).
+  const properties = passthroughProperties(result.properties, { excludeKeys: ['score'] });
   return {
     path: result.path,
     provider: result.provider ?? 'unknown',
@@ -444,6 +453,7 @@ function mapSearchResult(result: VfsSearchResult): WorkspaceSearchOutput {
 }
 
 function listOutputEntry(entry: VfsEntry): Record<string, unknown> {
+  // No top-level score projection for list entries — pass everything through.
   const properties = passthroughProperties(entry.properties);
   return {
     path: entry.path,

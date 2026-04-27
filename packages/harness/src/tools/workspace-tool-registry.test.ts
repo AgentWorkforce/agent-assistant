@@ -274,9 +274,10 @@ describe('createWorkspaceToolRegistry execute workspace_list', () => {
     expect(parsed[1]).not.toHaveProperty('properties');
   });
 
-  it('omits properties entirely when only score is present (still projected to top-level)', async () => {
-    // Score is hoisted onto the top-level `score` field for search results;
-    // the same convention applies here so we don't double-render it.
+  it('preserves score in properties for list entries (no top-level hoist for workspace_list)', async () => {
+    // workspace_list does not hoist score to a top-level field (unlike
+    // workspace_search). So the score must remain inside properties — silently
+    // dropping it would lose data for any provider that ranks list entries.
     const listEntries: VfsEntry[] = [
       {
         path: '/github/repos/acme/widgets/score-only',
@@ -295,7 +296,8 @@ describe('createWorkspaceToolRegistry execute workspace_list', () => {
 
     expect(result.status).toBe('success');
     const parsed = parseOutputArray(result);
-    expect(parsed[0]).not.toHaveProperty('properties');
+    expect(parsed[0]).not.toHaveProperty('score');
+    expect(parsed[0]?.properties).toEqual({ score: '7' });
   });
 });
 
