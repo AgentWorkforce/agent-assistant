@@ -233,19 +233,18 @@ function resolvePerScopeLimit(
   scopeKind: TurnMemoryScopeKind,
   input: RetrieveTurnMemoryContextInput,
 ): number {
+  // Backwards-compat (per Devin review on PR #68): when caller provides
+  // none of `perScopeLimits[scopeKind]`, `perScopeLimit`, or `limit`,
+  // preserve the previous behavior of returning DEFAULT_TURN_MEMORY_LIMIT
+  // (20). Falling through to the smaller scope-specific constants
+  // (SESSION_LOAD_LIMIT=6, USER_LOAD_LIMIT=8, WORKSPACE_LOAD_LIMIT=4)
+  // would silently shrink existing callers' results by up to 80% — a
+  // breaking change at odds with the PR's "fully backwards compatible"
+  // promise. The constants remain exported so callers can opt in
+  // explicitly via `perScopeLimits: { session: SESSION_LOAD_LIMIT, ... }`.
+  void scopeKind;
   const explicitLimit = input.perScopeLimits?.[scopeKind] ?? input.perScopeLimit ?? input.limit;
-  if (explicitLimit) {
-    return normalizeLimit(explicitLimit);
-  }
-
-  switch (scopeKind) {
-    case 'session':
-      return SESSION_LOAD_LIMIT;
-    case 'user':
-      return USER_LOAD_LIMIT;
-    case 'workspace':
-      return WORKSPACE_LOAD_LIMIT;
-  }
+  return normalizeLimit(explicitLimit);
 }
 
 function scopeEventMeta(scope: MemoryScope): Pick<

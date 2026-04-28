@@ -161,7 +161,13 @@ describe('turn memory helpers', () => {
     ]);
   });
 
-  it('uses scope-specific default load limits', async () => {
+  it('preserves backwards-compat: uses DEFAULT_TURN_MEMORY_LIMIT when no explicit limit is provided', async () => {
+    // Per Devin review on PR #68: callers that provide neither limit,
+    // perScopeLimit, nor perScopeLimits previously got DEFAULT_TURN_MEMORY_LIMIT
+    // (20) per scope. Falling through to scope-specific constants
+    // (SESSION_LOAD_LIMIT=6, USER_LOAD_LIMIT=8, WORKSPACE_LOAD_LIMIT=4) would
+    // silently shrink existing callers' results. Constants remain available
+    // for opt-in via perScopeLimits.
     const entry = fixedEntry({ kind: 'session', sessionId: 's1' });
     const retrieve = vi.fn(async (query: MemoryQuery) => [entry]);
     const store = stubStore(entry, retrieve);
@@ -171,6 +177,27 @@ describe('turn memory helpers', () => {
       sessionId: 's1',
       userId: 'u1',
       workspaceId: 'w1',
+    });
+
+    const queries = retrieve.mock.calls.map(([query]) => query);
+    expect(queries.map((query) => query.limit)).toEqual([20, 20, 20]);
+  });
+
+  it('honors SESSION/USER/WORKSPACE_LOAD_LIMIT constants when caller opts in via perScopeLimits', async () => {
+    const entry = fixedEntry({ kind: 'session', sessionId: 's1' });
+    const retrieve = vi.fn(async (query: MemoryQuery) => [entry]);
+    const store = stubStore(entry, retrieve);
+
+    await retrieveTurnMemoryContext({
+      store,
+      sessionId: 's1',
+      userId: 'u1',
+      workspaceId: 'w1',
+      perScopeLimits: {
+        session: SESSION_LOAD_LIMIT,
+        user: USER_LOAD_LIMIT,
+        workspace: WORKSPACE_LOAD_LIMIT,
+      },
     });
 
     const queries = retrieve.mock.calls.map(([query]) => query);

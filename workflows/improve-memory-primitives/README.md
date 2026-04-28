@@ -25,6 +25,8 @@ sage) build on a shared foundation.
 | `createMemoryToolRegistry({ store, resolveScopeContext })` | Analogous to `createWorkspaceToolRegistry({ provider })` |
 | `MEMORY_TOOL_NAMES`, `MEMORY_REMEMBER_TOOL_NAME`, `MEMORY_RECALL_TOOL_NAME`, `MEMORY_FORGET_TOOL_NAME` | Tool name constants |
 | Tools: `memory_remember`, `memory_recall`, `memory_forget` | Model-callable memory ops with scope guards |
+| `RedundantToolLoopThreshold` + `createHarness({ limits: { redundantToolLoopThreshold } })` | Replaces "last 3 consecutive identical" with "M of last K identical, regardless of order" (defaults M=4, K=6). Models can no longer dodge the detector by interleaving one different call. |
+| `WORKSPACE_LARGE_OUTPUT_ADVISORY_BYTES` constant + `_advisory` wrap on workspace_list / workspace_search outputs > 5 KB | Tells the model to drill in via `workspace_read` on a specific file or `workspace_list` on a deeper subpath; do not re-call with identical args. |
 
 ## Layout
 
@@ -33,7 +35,8 @@ sage) build on a shared foundation.
 | `00-execute.ts` | Master — branch + sequential subs + fail-fast |
 | `01-memory-package.ts` | `@agent-assistant/memory` primitives + tests |
 | `02-harness-memory-tools.ts` | `createMemoryToolRegistry` + tests |
-| `03-publish-pr.ts` | Lead review + commit + push + PR |
+| `04-loosen-detector-and-large-output-advisory.ts` | Loosen redundant-tool-loop detector ("M of last K identical, regardless of order") + add `_advisory` wrap on workspace tool outputs > 5 KB |
+| `03-publish-pr.ts` | Lead review + commit + push + PR (runs last so PR includes Sub 4) |
 
 ## Run
 

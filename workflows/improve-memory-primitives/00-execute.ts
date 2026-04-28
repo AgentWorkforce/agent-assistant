@@ -1,129 +1,112 @@
-import { spawn } from 'node:child_process';
-import * as path from 'node:path';
-
 /**
- * Master executor for improve-memory-primitives.
+ * Master workflow for improve-memory-primitives.
  *
- * Sets up a feature branch on agent-assistant, runs subs sequentially,
- * fails fast. Final sub commits + opens PR. Sage adoption is a separate
- * workflow in the sage repo (improve-sage-memory) that runs AFTER this PR
- * merges and the new package versions publish.
+ * Mirrors the proactive-signals master pattern: applies
+ * `applyAgentAssistantRepoSetup` ONCE for the whole run (setup-branch +
+ * install-deps + workspace build), then runs each sub-workflow as a
+ * deterministic shell step that inherits the master's worktree. Subs do
+ * NOT need their own setup helper because they execute in the same
+ * working directory the master prepared.
  *
- * Subs:
+ * This satisfies `workflows/AGENTS.md` ("every cloud-sandboxed workflow
+ * that produces code changes MUST use the shared setup helper") at the
+ * orchestration layer — the same pattern proactive-signals/00-master.ts
+ * uses. Per Devin/codex review on PR #68 (comment IDs 3151086913,
+ * 3151086941, 3151106923, 3151413279).
+ *
+ * Subs (run in order; final sub commits + opens PR):
  *   01 — @agent-assistant/memory primitives (formatRelativeAge,
  *        renderTurnMemoryContext, structured logs, content-hash, query
  *        plumbing, scope load constants)
  *   02 — @agent-assistant/harness memory tool registry
  *        (createMemoryToolRegistry exposing memory_remember/recall/forget)
+ *   04 — Loosen redundant-tool-loop detector + large-output advisory
  *   03 — Final review, commit, push, open PR
+ *
+ * Per memory [agent-relay run exit code]: each sub-shell-step greps log
+ * for "Workflow status: failed" AND checks pipeline exit via PIPESTATUS,
+ * because the runner can exit 0 even when the inner workflow fails.
  */
 
-// Resolve from the script being executed (process.argv[1]) since the
-// agent-assistant repo's tsx runtime transpiles to CJS where import.meta
-// is unavailable. The master is always invoked as
-//   npx tsx workflows/improve-memory-primitives/00-execute.ts
-// from the agent-assistant repo root.
-const __dirname = path.dirname(path.resolve(process.argv[1] ?? __filename));
+import { workflow } from '@agent-relay/sdk/workflows';
+import { mkdirSync } from 'node:fs';
 
-const SUBS = [
-  '01-memory-package.ts',
-  '02-harness-memory-tools.ts',
-  '03-publish-pr.ts',
-] as const;
+import { applyAgentAssistantRepoSetup } from '../lib/agent-assistant-repo-setup.ts';
 
-const FEATURE_BRANCH = 'feat/memory-primitives-and-harness-tools';
+const BRANCH = 'feat/memory-primitives-and-harness-tools';
+const LOG_DIR = 'logs/improve-memory-primitives-master';
 
-function exec(command: string): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
-    const child = spawn('bash', ['-lc', command], { stdio: ['inherit', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (c) => {
-      const t = c.toString();
-      stdout += t;
-      process.stdout.write(t);
-    });
-    child.stderr.on('data', (c) => {
-      const t = c.toString();
-      stderr += t;
-      process.stderr.write(t);
-    });
-    child.on('exit', (code) => resolve({ code: code ?? 1, stdout, stderr }));
-  });
-}
-
-function runSub(file: string): Promise<{ code: number; failedMarker: boolean }> {
-  return new Promise((resolve) => {
-    const child = spawn(
-      'agent-relay',
-      ['run', path.join(__dirname, file)],
-      { stdio: ['inherit', 'pipe', 'pipe'], cwd: process.cwd() },
-    );
-    let failedMarker = false;
-    const onChunk = (chunk: Buffer, sink: NodeJS.WriteStream) => {
-      const text = chunk.toString();
-      if (/Workflow status:\s*failed/i.test(text)) failedMarker = true;
-      sink.write(text);
-    };
-    child.stdout.on('data', (c) => onChunk(c, process.stdout));
-    child.stderr.on('data', (c) => onChunk(c, process.stderr));
-    child.on('exit', (code) => resolve({ code: code ?? 1, failedMarker }));
-  });
-}
-
-async function ensureCleanBranch(): Promise<void> {
-  const status = await exec('git status --porcelain');
-  if (status.stdout.trim().length > 0) {
-    console.error(
-      '[master] working tree is dirty. Commit or stash before running this workflow:\n' + status.stdout,
-    );
-    process.exit(1);
-  }
-
-  const head = await exec('git rev-parse --abbrev-ref HEAD');
-  const currentBranch = head.stdout.trim();
-
-  if (currentBranch === FEATURE_BRANCH) {
-    console.log(`[master] already on ${FEATURE_BRANCH}`);
-    return;
-  }
-
-  const branchExists = await exec(`git show-ref --verify --quiet refs/heads/${FEATURE_BRANCH}`);
-  if (branchExists.code === 0) {
-    console.log(`[master] switching to existing ${FEATURE_BRANCH}`);
-    const checkout = await exec(`git checkout ${FEATURE_BRANCH}`);
-    if (checkout.code !== 0) {
-      console.error('[master] checkout failed');
-      process.exit(1);
-    }
-  } else {
-    console.log(`[master] creating ${FEATURE_BRANCH} from ${currentBranch}`);
-    const create = await exec(`git checkout -b ${FEATURE_BRANCH}`);
-    if (create.code !== 0) {
-      console.error('[master] branch create failed');
-      process.exit(1);
-    }
-  }
-}
+// Wrapped in bash -c '...' (SINGLE quotes) because cloud /bin/sh is dash,
+// which doesn't support ${PIPESTATUS[0]}. Single quotes prevent sh from
+// expanding $status / ${PIPESTATUS[0]} before bash sees them. Same
+// rationale as proactive-signals/00-master.ts.
+const SUB = (file: string) => {
+  const logPath = `${LOG_DIR}/${file}.log`;
+  const script = [
+    `set -o pipefail`,
+    `agent-relay run workflows/improve-memory-primitives/${file} 2>&1 | tee ${logPath}`,
+    `status=\${PIPESTATUS[0]}`,
+    `if [ "$status" -ne 0 ]; then echo "SUB_WORKFLOW_EXIT_NONZERO: $status"; exit $status; fi`,
+    `if grep -q "Workflow status: failed" ${logPath}; then echo "SUB_WORKFLOW_REPORTED_FAILED"; exit 1; fi`,
+    `echo "SUB_WORKFLOW_OK: ${file}"`,
+  ].join('; ');
+  return `bash -c '${script}'`;
+};
 
 async function main() {
-  console.log('[master] improve-memory-primitives starting at', new Date().toISOString());
-  await ensureCleanBranch();
+  mkdirSync(LOG_DIR, { recursive: true });
 
-  for (const sub of SUBS) {
-    console.log(`[master] → ${sub}`);
-    const { code, failedMarker } = await runSub(sub);
-    if (code !== 0 || failedMarker) {
-      console.error(
-        `[master] ${sub} failed (exit=${code}, failedMarker=${failedMarker}). Stopping. Branch left at ${FEATURE_BRANCH} for inspection.`,
-      );
-      process.exit(1);
-    }
-    console.log(`[master] ✓ ${sub} ok`);
-  }
+  const baseWf = workflow('aa-improve-memory-primitives-master')
+    .description(
+      'Master — setup-branch + install-deps via shared helper, then 01 → 02 → 04 → 03 sequentially. 03 commits + opens PR.',
+    )
+    .pattern('dag')
+    .channel('wf-aa-improve-memory-primitives-master')
+    .maxConcurrency(2)
+    .timeout(7_200_000); // 2h
 
-  console.log('[master] all sub-workflows passed. PR opened by 03.');
-  console.log('[master] After merge, the existing release workflow will publish @agent-assistant/memory + harness new minors. Then run improve-sage-memory in the sage repo.');
+  // ─── Phase 0: Setup branch + deps (shared helper) ───────
+  // Per workflows/AGENTS.md and the proactive-signals reference pattern,
+  // this is where setup-branch and install-deps land. Subs run as
+  // deterministic shell steps below and inherit this working directory.
+  const wf = applyAgentAssistantRepoSetup(baseWf, {
+    branch: BRANCH,
+    committerName: 'Memory Primitives Bot',
+  });
+
+  const result = await wf
+    .step('sub-01-memory-package', {
+      type: 'deterministic',
+      dependsOn: ['install-deps'],
+      command: SUB('01-memory-package.ts'),
+      captureOutput: true,
+      failOnError: true,
+    })
+    .step('sub-02-harness-memory-tools', {
+      type: 'deterministic',
+      dependsOn: ['sub-01-memory-package'],
+      command: SUB('02-harness-memory-tools.ts'),
+      captureOutput: true,
+      failOnError: true,
+    })
+    .step('sub-04-loosen-detector', {
+      type: 'deterministic',
+      dependsOn: ['sub-02-harness-memory-tools'],
+      command: SUB('04-loosen-detector-and-large-output-advisory.ts'),
+      captureOutput: true,
+      failOnError: true,
+    })
+    .step('sub-03-publish-pr', {
+      type: 'deterministic',
+      dependsOn: ['sub-04-loosen-detector'],
+      command: SUB('03-publish-pr.ts'),
+      captureOutput: true,
+      failOnError: true,
+    })
+    .run({ cwd: process.cwd() });
+
+  console.log('Workflow status:', result.status);
+  if (result.status === 'failed') process.exit(1);
 }
 
 main().catch((error) => {
