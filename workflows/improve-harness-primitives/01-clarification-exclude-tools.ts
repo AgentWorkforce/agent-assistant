@@ -117,8 +117,8 @@ Do NOT touch other files.`,
       type: 'deterministic',
       dependsOn: ['implement'],
       command:
-        'grep -q "excludeToolNames" packages/harness/src/tool-evidence-clarification.ts && ' +
-        'grep -q "excludeToolNames" packages/harness/src/tool-evidence-clarification.ts && echo OK',
+        'grep -Eq "excludeToolNames\\?:[[:space:]]*readonly[[:space:]]+string\\[\\]" packages/harness/src/tool-evidence-clarification.ts && ' +
+        'git diff --name-only -- packages/harness/package.json | grep -q . && echo OK',
       captureOutput: true,
       failOnError: true,
     })

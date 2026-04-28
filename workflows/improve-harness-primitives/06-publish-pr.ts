@@ -136,16 +136,19 @@ If anything is wrong, fix directly. Then re-run:
     .step('commit', {
       type: 'deterministic',
       dependsOn: ['post-review-tests'],
-      // git add -u catches modifications. -- new files explicitly listed
-      // and `|| true` on each guards against the file not existing for any
-      // sub that the impl agent collapsed into a sibling file.
+      // git add -u catches modifications. New files added via subshells so
+      // `|| true` only catches the individual `git add` failure, not the
+      // preceding `git add -u`. Per Devin review on PR #69: bash treats
+      // `&& ... || true` as left-associative `(A && B) || true`, which
+      // would silently swallow a failure of `git add -u` and produce an
+      // incomplete commit missing all modifications.
       command:
         'git add -u packages/harness/ && ' +
-        'git add packages/harness/src/idempotency-guard.ts packages/harness/src/idempotency-guard.test.ts || true; ' +
-        'git add packages/harness/src/tools/github-public-fetcher.ts packages/harness/src/tools/github-public-fetcher.test.ts || true; ' +
-        'git add packages/harness/src/tools/github-public-review-tool-registry.ts packages/harness/src/tools/github-public-review-tool-registry.test.ts || true; ' +
-        'git add packages/harness/src/tool-evidence-clarification.test.ts || true; ' +
-        'git add packages/harness/src/adapter/openrouter-model-adapter.error-codes.test.ts || true; ' +
+        '(git add packages/harness/src/idempotency-guard.ts packages/harness/src/idempotency-guard.test.ts || true) && ' +
+        '(git add packages/harness/src/tools/github-public-fetcher.ts packages/harness/src/tools/github-public-fetcher.test.ts || true) && ' +
+        '(git add packages/harness/src/tools/github-public-review-tool-registry.ts packages/harness/src/tools/github-public-review-tool-registry.test.ts || true) && ' +
+        '(git add packages/harness/src/tool-evidence-clarification.test.ts || true) && ' +
+        '(git add packages/harness/src/adapter/openrouter-model-adapter.error-codes.test.ts || true) && ' +
         'git status --short && ' +
         "git commit -m 'feat(harness): clarification exclude-tools, idempotency guard, github-public-review tool, tool-discipline prompt fragments, openrouter error codes' " +
         "           -m 'Five primitives lifted from sage Slack-bot failure-mode fixes (sage PR #155). Each is general harness-runtime concern that any consumer benefits from. excludeToolNames on createToolEvidenceClarificationHook so read-only tools (memory_recall) skip the empty-result clarification path. createIdempotencyGuard registry wrapper blocks the 2nd identical (name + input) tool call within a turn with a structured redundant_call_blocked error pointing at consumer-supplied drill-in alternatives. GitHubPublicFetcher + createGitHubPublicReviewToolRegistry expose unauthenticated public-repo readme/package.json/top-level/recent-commits via a github_public_review tool — closes the cross-org external-repo review use case. Three new prompt fragments (DRILL_IN_DISCIPLINE_CLAUSE, TOOL_INPUT_SHAPE_REMINDER_CLAUSE, EXTERNAL_REPO_STEER_CLAUSE) plus a TOOL_DISCIPLINE_CLAUSES bundle co-located with HALLUCINATION_PREVENTION_CLAUSES. HarnessInvalidOutputCode adds a stable subcode (credits_exhausted / rate_limited / timeout / invalid_request / context_length_exceeded / model_not_found / auth_failed / unknown) populated by the OpenRouter adapter so consumers can switch on a machine-readable code instead of substring-matching reason. All additive; existing signatures and field shapes unchanged. Single minor bump on @agent-assistant/harness.'",
