@@ -118,24 +118,15 @@ export async function retrieveTurnMemoryContext(
       continue;
     }
 
-    const entries = await measureMemoryOp(
-      {
-        op: 'load',
-        ...scopeEventMeta(scope),
-      },
-      async () => {
-        const retrieved = await input.store.retrieve({
-          scope,
-          tags: input.tags,
-          since: input.since,
-          query: input.query,
-          limit: resolvePerScopeLimit(scopeKind, input),
-          order: input.order ?? 'newest',
-          includeNarrower: false,
-        });
-        return retrieved;
-      },
-    );
+    const entries = await input.store.retrieve({
+      scope,
+      tags: input.tags,
+      since: input.since,
+      query: input.query,
+      limit: resolvePerScopeLimit(scopeKind, input),
+      order: input.order ?? 'newest',
+      includeNarrower: false,
+    });
 
     byScope[scopeKind] = entries;
 
@@ -165,11 +156,12 @@ export function renderTurnMemoryContext(
     ...DEFAULT_SCOPE_LABELS,
     ...options.scopeLabels,
   };
+  const allowedIds = new Set(context.entries.map((entry) => entry.id));
   const lines: string[] = [];
 
   for (const scopeKind of DEFAULT_SCOPE_ORDER) {
     for (const entry of context.byScope[scopeKind] ?? []) {
-      if (entry.content.trim().length === 0) {
+      if (!allowedIds.has(entry.id) || entry.content.trim().length === 0) {
         continue;
       }
 
@@ -186,20 +178,13 @@ export async function promoteLatestSessionMemory(
   input: PromoteLatestSessionMemoryInput,
 ): Promise<MemoryEntry | null> {
   const sessionScope: MemoryScope = { kind: 'session', sessionId: input.sessionId };
-  const [source] = await measureMemoryOp(
-    {
-      op: 'load',
-      ...scopeEventMeta(sessionScope),
-    },
-    async () =>
-      input.store.retrieve({
-        scope: sessionScope,
-        tags: input.tags,
-        since: input.since,
-        limit: 1,
-        order: 'newest',
-      }),
-  );
+  const [source] = await input.store.retrieve({
+    scope: sessionScope,
+    tags: input.tags,
+    since: input.since,
+    limit: 1,
+    order: 'newest',
+  });
 
   if (!source) {
     return null;
@@ -211,25 +196,15 @@ export async function promoteLatestSessionMemory(
     throw new Error('promoteLatestSessionMemory requires targetScope or userId.');
   }
 
-  return measureMemoryOp(
-    {
-      op: 'promote',
-      ...scopeEventMeta(targetScope),
-      contentChars: (input.content ?? source.content).length,
-      entryCount: 1,
-    },
-    async () => {
-      const promotion: PromoteMemoryInput = {
-        sourceEntryId: source.id,
-        targetScope,
-        deleteOriginal: input.deleteOriginal,
-        content: input.content,
-        tags: input.promotedTags,
-      };
+  const promotion: PromoteMemoryInput = {
+    sourceEntryId: source.id,
+    targetScope,
+    deleteOriginal: input.deleteOriginal,
+    content: input.content,
+    tags: input.promotedTags,
+  };
 
-      return input.store.promote(promotion);
-    },
-  );
+  return input.store.promote(promotion);
 }
 
 function resolveTurnScope(

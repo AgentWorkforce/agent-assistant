@@ -252,6 +252,35 @@ describe('turn memory helpers', () => {
     );
   });
 
+  it('renders only entries that survived the global limit', () => {
+    const context = {
+      entries: [
+        fixedEntry(
+          { kind: 'session', sessionId: 's1' },
+          { id: 'session-1', content: 'kept', createdAt: '2026-04-27T11:59:00.000Z' },
+        ),
+      ],
+      byScope: {
+        session: [
+          fixedEntry(
+            { kind: 'session', sessionId: 's1' },
+            { id: 'session-1', content: 'kept', createdAt: '2026-04-27T11:59:00.000Z' },
+          ),
+        ],
+        user: [
+          fixedEntry(
+            { kind: 'user', userId: 'u1' },
+            { id: 'user-dropped', content: 'dropped', createdAt: '2026-04-27T10:00:00.000Z' },
+          ),
+        ],
+      },
+    };
+
+    expect(renderTurnMemoryContext(context, { now: new Date('2026-04-27T12:00:00.000Z') })).toBe(
+      '[thread, 1 minute ago] kept',
+    );
+  });
+
   it('respects scope label overrides when rendering turn memory context', () => {
     const context = {
       entries: [

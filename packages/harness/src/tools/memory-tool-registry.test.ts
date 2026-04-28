@@ -410,7 +410,7 @@ describe('createMemoryToolRegistry observability', () => {
     });
   });
 
-  it("rethrows store.write failures and logs a status='failed' memory_op event", async () => {
+  it("returns a retryable tool_error on store.write failures and logs a status='failed' memory_op event", async () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const store = makeStore({
       write: vi.fn().mockRejectedValue(new Error('boom')),
@@ -421,8 +421,14 @@ describe('createMemoryToolRegistry observability', () => {
       scope: 'session',
     });
 
-    await expect(registry.execute(call, EXECUTION_CONTEXT)).rejects.toThrow('boom');
+    const result = await registry.execute(call, EXECUTION_CONTEXT);
 
+    expect(result.status).toBe('error');
+    expect(result.error).toMatchObject({
+      code: 'tool_error',
+      message: 'boom',
+      retryable: true,
+    });
     expect(infoSpy).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(infoSpy.mock.calls[0]?.[0]))).toMatchObject({
       event: 'memory_op',

@@ -614,9 +614,6 @@ export function createMemoryToolRegistry(
 
         return successResult(call, 'forgotten');
       } catch (error) {
-        if (call.name === MEMORY_REMEMBER_TOOL_NAME) {
-          throw error;
-        }
         if (call.name === MEMORY_FORGET_TOOL_NAME && error instanceof MemoryEntryNotFoundError) {
           return notFoundResult(call, error.message);
         }
