@@ -8,6 +8,18 @@ import type {
 export interface ToolEvidenceClarificationOptions {
   emptyResultKeys?: readonly string[];
   questionForReason?: Partial<Record<HarnessToolEvidenceClarificationReason, string>>;
+  /**
+   * Tool names that should NEVER trigger an evidence-based clarification.
+   * Useful for read-only / "expected to sometimes be empty" tools like
+   * memory_recall where empty results are normal, not a signal that the
+   * model needs to ask the user a clarifying question.
+   *
+   * Note: explicit clarification hints on the tool result itself
+   * (result.metadata.clarification or structuredOutput.clarification)
+   * are still respected — the exclusion only suppresses the implicit
+   * classifier path.
+   */
+  excludeToolNames?: readonly string[];
 }
 
 const DEFAULT_EMPTY_RESULT_KEYS = [
@@ -44,6 +56,11 @@ export function detectToolEvidenceClarification(
   const explicit = readExplicitClarification(result);
   if (explicit) {
     return explicit;
+  }
+
+  const excludedToolNames = options.excludeToolNames ? new Set(options.excludeToolNames) : null;
+  if (excludedToolNames?.has(result.toolName)) {
+    return null;
   }
 
   const reason = classifyToolEvidence(result, options);
