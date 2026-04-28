@@ -25,6 +25,14 @@ export {
 } from './tools/workspace-tool-registry.js';
 export type { WorkspaceToolRegistryOptions } from './tools/workspace-tool-registry.js';
 export {
+  createMemoryToolRegistry,
+  MEMORY_FORGET_TOOL_NAME,
+  MEMORY_RECALL_TOOL_NAME,
+  MEMORY_REMEMBER_TOOL_NAME,
+  MEMORY_TOOL_NAMES,
+} from './tools/memory-tool-registry.js';
+export type { MemoryToolRegistryOptions } from './tools/memory-tool-registry.js';
+export {
   createToolEvidenceClarificationHook,
   detectToolEvidenceClarification,
 } from './tool-evidence-clarification.js';

@@ -42,6 +42,7 @@ export interface MemoryQuery {
   includeNarrower?: boolean;
   tags?: string[];
   since?: string;
+  query?: string;
   limit?: number;
   order?: 'newest' | 'oldest';
   context?: {
