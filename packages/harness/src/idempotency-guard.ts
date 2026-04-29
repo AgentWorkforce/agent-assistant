@@ -95,15 +95,25 @@ function duplicateResult(
     ...buildAlternatives(call, options).map((item) => `- ${item}`),
   ].join('\n');
 
+  // Return a successful tool result, not an error. The whole point of
+  // surfacing alternatives is for the model to read them and pick a
+  // different tool — but the harness classifies any tool error with
+  // `retryable !== true` as `tool_error_unrecoverable` and terminates
+  // the turn, which means the model never sees this message. By
+  // delivering the teaching message as the tool's `output` we keep the
+  // turn alive so the model can adapt.
   return {
     callId: call.id,
     toolName: call.name,
-    status: 'error',
-    output: '',
-    error: {
-      code: 'redundant_call_blocked',
-      message,
-      retryable: false,
+    status: 'success',
+    output: message,
+    metadata: {
+      idempotencyGuard: {
+        blocked: true,
+        code: 'redundant_call_blocked',
+        previousIteration: previous.iteration,
+        previousOutputChars: previous.outputChars,
+      },
     },
   };
 }
