@@ -136,22 +136,49 @@ If anything is wrong, fix directly. Then re-run:
     .step('commit', {
       type: 'deterministic',
       dependsOn: ['post-review-tests'],
+      // Idempotent: if a prior run already committed (resume scenario, or
+      // a sub already committed its own work), staging produces nothing
+      // and we skip the commit + log "already committed". Only fails when
+      // there's truly nothing to ship — no staged changes AND no commits
+      // ahead of origin/main.
+      //
       // git add -u catches modifications. New files added via subshells so
       // `|| true` only catches the individual `git add` failure, not the
       // preceding `git add -u`. Per Devin review on PR #69: bash treats
       // `&& ... || true` as left-associative `(A && B) || true`, which
       // would silently swallow a failure of `git add -u` and produce an
       // incomplete commit missing all modifications.
-      command:
-        'git add -u packages/harness/ && ' +
-        '(git add packages/harness/src/idempotency-guard.ts packages/harness/src/idempotency-guard.test.ts || true) && ' +
-        '(git add packages/harness/src/tools/github-public-fetcher.ts packages/harness/src/tools/github-public-fetcher.test.ts || true) && ' +
-        '(git add packages/harness/src/tools/github-public-review-tool-registry.ts packages/harness/src/tools/github-public-review-tool-registry.test.ts || true) && ' +
-        '(git add packages/harness/src/tool-evidence-clarification.test.ts || true) && ' +
-        '(git add packages/harness/src/adapter/openrouter-model-adapter.error-codes.test.ts || true) && ' +
-        'git status --short && ' +
-        "git commit -m 'feat(harness): clarification exclude-tools, idempotency guard, github-public-review tool, tool-discipline prompt fragments, openrouter error codes' " +
-        "           -m 'Five primitives lifted from sage Slack-bot failure-mode fixes (sage PR #155). Each is general harness-runtime concern that any consumer benefits from. excludeToolNames on createToolEvidenceClarificationHook so read-only tools (memory_recall) skip the empty-result clarification path. createIdempotencyGuard registry wrapper blocks the 2nd identical (name + input) tool call within a turn with a structured redundant_call_blocked error pointing at consumer-supplied drill-in alternatives. GitHubPublicFetcher + createGitHubPublicReviewToolRegistry expose unauthenticated public-repo readme/package.json/top-level/recent-commits via a github_public_review tool — closes the cross-org external-repo review use case. Three new prompt fragments (DRILL_IN_DISCIPLINE_CLAUSE, TOOL_INPUT_SHAPE_REMINDER_CLAUSE, EXTERNAL_REPO_STEER_CLAUSE) plus a TOOL_DISCIPLINE_CLAUSES bundle co-located with HALLUCINATION_PREVENTION_CLAUSES. HarnessInvalidOutputCode adds a stable subcode (credits_exhausted / rate_limited / timeout / invalid_request / context_length_exceeded / model_not_found / auth_failed / unknown) populated by the OpenRouter adapter so consumers can switch on a machine-readable code instead of substring-matching reason. All additive; existing signatures and field shapes unchanged. Single minor bump on @agent-assistant/harness.'",
+      command: [
+        'set -e',
+        'mkdir -p tmp',
+        // Write the commit message to a file so we don't have to fight
+        // shell-quoting with single quotes inside the workflow string.
+        "cat > tmp/aa-harness-commit-msg.txt <<'COMMITMSG'",
+        'feat(harness): clarification exclude-tools, idempotency guard, github-public-review tool, tool-discipline prompt fragments, openrouter error codes',
+        '',
+        'Five primitives lifted from sage Slack-bot failure-mode fixes (sage PR #155). Each is general harness-runtime concern that any consumer benefits from. excludeToolNames on createToolEvidenceClarificationHook so read-only tools (memory_recall) skip the empty-result clarification path. createIdempotencyGuard registry wrapper blocks the 2nd identical (name + input) tool call within a turn with a structured redundant_call_blocked error pointing at consumer-supplied drill-in alternatives. GitHubPublicFetcher + createGitHubPublicReviewToolRegistry expose unauthenticated public-repo readme/package.json/top-level/recent-commits via a github_public_review tool — closes the cross-org external-repo review use case. Three new prompt fragments (DRILL_IN_DISCIPLINE_CLAUSE, TOOL_INPUT_SHAPE_REMINDER_CLAUSE, EXTERNAL_REPO_STEER_CLAUSE) plus a TOOL_DISCIPLINE_CLAUSES bundle co-located with HALLUCINATION_PREVENTION_CLAUSES. HarnessInvalidOutputCode adds a stable subcode (credits_exhausted / rate_limited / timeout / invalid_request / context_length_exceeded / model_not_found / auth_failed / unknown) populated by the OpenRouter adapter so consumers can switch on a machine-readable code instead of substring-matching reason. All additive; existing signatures and field shapes unchanged. Single minor bump on @agent-assistant/harness.',
+        'COMMITMSG',
+        // Stage modifications and any new files.
+        'git add -u packages/harness/',
+        '(git add packages/harness/src/idempotency-guard.ts packages/harness/src/idempotency-guard.test.ts || true)',
+        '(git add packages/harness/src/tools/github-public-fetcher.ts packages/harness/src/tools/github-public-fetcher.test.ts || true)',
+        '(git add packages/harness/src/tools/github-public-review-tool-registry.ts packages/harness/src/tools/github-public-review-tool-registry.test.ts || true)',
+        '(git add packages/harness/src/tool-evidence-clarification.test.ts || true)',
+        '(git add packages/harness/src/adapter/openrouter-model-adapter.error-codes.test.ts || true)',
+        'git status --short',
+        // Decide: commit, skip, or fail.
+        'if git diff --cached --quiet; then',
+        '  ahead=$(git rev-list --count origin/main..HEAD)',
+        '  if [ "$ahead" -gt 0 ]; then',
+        '    echo "[commit] nothing to stage; HEAD is $ahead commit(s) ahead of origin/main — assuming prior run already committed. Skipping commit."',
+        '  else',
+        '    echo "[commit] FATAL: nothing staged AND no commits ahead of origin/main. The workflow produced no changes — failing loudly."',
+        '    exit 1',
+        '  fi',
+        'else',
+        '  git commit -F tmp/aa-harness-commit-msg.txt',
+        'fi',
+      ].join('\n'),
       captureOutput: true,
       failOnError: true,
     })
@@ -262,8 +289,22 @@ wc -l tmp/aa-harness-pr-body.md`,
     .step('open-pr', {
       type: 'deterministic',
       dependsOn: ['write-pr-body'],
-      command:
-        'PR_URL=$(gh pr create --title "feat(harness): clarification exclude-tools, idempotency guard, github-public-review, prompt fragments, openrouter error codes" --body-file tmp/aa-harness-pr-body.md) && echo "PR: $PR_URL"',
+      // Idempotent against re-runs / resumes: if a PR already exists for
+      // the current branch, print its URL and update the body instead of
+      // failing with "a pull request for branch X already exists".
+      command: [
+        'set -e',
+        'branch=$(git rev-parse --abbrev-ref HEAD)',
+        'existing=$(gh pr list --head "$branch" --json url --jq ".[0].url" 2>/dev/null || true)',
+        'if [ -n "$existing" ] && [ "$existing" != "null" ]; then',
+        '  echo "[open-pr] PR already exists for $branch — updating body."',
+        '  gh pr edit "$existing" --body-file tmp/aa-harness-pr-body.md > /dev/null',
+        '  echo "PR: $existing"',
+        'else',
+        '  PR_URL=$(gh pr create --title "feat(harness): clarification exclude-tools, idempotency guard, github-public-review, prompt fragments, openrouter error codes" --body-file tmp/aa-harness-pr-body.md)',
+        '  echo "PR: $PR_URL"',
+        'fi',
+      ].join('\n'),
       captureOutput: true,
       failOnError: true,
     })
