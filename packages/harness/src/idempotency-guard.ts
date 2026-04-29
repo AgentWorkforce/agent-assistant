@@ -178,13 +178,21 @@ export function createIdempotencyGuard(
       }
 
       const result = await inner.execute(call, context);
-      const iteration = nextIterations.get(turnId) ?? 1;
-      turnCache.set(signature, {
-        iteration,
-        outputChars: result.output?.length ?? 0,
-        firstCalledAt: Date.now(),
-      });
-      nextIterations.set(turnId, iteration + 1);
+      // Only cache successful results. Caching errors would let a retryable
+      // failure mask a subsequent retry as a "duplicate call" success — see
+      // executeToolWithRetry: it re-invokes the same (name, input), and a
+      // cache hit here returns status:'success' so the retry loop exits
+      // without ever re-running the inner tool. Skipping the cache on
+      // non-success keeps the retry path live.
+      if (result.status === 'success') {
+        const iteration = nextIterations.get(turnId) ?? 1;
+        turnCache.set(signature, {
+          iteration,
+          outputChars: result.output?.length ?? 0,
+          firstCalledAt: Date.now(),
+        });
+        nextIterations.set(turnId, iteration + 1);
+      }
       return result;
     },
   };

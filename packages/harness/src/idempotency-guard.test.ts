@@ -251,6 +251,69 @@ describe('createIdempotencyGuard', () => {
     expect(inner.execute).toHaveBeenCalledTimes(2);
   });
 
+  it('does not cache a retryable error result, so retry attempts reach the inner tool', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const errorResult: HarnessToolResult = {
+      callId: call.id,
+      toolName: call.name,
+      status: 'error',
+      error: {
+        code: 'transient',
+        message: 'transient failure',
+        retryable: true,
+      },
+    };
+    const successResult = makeResult(call, { output: 'recovered-output' });
+    const execute = vi
+      .fn<HarnessToolRegistry['execute']>()
+      .mockResolvedValueOnce(errorResult)
+      .mockResolvedValueOnce(successResult);
+    const inner = makeInnerRegistry({ executeImpl: execute });
+    const guard = createIdempotencyGuard(inner);
+
+    const first = await guard.execute(call, context);
+    const second = await guard.execute(call, context);
+
+    expect(first).toEqual(errorResult);
+    // Without the success-only cache rule, the second call would hit the
+    // guard's cache and return a fake "duplicate call" success — silently
+    // exiting executeToolWithRetry without ever re-invoking the tool.
+    expect(second).toEqual(successResult);
+    expect(second.metadata?.idempotencyGuard).toBeUndefined();
+    expect(inner.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache a non-retryable error result either', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const errorResult: HarnessToolResult = {
+      callId: call.id,
+      toolName: call.name,
+      status: 'error',
+      error: {
+        code: 'permanent',
+        message: 'permanent failure',
+        retryable: false,
+      },
+    };
+    const successResult = makeResult(call, { output: 'recovered-output' });
+    const execute = vi
+      .fn<HarnessToolRegistry['execute']>()
+      .mockResolvedValueOnce(errorResult)
+      .mockResolvedValueOnce(successResult);
+    const inner = makeInnerRegistry({ executeImpl: execute });
+    const guard = createIdempotencyGuard(inner);
+
+    const first = await guard.execute(call, context);
+    const second = await guard.execute(call, context);
+
+    expect(first).toEqual(errorResult);
+    expect(second).toEqual(successResult);
+    expect(second.metadata?.idempotencyGuard).toBeUndefined();
+    expect(inner.execute).toHaveBeenCalledTimes(2);
+  });
+
   it('reports the original per-turn iteration number in duplicate results', async () => {
     const inner = makeInnerRegistry();
     const guard = createIdempotencyGuard(inner);
