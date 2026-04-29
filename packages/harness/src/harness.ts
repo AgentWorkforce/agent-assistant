@@ -545,7 +545,9 @@ async function checkLimits(
  *
  * Each retry attempt emits a `tool_retried` trace event before the attempt
  * fires (so observers see retry attempts even if all of them ultimately
- * fail). After the configured retries are exhausted, this returns the last
+ * fail). Usage data from failed intermediate attempts is accumulated into
+ * `state.usage` before retrying, so budget enforcement sees the true total
+ * cost. After the configured retries are exhausted, this returns the last
  * failed result and the caller propagates the existing `tool_failed` event
  * + tool-error handling unchanged.
  */
@@ -565,6 +567,10 @@ async function executeToolWithRetry(
     if (lastResult.status !== 'error' || lastResult.error?.retryable !== true) {
       return lastResult;
     }
+
+    // Accumulate usage from the failed intermediate attempt so budget
+    // enforcement sees the true total cost including retries.
+    accumulateUsage(state.usage, lastResult.usage);
 
     const previousError = lastResult.error;
     const backoff = pickBackoff(backoffMs, attempt - 1);

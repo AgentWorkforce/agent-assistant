@@ -199,6 +199,59 @@ describe('createHarness in-turn auto-retry on retryable tool failures', () => {
     expect(result.stopReason).toBe('tool_error_unrecoverable');
   });
 
+  it('accumulates usage from intermediate failed retry attempts into total budget', async () => {
+    const failWithUsage = (costUnits: number): HarnessToolResult => ({
+      callId: 'call-1',
+      toolName: 'github_specialist',
+      status: 'error',
+      error: { code: 'provider_timeout', message: 'timed out', retryable: true },
+      usage: { inputTokens: 100, outputTokens: 50, costUnits, latencyMs: 200 },
+    });
+    const successResult: HarnessToolResult = {
+      callId: 'call-1',
+      toolName: 'github_specialist',
+      status: 'success',
+      output: 'done',
+      usage: { inputTokens: 100, outputTokens: 50, costUnits: 3, latencyMs: 150 },
+    };
+
+    const execute = vi
+      .fn<() => Promise<HarnessToolResult>>()
+      .mockResolvedValueOnce(failWithUsage(1))
+      .mockResolvedValueOnce(failWithUsage(2))
+      .mockResolvedValueOnce(successResult);
+
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'github_specialist', input: {} }] },
+      { type: 'final_answer', text: 'Done' },
+    ];
+
+    const harness = createHarness({
+      model: { nextStep: async () => steps.shift() as HarnessModelOutput },
+      tools: {
+        listAvailable: async () => [{ name: 'github_specialist', description: 'GitHub specialist' }],
+        execute,
+      },
+      toolRetryConfig: { maxRetries: 2, backoffMs: [0, 0] },
+      clock: createClock(Array.from({ length: 16 }, (_, index) => index)),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(result.outcome).toBe('completed');
+
+    // Usage from ALL attempts (2 failed + 1 success) must be reflected.
+    // Failed attempts: costUnits 1 + 2 = 3, success: costUnits 3. Total = 6.
+    expect(result.usage.totalCostUnits).toBe(6);
+    // inputTokens: 100 * 3 = 300
+    expect(result.usage.totalInputTokens).toBe(300);
+    // outputTokens: 50 * 3 = 150
+    expect(result.usage.totalOutputTokens).toBe(150);
+    // latencyMs: 200 + 200 + 150 = 550
+    expect(result.usage.totalLatencyMs).toBe(550);
+  });
+
   it('uses default retry config when toolRetryConfig is omitted', async () => {
     // Default policy is { maxRetries: 2, backoffMs: [200, 500] }. We verify
     // by setting backoff to 0 via override and seeing the defaults are
