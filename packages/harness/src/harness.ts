@@ -15,7 +15,10 @@ import type {
   HarnessStopReason,
   HarnessToolCall,
   HarnessToolEvidenceClarification,
+  HarnessToolExecutionContext,
+  HarnessToolRegistry,
   HarnessToolResult,
+  HarnessToolRetryConfig,
   HarnessTraceEvent,
   HarnessTraceSummary,
   HarnessTranscriptItem,
@@ -29,6 +32,16 @@ const DEFAULT_LIMITS: Required<Pick<HarnessLimits, 'maxIterations' | 'maxToolCal
   maxToolCalls: 8,
   maxElapsedMs: 30_000,
   maxConsecutiveInvalidModelOutputs: 2,
+};
+
+// Default in-turn auto-retry policy for retryable tool failures. Two retries
+// (three total attempts), with backoff small enough to stay inside Cloudflare
+// Worker subrequest budgets but large enough to absorb a transient blip from
+// an upstream specialist worker. Retries are part of the SAME logical tool
+// call — they do not consume an iteration or tool-call budget slot.
+const DEFAULT_TOOL_RETRY_CONFIG: HarnessToolRetryConfig = {
+  maxRetries: 2,
+  backoffMs: [200, 500],
 };
 
 const defaultClock: HarnessClock = {
@@ -50,6 +63,7 @@ type MutableState = {
 type NormalizedConfig = {
   limits: Required<Pick<HarnessLimits, 'maxIterations' | 'maxToolCalls' | 'maxElapsedMs' | 'maxConsecutiveInvalidModelOutputs'>> & Pick<HarnessLimits, 'budgetLimit'>;
   clock: HarnessClock;
+  toolRetryConfig: HarnessToolRetryConfig;
 } & HarnessConfig;
 
 export function createHarness(config: HarnessConfig): HarnessRuntime {
@@ -116,11 +130,42 @@ function normalizeConfig(config: HarnessConfig): NormalizedConfig {
     throw new HarnessConfigError('limits.budgetLimit must be a finite number >= 0');
   }
 
+  const toolRetryConfig = normalizeToolRetryConfig(config.toolRetryConfig);
+
   return {
     ...config,
     clock: config.clock ?? defaultClock,
     limits,
+    toolRetryConfig,
   };
+}
+
+function normalizeToolRetryConfig(
+  override: HarnessToolRetryConfig | undefined,
+): HarnessToolRetryConfig {
+  if (!override) {
+    return DEFAULT_TOOL_RETRY_CONFIG;
+  }
+
+  if (!Number.isInteger(override.maxRetries) || override.maxRetries < 0) {
+    throw new HarnessConfigError('toolRetryConfig.maxRetries must be a non-negative integer');
+  }
+
+  if (!Array.isArray(override.backoffMs) || override.backoffMs.some((ms) => !Number.isFinite(ms) || ms < 0)) {
+    throw new HarnessConfigError(
+      'toolRetryConfig.backoffMs must be an array of finite non-negative numbers',
+    );
+  }
+
+  // Empty backoff array is fine when maxRetries is 0; otherwise we need at
+  // least one entry to know how long to wait between attempts.
+  if (override.maxRetries > 0 && override.backoffMs.length === 0) {
+    throw new HarnessConfigError(
+      'toolRetryConfig.backoffMs must contain at least one entry when maxRetries > 0',
+    );
+  }
+
+  return { maxRetries: override.maxRetries, backoffMs: override.backoffMs.slice() };
 }
 
 function validatePositiveInteger(value: number, label: string): void {
@@ -315,7 +360,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             state.toolCallCount = nextToolCallCount;
             state.usage.toolCalls = nextToolCallCount;
             await emit(config, input, state, { type: 'tool_started', call });
-            const result = await config.tools!.execute(call, {
+            const result = await executeToolWithRetry(config, input, state, call, {
               assistantId: input.assistantId,
               turnId: input.turnId,
               workspaceId: input.workspaceId,
@@ -490,6 +535,71 @@ async function checkLimits(
   }
 
   return null;
+}
+
+/**
+ * Execute a single tool call, transparently retrying when the registry
+ * returns `{ status: 'error', error: { retryable: true } }`. Retries are
+ * bounded by `config.toolRetryConfig` and are part of the SAME logical tool
+ * call — they do not increment `state.toolCallCount` or `state.iteration`.
+ *
+ * Each retry attempt emits a `tool_retried` trace event before the attempt
+ * fires (so observers see retry attempts even if all of them ultimately
+ * fail). Usage data from failed intermediate attempts is accumulated into
+ * `state.usage` before retrying, so budget enforcement sees the true total
+ * cost. After the configured retries are exhausted, this returns the last
+ * failed result and the caller propagates the existing `tool_failed` event
+ * + tool-error handling unchanged.
+ */
+async function executeToolWithRetry(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  call: HarnessToolCall,
+  context: HarnessToolExecutionContext,
+): Promise<HarnessToolResult> {
+  const tools = config.tools as HarnessToolRegistry;
+  const { maxRetries, backoffMs } = config.toolRetryConfig;
+  const maxAttempts = maxRetries + 1;
+
+  let lastResult = await tools.execute(call, context);
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    if (lastResult.status !== 'error' || lastResult.error?.retryable !== true) {
+      return lastResult;
+    }
+
+    // Accumulate usage from the failed intermediate attempt so budget
+    // enforcement sees the true total cost including retries.
+    accumulateUsage(state.usage, lastResult.usage);
+
+    const previousError = lastResult.error;
+    const backoff = pickBackoff(backoffMs, attempt - 1);
+    await emit(config, input, state, {
+      type: 'tool_retried',
+      call,
+      attempt: attempt + 1,
+      maxAttempts,
+      backoffMs: backoff,
+      previousError,
+    });
+    if (backoff > 0) {
+      await sleep(backoff);
+    }
+    lastResult = await tools.execute(call, context);
+  }
+
+  return lastResult;
+}
+
+function pickBackoff(backoffMs: number[], retryIndex: number): number {
+  if (backoffMs.length === 0) {
+    return 0;
+  }
+  return backoffMs[Math.min(retryIndex, backoffMs.length - 1)] ?? 0;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function maybeClarifyFromToolResult(

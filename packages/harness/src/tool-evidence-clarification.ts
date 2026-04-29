@@ -33,16 +33,6 @@ const DEFAULT_EMPTY_RESULT_KEYS = [
 
 const AMBIGUOUS_RESULT_KEYS = ['candidates', 'possibleMatches', 'ambiguousMatches'];
 
-const TRANSIENT_ERROR_CODES = new Set([
-  'provider_timeout',
-  'timeout',
-  'rate_limited',
-  'rate_limit',
-  'temporarily_unavailable',
-  'provider_unavailable',
-  'network_error',
-]);
-
 export function createToolEvidenceClarificationHook(
   options: ToolEvidenceClarificationOptions = {},
 ): HarnessToolEvidenceClarificationHook {
@@ -56,6 +46,21 @@ export function detectToolEvidenceClarification(
   const explicit = readExplicitClarification(result);
   if (explicit) {
     return explicit;
+  }
+
+  // Failed-tool short-circuit. Implicit clarification classifiers (empty
+  // results / ambiguous identifiers) inspect tool result *content* — but a
+  // failed tool's result frequently looks empty or thin, which would fire
+  // these classifiers even though the right action is to surface the
+  // failure or retry, not ask the user a clarifying question.
+  //
+  // This is independent of `excludeToolNames`: that option excludes a
+  // specific tool by name; this short-circuit excludes ANY tool that
+  // errored. Both can coexist. Explicit clarification hints on
+  // metadata/structuredOutput are still respected (handled above) — only
+  // the implicit classifier path is suppressed for failed tools.
+  if (result.status === 'error') {
+    return null;
   }
 
   const excludedToolNames = options.excludeToolNames ? new Set(options.excludeToolNames) : null;
@@ -85,10 +90,6 @@ function classifyToolEvidence(
 
   if (hasEmptyResultEvidence(result, options)) {
     return 'empty_results';
-  }
-
-  if (hasTransientProviderEvidence(result)) {
-    return 'transient_provider_error';
   }
 
   return null;
@@ -141,19 +142,6 @@ function hasAmbiguousEvidence(result: HarnessToolResult): boolean {
   return /\b(ambiguous|multiple\s+(matches?|results?|candidates?)|more than one)\b/i.test(
     result.output ?? '',
   );
-}
-
-function hasTransientProviderEvidence(result: HarnessToolResult): boolean {
-  if (result.status !== 'error') {
-    return false;
-  }
-
-  if (result.error?.retryable === true) {
-    return true;
-  }
-
-  const code = result.error?.code?.toLowerCase();
-  return code ? TRANSIENT_ERROR_CODES.has(code) : false;
 }
 
 function readExplicitClarification(

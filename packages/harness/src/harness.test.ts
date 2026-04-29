@@ -261,6 +261,9 @@ describe('harness runtime', () => {
         }),
       },
       hooks: { onToolError },
+      // Disable in-turn auto-retry for this scenario — we want to assert
+      // the inter-iteration model-recovery path, not the retry policy.
+      toolRetryConfig: { maxRetries: 0, backoffMs: [] },
       clock: createClock([0, 1, 2, 3, 4, 5]),
     });
 
@@ -359,7 +362,11 @@ describe('harness runtime', () => {
     });
   });
 
-  it('asks for clarification instead of failing on transient provider tool errors', async () => {
+  it('does not infer clarification from a non-retryable failed tool result', async () => {
+    // Failed tool results should NEVER feed the implicit clarification
+    // classifier — the right action is to surface the failure (or retry,
+    // for retryable errors), not ask the user a clarifying question. See
+    // tool-evidence-clarification.ts for the failed-tool short-circuit.
     const onToolError = vi.fn();
     const harness = createHarness({
       model: {
@@ -387,9 +394,8 @@ describe('harness runtime', () => {
     const result = await harness.runTurn(createInput());
 
     expect(onToolError).toHaveBeenCalledOnce();
-    expect(result.outcome).toBe('needs_clarification');
-    expect(result.stopReason).toBe('clarification_required');
-    expect(result.assistantMessage?.text).toContain('transient provider error');
+    expect(result.outcome).toBe('failed');
+    expect(result.stopReason).toBe('tool_error_unrecoverable');
   });
 
   it('does not crash when a tool error omits error.code', async () => {
