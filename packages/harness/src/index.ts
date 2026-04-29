@@ -122,6 +122,8 @@ export type {
   HarnessToolRequestOutput,
   HarnessToolRequestedEvent,
   HarnessToolResult,
+  HarnessToolRetriedEvent,
+  HarnessToolRetryConfig,
   HarnessToolStartedEvent,
   HarnessTraceEvent,
   HarnessTraceSink,

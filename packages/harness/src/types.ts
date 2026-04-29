@@ -10,6 +10,34 @@ export interface HarnessConfig {
   clock?: HarnessClock;
   limits?: HarnessLimits;
   hooks?: HarnessHooks;
+  /**
+   * In-turn auto-retry policy for tool calls that return
+   * `{ status: 'error', error: { retryable: true } }`. Retries happen
+   * inside the same logical tool call — they do NOT consume an iteration
+   * or tool-call budget slot. Defaults to 2 retries (3 total attempts)
+   * with backoff [200ms, 500ms].
+   *
+   * Each retry attempt emits a `tool_retried` trace event so operators
+   * can see when underlying providers are flaky. After all retries are
+   * exhausted, the original `tool_failed` event is emitted with the last
+   * error and the existing tool-error handling kicks in.
+   */
+  toolRetryConfig?: HarnessToolRetryConfig;
+}
+
+export interface HarnessToolRetryConfig {
+  /**
+   * Maximum number of retries after the initial attempt. Total attempts
+   * is `maxRetries + 1`. Set to 0 to disable auto-retry.
+   */
+  maxRetries: number;
+  /**
+   * Per-retry backoff in milliseconds. The first retry waits
+   * `backoffMs[0]`, the second `backoffMs[1]`, etc. If the array is
+   * shorter than `maxRetries`, the last value is reused for remaining
+   * retries.
+   */
+  backoffMs: number[];
 }
 
 export interface HarnessLimits {
@@ -385,6 +413,7 @@ export type HarnessTraceEvent =
   | HarnessToolStartedEvent
   | HarnessToolFinishedEvent
   | HarnessToolFailedEvent
+  | HarnessToolRetriedEvent
   | HarnessClarificationEvent
   | HarnessApprovalEvent
   | HarnessLimitReachedEvent;
@@ -440,6 +469,19 @@ export interface HarnessToolFinishedEvent extends HarnessBaseTraceEvent {
 export interface HarnessToolFailedEvent extends HarnessBaseTraceEvent {
   type: 'tool_failed';
   result: HarnessToolResult;
+}
+
+export interface HarnessToolRetriedEvent extends HarnessBaseTraceEvent {
+  type: 'tool_retried';
+  call: HarnessToolCall;
+  /** 1-indexed attempt number this retry will execute (the previous attempt failed). */
+  attempt: number;
+  /** Maximum attempts including the initial one (`maxRetries + 1`). */
+  maxAttempts: number;
+  /** Backoff applied before this attempt fires, in ms. */
+  backoffMs: number;
+  /** The retryable error from the previous attempt that triggered this retry. */
+  previousError: HarnessToolError;
 }
 
 export interface HarnessClarificationEvent extends HarnessBaseTraceEvent {

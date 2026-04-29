@@ -57,6 +57,11 @@ function createHarnessForResults(results: HarnessToolResult[], finalAnswer = 'Do
       listAvailable: async () => toolNames.map((name) => ({ name, description: `${name} tool` })),
       execute: async () => results[resultIndex++] as HarnessToolResult,
     },
+    // Disable in-turn auto-retry: this suite stages a sequential result list
+    // and asserts how the redundant-loop detector counts each attempt. Auto-
+    // retrying a `retryable: true` failure would silently consume extra
+    // entries from the staged list and skew the assertions.
+    toolRetryConfig: { maxRetries: 0, backoffMs: [] },
     clock: createClock(Array.from({ length: 32 }, (_, index) => index)),
   });
 }
