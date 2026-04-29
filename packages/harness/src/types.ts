@@ -144,6 +144,13 @@ export interface HarnessInvalidOutput {
    * string matching `reason`; `reason` remains the stable human-readable field.
    */
   kind?: HarnessInvalidOutputKind;
+  /**
+   * Provider-specific error subcode. Optional; populated by adapters
+   * (e.g. OpenRouter) so consumers can switch on a stable enum instead
+   * of substring-matching the free-text `reason` field. `kind` remains
+   * the high-level transient/provider_error split.
+   */
+  code?: HarnessInvalidOutputCode;
   reason: string;
   raw?: unknown;
   httpStatus?: number;
@@ -159,6 +166,16 @@ export type HarnessInvalidOutputKind =
   | 'missing_message'
   | 'model_refused'
   | 'provider_error';
+
+export type HarnessInvalidOutputCode =
+  | 'credits_exhausted'
+  | 'rate_limited'
+  | 'timeout'
+  | 'invalid_request'
+  | 'context_length_exceeded'
+  | 'model_not_found'
+  | 'auth_failed'
+  | 'unknown';
 
 export interface HarnessToolRegistry {
   listAvailable(input: HarnessToolAvailabilityInput): Promise<HarnessToolDefinition[]>;

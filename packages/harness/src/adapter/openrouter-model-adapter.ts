@@ -3,6 +3,7 @@ import type {
   HarnessModelInput,
   HarnessModelOutput,
   HarnessInvalidOutput,
+  HarnessInvalidOutputCode,
   HarnessToolCall,
   HarnessToolDefinition,
   HarnessTranscriptItem,
@@ -442,6 +443,46 @@ function invalidOutput(
   };
 }
 
+export function classifyOpenRouterError(
+  httpStatus: number | undefined,
+  reason: string | undefined,
+): HarnessInvalidOutputCode {
+  const text = (reason ?? '').toLowerCase();
+
+  if (text.includes('credits') || text.includes('afford') || text.includes('insufficient')) {
+    return 'credits_exhausted';
+  }
+  if (
+    text.includes('context length') ||
+    text.includes('maximum context') ||
+    text.includes('token limit')
+  ) {
+    return 'context_length_exceeded';
+  }
+  if (text === 'timeout') {
+    return 'timeout';
+  }
+
+  switch (httpStatus) {
+    case 400:
+      return 'invalid_request';
+    case 401:
+    case 403:
+      return 'auth_failed';
+    case 404:
+      return 'model_not_found';
+    case 408:
+      return 'timeout';
+    case 429:
+      return 'rate_limited';
+    default:
+      if (httpStatus !== undefined && httpStatus >= 500) {
+        return 'unknown';
+      }
+      return 'unknown';
+  }
+}
+
 function isTransientHttpStatus(status: number): boolean {
   return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
@@ -486,6 +527,7 @@ function classifyCanonicalResponse(
 
   if (canonical.refusal) {
     return invalidOutput('model_refused', canonical.refusal, {
+      code: 'unknown',
       raw: body,
       metadata,
       ...(usage ? { usage } : {}),
@@ -498,6 +540,7 @@ function classifyCanonicalResponse(
       const parsed = parseToolCallInput(tc.arguments);
       if (!parsed) {
         return invalidOutput('schema_mismatch', 'tool_call arguments are not valid JSON object', {
+          code: 'invalid_request',
           raw: body,
           metadata,
           ...(usage ? { usage } : {}),
@@ -520,6 +563,7 @@ function classifyCanonicalResponse(
       ? 'OpenRouter response did not include usable assistant content'
       : 'OpenRouter response did not include a message choice',
     {
+      code: 'unknown',
       raw: body,
       metadata,
       ...(usage ? { usage } : {}),
@@ -554,7 +598,10 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
 
   async nextStep(input: HarnessModelInput): Promise<HarnessModelOutput> {
     if (!this.apiKey) {
-      return invalidOutput('provider_error', 'OpenRouter API key is not configured.');
+      return invalidOutput('provider_error', 'OpenRouter API key is not configured.', {
+        code: 'auth_failed',
+        metadata: { modelId: this.model },
+      });
     }
 
     let retriedAt: string | undefined;
@@ -569,7 +616,10 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
       await delay(this.transientRetryDelayMs);
     }
 
-    return invalidOutput('provider_error', 'OpenRouter adapter exhausted retry loop unexpectedly');
+    return invalidOutput('provider_error', 'OpenRouter adapter exhausted retry loop unexpectedly', {
+      code: 'unknown',
+      metadata: { modelId: this.model },
+    });
   }
 
   private async requestOnce(input: HarnessModelInput): Promise<HarnessModelOutput> {
@@ -598,6 +648,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
           isTransientHttpStatus(response.status) ? 'transient' : 'provider_error',
           reason,
           {
+            code: classifyOpenRouterError(response.status, body?.error?.message),
             raw: body,
             httpStatus: response.status,
             metadata: { modelId: this.model },
@@ -606,18 +657,26 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
       }
 
       if (!body) {
-        return invalidOutput('provider_error', 'OpenRouter response body was not valid JSON');
+        return invalidOutput('provider_error', 'OpenRouter response body was not valid JSON', {
+          code: 'unknown',
+          metadata: { modelId: this.model },
+        });
       }
 
       return classifyCanonicalResponse(body, responseToCanonical(body), this.model);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        return invalidOutput('transient', 'timeout', { metadata: { modelId: this.model } });
+        return invalidOutput('transient', 'timeout', {
+          code: 'timeout',
+          metadata: { modelId: this.model },
+        });
       }
+      const reason = error instanceof Error ? error.message : 'Unknown error';
       return invalidOutput(
         'transient',
-        error instanceof Error ? error.message : 'Unknown error',
+        reason,
         {
+          code: classifyOpenRouterError(undefined, error instanceof Error ? error.message : undefined),
           raw: body,
           metadata: { modelId: this.model },
         },
