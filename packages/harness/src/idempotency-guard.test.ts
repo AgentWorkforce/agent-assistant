@@ -97,7 +97,7 @@ describe('createIdempotencyGuard', () => {
     expect(inner.execute).toHaveBeenCalledWith(call, context);
   });
 
-  it('blocks a second identical call within the same turn', async () => {
+  it('blocks a second identical call within the same turn as a successful tool result', async () => {
     const call = makeCall('call-1');
     const context = makeContext('turn-1');
     const inner = makeInnerRegistry();
@@ -106,10 +106,22 @@ describe('createIdempotencyGuard', () => {
     const first = await guard.execute(call, context);
     const second = await guard.execute(call, context);
 
+    // The blocked duplicate is reported as a successful tool result so
+    // the harness keeps the turn alive — otherwise a `retryable !==
+    // true` tool error gets classified as `tool_error_unrecoverable`
+    // and the model never sees the alternatives. Integration-test gap:
+    // we don't run the full harness loop here; `harness.tool-retry.test.ts`
+    // exercises the classifier path separately.
     expect(first.status).toBe('success');
-    expect(second.status).toBe('error');
-    expect(second.error?.code).toBe('redundant_call_blocked');
-    expect(second.error?.retryable).toBe(false);
+    expect(second.status).toBe('success');
+    expect(second.error).toBeUndefined();
+    expect(second.output).toContain('was already called this turn at iteration 1');
+    expect(second.output).toContain("Repeating the same call won't return new information");
+    expect(second.metadata?.idempotencyGuard).toMatchObject({
+      blocked: true,
+      code: 'redundant_call_blocked',
+      previousIteration: 1,
+    });
     expect(inner.execute).toHaveBeenCalledTimes(1);
   });
 
@@ -148,8 +160,8 @@ describe('createIdempotencyGuard', () => {
     const second = await guard.execute(makeCall('call-2', { b: 2, a: 1 }), context);
 
     expect(first.status).toBe('success');
-    expect(second.status).toBe('error');
-    expect(second.error?.code).toBe('redundant_call_blocked');
+    expect(second.status).toBe('success');
+    expect(second.metadata?.idempotencyGuard).toMatchObject({ blocked: true });
     expect(inner.execute).toHaveBeenCalledTimes(1);
   });
 
@@ -169,7 +181,7 @@ describe('createIdempotencyGuard', () => {
     expect(inner.listAvailable).toHaveBeenCalledWith(input);
   });
 
-  it('includes alternativesFor output in the blocked error message', async () => {
+  it('includes alternativesFor output in the blocked tool result body', async () => {
     const call = makeCall('call-1');
     const context = makeContext('turn-1');
     const inner = makeInnerRegistry();
@@ -181,8 +193,9 @@ describe('createIdempotencyGuard', () => {
 
     expect(alternativesFor).toHaveBeenCalledTimes(1);
     expect(alternativesFor).toHaveBeenCalledWith(call);
-    expect(result.error?.message).toContain('try X');
-    expect(result.error?.message).toContain('try Y');
+    expect(result.status).toBe('success');
+    expect(result.output).toContain('try X');
+    expect(result.output).toContain('try Y');
   });
 
   it('uses the default fallback line when alternativesFor is missing or empty', async () => {
@@ -201,8 +214,8 @@ describe('createIdempotencyGuard', () => {
     await emptyHook.execute(call, context);
     const emptyAlternatives = await emptyHook.execute(call, context);
 
-    expect(withoutHook.error?.message).toContain(defaultTip);
-    expect(emptyAlternatives.error?.message).toContain(defaultTip);
+    expect(withoutHook.output).toContain(defaultTip);
+    expect(emptyAlternatives.output).toContain(defaultTip);
   });
 
   it('evicts the oldest turn when maxTurns is exceeded', async () => {
@@ -238,7 +251,70 @@ describe('createIdempotencyGuard', () => {
     expect(inner.execute).toHaveBeenCalledTimes(2);
   });
 
-  it('reports the original per-turn iteration number in duplicate errors', async () => {
+  it('does not cache a retryable error result, so retry attempts reach the inner tool', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const errorResult: HarnessToolResult = {
+      callId: call.id,
+      toolName: call.name,
+      status: 'error',
+      error: {
+        code: 'transient',
+        message: 'transient failure',
+        retryable: true,
+      },
+    };
+    const successResult = makeResult(call, { output: 'recovered-output' });
+    const execute = vi
+      .fn<HarnessToolRegistry['execute']>()
+      .mockResolvedValueOnce(errorResult)
+      .mockResolvedValueOnce(successResult);
+    const inner = makeInnerRegistry({ executeImpl: execute });
+    const guard = createIdempotencyGuard(inner);
+
+    const first = await guard.execute(call, context);
+    const second = await guard.execute(call, context);
+
+    expect(first).toEqual(errorResult);
+    // Without the success-only cache rule, the second call would hit the
+    // guard's cache and return a fake "duplicate call" success — silently
+    // exiting executeToolWithRetry without ever re-invoking the tool.
+    expect(second).toEqual(successResult);
+    expect(second.metadata?.idempotencyGuard).toBeUndefined();
+    expect(inner.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache a non-retryable error result either', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const errorResult: HarnessToolResult = {
+      callId: call.id,
+      toolName: call.name,
+      status: 'error',
+      error: {
+        code: 'permanent',
+        message: 'permanent failure',
+        retryable: false,
+      },
+    };
+    const successResult = makeResult(call, { output: 'recovered-output' });
+    const execute = vi
+      .fn<HarnessToolRegistry['execute']>()
+      .mockResolvedValueOnce(errorResult)
+      .mockResolvedValueOnce(successResult);
+    const inner = makeInnerRegistry({ executeImpl: execute });
+    const guard = createIdempotencyGuard(inner);
+
+    const first = await guard.execute(call, context);
+    const second = await guard.execute(call, context);
+
+    expect(first).toEqual(errorResult);
+    expect(second).toEqual(successResult);
+    expect(second.metadata?.idempotencyGuard).toBeUndefined();
+    expect(inner.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports the original per-turn iteration number in duplicate results', async () => {
     const inner = makeInnerRegistry();
     const guard = createIdempotencyGuard(inner);
     const context = makeContext('turn-1');
@@ -251,7 +327,17 @@ describe('createIdempotencyGuard', () => {
     const duplicateFirst = await guard.execute(makeCall('call-3', { q: 'a' }), context);
     const duplicateSecond = await guard.execute(makeCall('call-4', { q: 'b' }), context);
 
-    expect(duplicateFirst.error?.message).toContain('iteration 1');
-    expect(duplicateSecond.error?.message).toContain('iteration 2');
+    expect(duplicateFirst.status).toBe('success');
+    expect(duplicateSecond.status).toBe('success');
+    expect(duplicateFirst.output).toContain('iteration 1');
+    expect(duplicateSecond.output).toContain('iteration 2');
+    expect(duplicateFirst.metadata?.idempotencyGuard).toMatchObject({
+      blocked: true,
+      previousIteration: 1,
+    });
+    expect(duplicateSecond.metadata?.idempotencyGuard).toMatchObject({
+      blocked: true,
+      previousIteration: 2,
+    });
   });
 });

@@ -95,15 +95,25 @@ function duplicateResult(
     ...buildAlternatives(call, options).map((item) => `- ${item}`),
   ].join('\n');
 
+  // Return a successful tool result, not an error. The whole point of
+  // surfacing alternatives is for the model to read them and pick a
+  // different tool — but the harness classifies any tool error with
+  // `retryable !== true` as `tool_error_unrecoverable` and terminates
+  // the turn, which means the model never sees this message. By
+  // delivering the teaching message as the tool's `output` we keep the
+  // turn alive so the model can adapt.
   return {
     callId: call.id,
     toolName: call.name,
-    status: 'error',
-    output: '',
-    error: {
-      code: 'redundant_call_blocked',
-      message,
-      retryable: false,
+    status: 'success',
+    output: message,
+    metadata: {
+      idempotencyGuard: {
+        blocked: true,
+        code: 'redundant_call_blocked',
+        previousIteration: previous.iteration,
+        previousOutputChars: previous.outputChars,
+      },
     },
   };
 }
@@ -168,13 +178,21 @@ export function createIdempotencyGuard(
       }
 
       const result = await inner.execute(call, context);
-      const iteration = nextIterations.get(turnId) ?? 1;
-      turnCache.set(signature, {
-        iteration,
-        outputChars: result.output?.length ?? 0,
-        firstCalledAt: Date.now(),
-      });
-      nextIterations.set(turnId, iteration + 1);
+      // Only cache successful results. Caching errors would let a retryable
+      // failure mask a subsequent retry as a "duplicate call" success — see
+      // executeToolWithRetry: it re-invokes the same (name, input), and a
+      // cache hit here returns status:'success' so the retry loop exits
+      // without ever re-running the inner tool. Skipping the cache on
+      // non-success keeps the retry path live.
+      if (result.status === 'success') {
+        const iteration = nextIterations.get(turnId) ?? 1;
+        turnCache.set(signature, {
+          iteration,
+          outputChars: result.output?.length ?? 0,
+          firstCalledAt: Date.now(),
+        });
+        nextIterations.set(turnId, iteration + 1);
+      }
       return result;
     },
   };
