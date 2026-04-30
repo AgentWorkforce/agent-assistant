@@ -25,7 +25,7 @@ import type {
  * HarnessToolExecutionContext currently has no declared scratch field
  * (`types.ts:236-245`), so this module stores state under
  * `ctx.scratch[PLANNING_SCRATCH_KEY]` when a scratch record is already
- * present and otherwise falls back to a per-context WeakMap.
+ * present and otherwise falls back to a per-turnId Map.
  */
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed';
@@ -69,8 +69,6 @@ const LIST_TODOS_TOOL_NAME = 'list_todos';
 const COMPLETE_TODO_TOOL_NAME = 'complete_todo';
 
 const TODO_STATUS_VALUES = ['pending', 'in_progress', 'completed'] as const;
-
-const FALLBACK_PLAN_STATE = new WeakMap<HarnessTurnContext, HarnessPlanState>();
 
 const LIST_TODOS_INPUT_SCHEMA = z.object({});
 const COMPLETE_TODO_INPUT_SCHEMA = z.object({
@@ -238,28 +236,35 @@ function countInProgressTodos(
   return todos.filter((todo) => todo.status === 'in_progress').length;
 }
 
-export function getOrCreatePlanState(ctx: HarnessTurnContext): HarnessPlanState {
-  const scratchValue = ctx.scratch;
-  if (isRecord(scratchValue)) {
-    const existing = scratchValue[PLANNING_SCRATCH_KEY];
-    if (isPlanState(existing)) {
+export function createDefaultPlanStateAccessor(): (ctx: HarnessTurnContext) => HarnessPlanState {
+  const stateByTurnId = new Map<string, HarnessPlanState>();
+  return (ctx: HarnessTurnContext): HarnessPlanState => {
+    const scratchValue = ctx.scratch;
+    if (isRecord(scratchValue)) {
+      const existing = scratchValue[PLANNING_SCRATCH_KEY];
+      if (isPlanState(existing)) {
+        return existing;
+      }
+
+      const created = createEmptyPlanState();
+      scratchValue[PLANNING_SCRATCH_KEY] = created;
+      return created;
+    }
+
+    const key = ctx.turnId;
+    const existing = stateByTurnId.get(key);
+    if (existing) {
       return existing;
     }
 
     const created = createEmptyPlanState();
-    scratchValue[PLANNING_SCRATCH_KEY] = created;
+    stateByTurnId.set(key, created);
     return created;
-  }
-
-  const existing = FALLBACK_PLAN_STATE.get(ctx);
-  if (existing) {
-    return existing;
-  }
-
-  const created = createEmptyPlanState();
-  FALLBACK_PLAN_STATE.set(ctx, created);
-  return created;
+  };
 }
+
+export const getOrCreatePlanState: (ctx: HarnessTurnContext) => HarnessPlanState =
+  createDefaultPlanStateAccessor();
 
 function isPlanState(value: unknown): value is HarnessPlanState {
   if (!isRecord(value) || !Array.isArray(value.todos) || typeof value.nextSeq !== 'number') {

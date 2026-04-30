@@ -31,7 +31,7 @@ import type {
  * HarnessToolExecutionContext currently has no declared scratch field
  * (`types.ts:236-245`), so this module stores state under
  * `ctx.scratch[SCRATCHPAD_SCRATCH_KEY]` when a scratch record is already
- * present and otherwise falls back to a per-context WeakMap.
+ * present and otherwise falls back to a per-turnId Map.
  *
  * v1 intentionally omits glob / grep helpers because the persistent VFS
  * already exposes `workspace_search`; add scratch-local search later if a
@@ -63,8 +63,6 @@ const SCRATCH_LIST_TOOL_NAME = 'scratch_list';
 const SCRATCH_READ_TOOL_NAME = 'scratch_read';
 const SCRATCH_WRITE_TOOL_NAME = 'scratch_write';
 const SCRATCH_EDIT_TOOL_NAME = 'scratch_edit';
-
-const FALLBACK_SCRATCHPAD_STATE = new WeakMap<HarnessTurnContext, HarnessScratchpadState>();
 
 const SCRATCH_LIST_INPUT_SCHEMA = z.object({
   prefix: z.string().optional(),
@@ -300,30 +298,35 @@ function scratchpadFullResult(totalBytes: number, maxTotalBytes: number): { ok: 
   };
 }
 
-export function getOrCreateScratchpadState(
-  ctx: HarnessTurnContext,
-): HarnessScratchpadState {
-  const scratchValue = ctx.scratch;
-  if (isRecord(scratchValue)) {
-    const existing = scratchValue[SCRATCHPAD_SCRATCH_KEY];
-    if (isScratchpadState(existing)) {
+export function createDefaultScratchpadStateAccessor(): (ctx: HarnessTurnContext) => HarnessScratchpadState {
+  const stateByTurnId = new Map<string, HarnessScratchpadState>();
+  return (ctx: HarnessTurnContext): HarnessScratchpadState => {
+    const scratchValue = ctx.scratch;
+    if (isRecord(scratchValue)) {
+      const existing = scratchValue[SCRATCHPAD_SCRATCH_KEY];
+      if (isScratchpadState(existing)) {
+        return existing;
+      }
+
+      const created = createEmptyScratchpadState();
+      scratchValue[SCRATCHPAD_SCRATCH_KEY] = created;
+      return created;
+    }
+
+    const key = ctx.turnId;
+    const existing = stateByTurnId.get(key);
+    if (existing) {
       return existing;
     }
 
     const created = createEmptyScratchpadState();
-    scratchValue[SCRATCHPAD_SCRATCH_KEY] = created;
+    stateByTurnId.set(key, created);
     return created;
-  }
-
-  const existing = FALLBACK_SCRATCHPAD_STATE.get(ctx);
-  if (existing) {
-    return existing;
-  }
-
-  const created = createEmptyScratchpadState();
-  FALLBACK_SCRATCHPAD_STATE.set(ctx, created);
-  return created;
+  };
 }
+
+export const getOrCreateScratchpadState: (ctx: HarnessTurnContext) => HarnessScratchpadState =
+  createDefaultScratchpadStateAccessor();
 
 export function createScratchpadToolRegistry(
   options: CreateScratchpadToolRegistryOptions,

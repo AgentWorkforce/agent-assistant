@@ -69,6 +69,7 @@ export type {
 } from './subagent-registry.js';
 export {
   createPlanningToolRegistry,
+  createDefaultPlanStateAccessor,
   getOrCreatePlanState,
   PLANNING_DEFAULT_MAX_TODOS,
   PLANNING_SCRATCH_KEY,
@@ -81,6 +82,7 @@ export type {
 } from './planning-registry.js';
 export {
   createScratchpadToolRegistry,
+  createDefaultScratchpadStateAccessor,
   getOrCreateScratchpadState,
   SCRATCHPAD_DEFAULT_MAX_FILE_BYTES,
   SCRATCHPAD_DEFAULT_MAX_TOTAL_BYTES,

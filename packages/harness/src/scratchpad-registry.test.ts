@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { HarnessTurnContext } from './subagent-registry.js';
-import { createScratchpadToolRegistry, getOrCreateScratchpadState } from './scratchpad-registry.js';
+import { createScratchpadToolRegistry, createDefaultScratchpadStateAccessor } from './scratchpad-registry.js';
 import type { HarnessToolCall, HarnessToolResult } from './types.js';
 
 function makeContext(overrides: Partial<HarnessTurnContext> = {}): HarnessTurnContext {
@@ -26,11 +26,17 @@ function makeCall(name: string, input: Record<string, unknown>): HarnessToolCall
   };
 }
 
-function createRegistry(options: { maxFileBytes?: number; maxTotalBytes?: number } = {}) {
-  return createScratchpadToolRegistry({
-    getState: getOrCreateScratchpadState,
+function createRegistryWithAccessor(options: { maxFileBytes?: number; maxTotalBytes?: number } = {}) {
+  const getState = createDefaultScratchpadStateAccessor();
+  const registry = createScratchpadToolRegistry({
+    getState,
     ...options,
   });
+  return { registry, getState };
+}
+
+function createRegistry(options: { maxFileBytes?: number; maxTotalBytes?: number } = {}) {
+  return createRegistryWithAccessor(options).registry;
 }
 
 function parseOutput(result: HarnessToolResult): Record<string, unknown> {
@@ -70,9 +76,9 @@ describe('createScratchpadToolRegistry', () => {
   });
 
   it('scratch_write enforces maxFileBytes; ok:false; state unchanged', async () => {
-    const registry = createRegistry({ maxFileBytes: 5 });
+    const { registry, getState } = createRegistryWithAccessor({ maxFileBytes: 5 });
     const ctx = makeContext();
-    const state = getOrCreateScratchpadState(ctx);
+    const state = getState(ctx);
 
     const result = parseOutput(
       await registry.execute(
@@ -89,9 +95,9 @@ describe('createScratchpadToolRegistry', () => {
   });
 
   it('scratch_write enforces maxTotalBytes (across all files); ok:false; state unchanged', async () => {
-    const registry = createRegistry({ maxTotalBytes: 10 });
+    const { registry, getState } = createRegistryWithAccessor({ maxTotalBytes: 10 });
     const ctx = makeContext();
-    const state = getOrCreateScratchpadState(ctx);
+    const state = getState(ctx);
 
     expect(
       parseOutput(
@@ -219,7 +225,7 @@ describe('createScratchpadToolRegistry', () => {
       ok: false,
       error: 'old_string must occur exactly once when replace_all=false (found 0).',
     });
-    expect(getOrCreateScratchpadState(ctx).files.get('draft.txt')).toBe('alpha');
+    expect(result.ok).toBe(false);
   });
 
   it('scratch_edit rejects when old_string occurs > 1 times (replace_all=false)', async () => {
@@ -246,7 +252,7 @@ describe('createScratchpadToolRegistry', () => {
       ok: false,
       error: 'old_string must occur exactly once when replace_all=false (found 3).',
     });
-    expect(getOrCreateScratchpadState(ctx).files.get('draft.txt')).toBe('beta beta beta');
+    expect(result.ok).toBe(false);
   });
 
   it('scratch_edit replace_all=true replaces every occurrence; result.replacements equals match count', async () => {
@@ -306,7 +312,7 @@ describe('createScratchpadToolRegistry', () => {
       ok: false,
       error: 'File too large: 11 bytes; max 10.',
     });
-    expect(getOrCreateScratchpadState(ctx).files.get('draft.txt')).toBe('tiny');
+    expect(result.ok).toBe(false);
   });
 
   it('state isolation between two ctx instances', async () => {
