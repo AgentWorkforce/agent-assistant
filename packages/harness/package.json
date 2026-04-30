@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/harness",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "description": "Bounded iterative assistant-turn runtime for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -30,6 +30,7 @@
   "scripts": {
     "prepack": "npm run build",
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "build:proof": "npm --prefix ../routing run build && npm --prefix ../connectivity run build && npm --prefix ../traits run build && npm --prefix ../coordination run build && tsc -p tsconfig.proof.json",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -42,7 +43,8 @@
     "@agent-assistant/traits": "^0.2.0",
     "@agent-assistant/turn-context": "^0.3.4",
     "@agent-assistant/vfs": "^0.2.23",
-    "@agent-relay/sdk": "^4.0.22"
+    "@agent-relay/sdk": "^4.0.22",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

@@ -54,6 +54,45 @@ export type {
   ToolEvidenceClarificationOptions,
 } from './tool-evidence-clarification.js';
 export { createIdempotencyGuard, type IdempotencyGuardOptions } from './idempotency-guard.js';
+export {
+  createSubagentToolRegistry,
+  filterParentContextForSubagent,
+  SUBAGENT_DEFAULT_MAX_ITERATIONS,
+  SUBAGENT_EXCLUDED_PARENT_KEYS,
+} from './subagent-registry.js';
+export type {
+  CreateSubagentToolRegistryOptions,
+  HarnessSubagent,
+  HarnessSubagentRegistry,
+  TaskToolInput,
+  TaskToolResult,
+} from './subagent-registry.js';
+export {
+  createPlanningToolRegistry,
+  createDefaultPlanStateAccessor,
+  getOrCreatePlanState,
+  PLANNING_DEFAULT_MAX_TODOS,
+  PLANNING_SCRATCH_KEY,
+} from './planning-registry.js';
+export type {
+  TodoStatus,
+  HarnessTodo,
+  HarnessPlanState,
+  CreatePlanningToolRegistryOptions,
+} from './planning-registry.js';
+export {
+  createScratchpadToolRegistry,
+  createDefaultScratchpadStateAccessor,
+  getOrCreateScratchpadState,
+  SCRATCHPAD_DEFAULT_MAX_FILE_BYTES,
+  SCRATCHPAD_DEFAULT_MAX_TOTAL_BYTES,
+  SCRATCHPAD_SCRATCH_KEY,
+} from './scratchpad-registry.js';
+export type {
+  HarnessScratchFile,
+  HarnessScratchpadState,
+  CreateScratchpadToolRegistryOptions,
+} from './scratchpad-registry.js';
 
 export { OpenRouterSingleShotAdapter, createOpenRouterSingleShotAdapter } from './router/openrouter-singleshot-adapter.js';
 export type { OpenRouterSingleShotAdapterConfig } from './router/openrouter-singleshot-adapter.js';
