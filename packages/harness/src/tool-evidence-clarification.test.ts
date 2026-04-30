@@ -140,7 +140,8 @@ describe('detectToolEvidenceClarification', () => {
   it('still honors explicit clarification hints on a failed tool result', () => {
     // The failed-tool short-circuit only suppresses the implicit
     // classifier path. Explicit hints (set deliberately by the tool
-    // author) still pass through.
+    // author) still pass through — provided the error is NOT a
+    // retry-exhausted transient failure (see retry-exhausted case below).
     const result = makeToolResult({
       status: 'error',
       metadata: { clarification: { question: 'Which org should I use?' } },
@@ -152,6 +153,58 @@ describe('detectToolEvidenceClarification', () => {
       reason: 'custom',
       metadata: { toolName: 'memory_recall' },
     });
+  });
+
+  it('skips explicit clarification when a retryable failure exhausted its retries', () => {
+    // Captured live in sage prod (2026-04-30): `github_specialist`
+    // exhausted 3 retry attempts, sage's tool-registry attached an
+    // explicit `transient_provider_error` clarification hint
+    // ("What exact repo owner/name should I retry with?") to the FINAL
+    // error result — but the user had already given a fully-specified
+    // repo. The harness's in-turn retry loop has already given up by the
+    // time the hook sees this; `retryable: true` describes IN-TURN
+    // retry potential which is moot post-retry-loop. We must skip
+    // clarification rather than mislead the user.
+    const result = makeToolResult({
+      toolName: 'github_specialist',
+      status: 'error',
+      metadata: {
+        clarification: {
+          question:
+            'The GitHub lookup hit a temporary provider error. What exact repo owner/name should I retry with?',
+          reason: 'transient_provider_error',
+        },
+      },
+      error: {
+        code: 'delegation_failed',
+        message: 'specialist timed out',
+        retryable: true,
+      },
+    });
+
+    expect(detectToolEvidenceClarification(result)).toBeNull();
+  });
+
+  it('skips structuredOutput clarification hints on retryable-exhausted failures too', () => {
+    // Same retry-exhausted gate covers structuredOutput clarification
+    // hints (some adapters attach via that channel rather than metadata).
+    const result = makeToolResult({
+      toolName: 'linear_specialist',
+      status: 'error',
+      structuredOutput: {
+        clarification: {
+          question: 'What exact issue key should I retry with?',
+          reason: 'transient_provider_error',
+        },
+      },
+      error: {
+        code: 'delegation_failed',
+        message: 'rate limited',
+        retryable: true,
+      },
+    });
+
+    expect(detectToolEvidenceClarification(result)).toBeNull();
   });
 
   it('treats empty or undefined excludeToolNames as no behavior change', () => {
