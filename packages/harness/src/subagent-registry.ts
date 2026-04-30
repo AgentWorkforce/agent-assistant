@@ -15,13 +15,13 @@ import type {
  * synthesized text result.
  *
  * Ported from langchain-ai/deepagents (MIT)
- * libs/deepagents/deepagents/middleware/subagents.py:184-191
- * libs/deepagents/deepagents/middleware/subagents.py:194-206
- * libs/deepagents/deepagents/middleware/subagents.py:363-387
+ * libs/deepagents/deepagents/middleware/subagents.py — see
+ *   _build_task_tool (363-470)
+ *   TaskToolSchema (194-203)
+ *   _EXCLUDED_STATE_KEYS (184-191)
  *
  * Reimplemented from scratch in TS in the @agent-assistant/harness
- * idiom. Sourcing constraints documented in the porting workflow's
- * README — no references to leaked sources permitted in this file.
+ * idiom.
  */
 
 export interface HarnessSubagent {
@@ -71,11 +71,16 @@ export type HarnessTurnContext = HarnessToolExecutionContext & Record<string, un
 
 export interface CreateSubagentToolRegistryOptions {
   subagents: readonly HarnessSubagent[];
+  /**
+   * Caller-provided runner: executes an isolated subagent turn and returns
+   * the synthesized text plus telemetry about tool iterations consumed.
+   */
   runSubagent: (input: {
     subagent: HarnessSubagent;
     description: string;
     parentContext: HarnessTurnContext;
   }) => Promise<{ output: string; iterations: number }>;
+  /** Default max iterations across the registry. Defaults to 8. */
   defaultMaxIterations?: number;
 }
 
@@ -193,9 +198,7 @@ function buildTaskToolDescription(subagents: readonly HarnessSubagent[]): string
   ].join('\n');
 }
 
-function buildTaskToolSchema(subagentNames: readonly string[]) {
-  const enumValues = [...subagentNames] as [string, ...string[]];
-
+function buildTaskToolSchema(_subagentNames: readonly string[]) {
   return z.object({
     description: z
       .string()
@@ -204,7 +207,8 @@ function buildTaskToolSchema(subagentNames: readonly string[]) {
         'Detailed brief for the subagent: full context, what to do, expected output format. Phrase as if to a fresh assistant.',
       ),
     subagent_type: z
-      .enum(enumValues)
+      .string()
+      .min(1)
       .describe('Which subagent to invoke.'),
   });
 }
@@ -293,7 +297,7 @@ function classifySubagentError(error: unknown): {
   }
 
   return {
-    code: 'subagent_threw',
+    code: 'subagent_error',
     message,
   };
 }
