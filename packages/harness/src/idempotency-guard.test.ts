@@ -120,6 +120,8 @@ describe('createIdempotencyGuard', () => {
     expect(second.metadata?.idempotencyGuard).toMatchObject({
       blocked: true,
       code: 'redundant_call_blocked',
+      tier: 1,
+      duplicateCount: 1,
       previousIteration: 1,
     });
     expect(inner.execute).toHaveBeenCalledTimes(1);
@@ -339,5 +341,135 @@ describe('createIdempotencyGuard', () => {
       blocked: true,
       previousIteration: 2,
     });
+  });
+
+  it('tier 2: second duplicate returns a directive that inlines the prior output', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const priorOutput = 'project-list:\n- relaycast (12 files)\n- agent-assistant (47 files)\n- sage (203 files)';
+    const inner = makeInnerRegistry({
+      executeImpl: vi.fn(async () => makeResult(call, { output: priorOutput })),
+    });
+    const guard = createIdempotencyGuard(inner, {
+      alternativesFor: () => ['Read a specific file', 'Stop and answer the user'],
+    });
+
+    await guard.execute(call, context); // tier 0 — populates cache
+    const tierOne = await guard.execute(call, context); // tier 1 — soft teaching
+    const tierTwo = await guard.execute(call, context); // tier 2 — directive
+
+    expect(tierOne.status).toBe('success');
+    expect(tierOne.output).toContain("Repeating the same call won't return new information");
+
+    expect(tierTwo.status).toBe('success');
+    expect(tierTwo.error).toBeUndefined();
+    expect(tierTwo.output).toContain('STOP.');
+    expect(tierTwo.output).toContain('--- DATA FROM PRIOR CALL ---');
+    expect(tierTwo.output).toContain('--- END DATA ---');
+    expect(tierTwo.output).toContain('relaycast (12 files)');
+    expect(tierTwo.output).toContain('Read a specific file');
+    expect(tierTwo.metadata?.idempotencyGuard).toMatchObject({
+      blocked: true,
+      code: 'redundant_call_blocked',
+      tier: 2,
+      duplicateCount: 2,
+      previousIteration: 1,
+    });
+    // Inner tool was only invoked the first time.
+    expect(inner.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('tier 3: third duplicate returns a non-retryable error so the harness fails fast', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const inner = makeInnerRegistry();
+    const guard = createIdempotencyGuard(inner);
+
+    await guard.execute(call, context); // tier 0
+    await guard.execute(call, context); // tier 1
+    await guard.execute(call, context); // tier 2
+    const tierThree = await guard.execute(call, context); // tier 3 — abort
+
+    expect(tierThree.status).toBe('error');
+    expect(tierThree.error).toBeDefined();
+    expect(tierThree.error?.code).toBe('redundant_call_loop_aborted');
+    expect(tierThree.error?.retryable).toBe(false);
+    expect(tierThree.metadata?.idempotencyGuard).toMatchObject({
+      tier: 3,
+      code: 'redundant_call_loop_aborted',
+    });
+    // Inner tool only invoked once across all four guard calls.
+    expect(inner.execute).toHaveBeenCalledTimes(1);
+
+    // A fifth identical call still aborts (tier stays at 3+).
+    const tierFour = await guard.execute(call, context);
+    expect(tierFour.status).toBe('error');
+    expect(tierFour.error?.code).toBe('redundant_call_loop_aborted');
+  });
+
+  it('tier 2: truncates a large prior output to ~1200 chars in the directive body', async () => {
+    const call = makeCall('call-1');
+    const context = makeContext('turn-1');
+    const bigOutput = 'X'.repeat(5000);
+    const inner = makeInnerRegistry({
+      executeImpl: vi.fn(async () => makeResult(call, { output: bigOutput })),
+    });
+    const guard = createIdempotencyGuard(inner);
+
+    await guard.execute(call, context);
+    await guard.execute(call, context);
+    const tierTwo = await guard.execute(call, context);
+
+    expect(tierTwo.status).toBe('success');
+    expect(tierTwo.output).toBeDefined();
+    expect(tierTwo.output).toContain('--- DATA FROM PRIOR CALL ---');
+    expect(tierTwo.output).toContain('[truncated]');
+
+    // The inlined data section should contain at most ~1200 chars of the
+    // 'X' payload (plus the truncation marker), not the full 5000.
+    const xCount = (tierTwo.output ?? '').match(/X/g)?.length ?? 0;
+    expect(xCount).toBeLessThanOrEqual(1200);
+    // Sanity: it should still contain a healthy chunk.
+    expect(xCount).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('different signatures escalate independently', async () => {
+    const callA = makeCall('call-a', { q: 'a' });
+    const callA2 = makeCall('call-a-2', { q: 'a' });
+    const callB = makeCall('call-b', { q: 'b' });
+    const context = makeContext('turn-1');
+    const inner = makeInnerRegistry();
+    const guard = createIdempotencyGuard(inner);
+
+    await guard.execute(callA, context); // A: tier 0
+    const aDup = await guard.execute(callA2, context); // A: tier 1 (soft)
+    const bFirst = await guard.execute(callB, context); // B: tier 0 (passes through)
+
+    expect(aDup.metadata?.idempotencyGuard).toMatchObject({ tier: 1, duplicateCount: 1 });
+    expect(bFirst.metadata?.idempotencyGuard).toBeUndefined();
+    expect(bFirst.status).toBe('success');
+    // A: 1 inner call. B: 1 inner call. Total: 2.
+    expect(inner.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('per-turn isolation: duplicate count resets when turnId changes', async () => {
+    const call = makeCall('call-1');
+    const inner = makeInnerRegistry();
+    const guard = createIdempotencyGuard(inner);
+
+    // Turn 1: tier 0, 1, 2
+    await guard.execute(call, makeContext('turn-1'));
+    await guard.execute(call, makeContext('turn-1'));
+    const turn1Tier2 = await guard.execute(call, makeContext('turn-1'));
+    expect(turn1Tier2.metadata?.idempotencyGuard).toMatchObject({ tier: 2 });
+
+    // Turn 2: should restart from tier 0 — first call passes through.
+    const turn2First = await guard.execute(call, makeContext('turn-2'));
+    expect(turn2First.metadata?.idempotencyGuard).toBeUndefined();
+    expect(turn2First.status).toBe('success');
+
+    // Turn 2: second call is tier 1, not tier 2.
+    const turn2Second = await guard.execute(call, makeContext('turn-2'));
+    expect(turn2Second.metadata?.idempotencyGuard).toMatchObject({ tier: 1, duplicateCount: 1 });
   });
 });
