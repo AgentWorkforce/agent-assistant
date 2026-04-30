@@ -43,16 +43,38 @@ export function detectToolEvidenceClarification(
   result: HarnessToolResult,
   options: ToolEvidenceClarificationOptions = {},
 ): HarnessToolEvidenceClarification | null {
+  // Retry-exhausted short-circuit. When a tool returns
+  // `status: 'error'` with `retryable: true`, the harness has already run
+  // its in-turn retry loop (`executeToolWithRetry`) and given up — the
+  // final `lastResult` is what we see here. The `retryable` flag describes
+  // IN-TURN retry potential, which is moot post-retry-loop. Asking the
+  // user "what should I retry with?" misleads them: it implies the model
+  // can change the input and recover, but the call already failed N times
+  // with the same input the user gave. This MUST run before the explicit
+  // clarification path because tool authors sometimes attach a
+  // `transient_provider_error` clarification hint to retryable failures
+  // (e.g. sage's `buildTransientClarification`) which produces exactly
+  // the misleading "retry with what?" UX.
+  //
+  // Non-retryable explicit hints (e.g. `auth_failed` with no `retryable`
+  // flag, where the hint asks a real question like "which org?") are
+  // still honored below — those are deliberate clarifications, not
+  // retry-loop fallout.
+  if (result.status === 'error' && result.error?.retryable === true) {
+    return null;
+  }
+
   const explicit = readExplicitClarification(result);
   if (explicit) {
     return explicit;
   }
 
-  // Failed-tool short-circuit. Implicit clarification classifiers (empty
-  // results / ambiguous identifiers) inspect tool result *content* — but a
-  // failed tool's result frequently looks empty or thin, which would fire
-  // these classifiers even though the right action is to surface the
-  // failure or retry, not ask the user a clarifying question.
+  // Failed-tool short-circuit (non-retryable case). Implicit clarification
+  // classifiers (empty results / ambiguous identifiers) inspect tool
+  // result *content* — but a failed tool's result frequently looks empty
+  // or thin, which would fire these classifiers even though the right
+  // action is to surface the failure, not ask the user a clarifying
+  // question.
   //
   // This is independent of `excludeToolNames`: that option excludes a
   // specific tool by name; this short-circuit excludes ANY tool that
