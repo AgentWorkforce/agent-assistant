@@ -43,7 +43,7 @@
     "@agent-assistant/traits": "^0.2.0",
     "@agent-assistant/turn-context": "^0.3.4",
     "@agent-assistant/vfs": "^0.2.23",
-    "@agent-relay/sdk": "^6.0.6",
+    "@agent-relay/sdk": "^6.0.7",
     "zod": "^3.25.0"
   },
   "devDependencies": {
