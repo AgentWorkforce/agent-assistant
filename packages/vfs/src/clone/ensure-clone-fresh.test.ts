@@ -184,6 +184,7 @@ describe('ensureCloneFresh', () => {
     expect(advisory).toEqual({
       notice: 'clone_requested',
       cloneState: 'queued',
+      cloneJobId: 'job-req-1',
     });
   });
 
@@ -271,6 +272,7 @@ describe('ensureCloneFresh', () => {
     expect(advisory).toEqual({
       notice: 'clone_requested',
       cloneState: 'queued',
+      cloneJobId: 'job-req-1',
     });
   });
 
@@ -327,5 +329,49 @@ describe('ensureCloneFresh', () => {
     expect(sentinelReader.read).not.toHaveBeenCalled();
     expect(cloneRequester.requestIfNeeded).not.toHaveBeenCalled();
     expect(connectionIdResolver).not.toHaveBeenCalled();
+  });
+
+  it('request 4xx returns clone_failed (not clone_requested)', async () => {
+    // Codex P1: avoid masking real failures behind clone_requested.
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    const { options, cloneRequester } = createOptions({
+      status: null,
+      sentinel: null,
+      connectionId: 'c1',
+    });
+    cloneRequester.requestIfNeeded.mockResolvedValueOnce({
+      submitted: false,
+      error: { status: 400 },
+    });
+
+    const advisory = await ensureCloneFresh(WORKSPACE_ID, OWNER, REPO, options);
+
+    expect(advisory).toEqual({
+      notice: 'clone_failed',
+      cloneState: 'unknown',
+      reason: 'request_failed_status_400',
+    });
+  });
+
+  it('request throws → clone_failed with thrown message', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    const { options, cloneRequester } = createOptions({
+      status: null,
+      sentinel: null,
+      connectionId: 'c1',
+    });
+    cloneRequester.requestIfNeeded.mockRejectedValueOnce(new Error('boom'));
+
+    const advisory = await ensureCloneFresh(WORKSPACE_ID, OWNER, REPO, options);
+
+    expect(advisory).toEqual({
+      notice: 'clone_failed',
+      cloneState: 'unknown',
+      reason: 'boom',
+    });
   });
 });

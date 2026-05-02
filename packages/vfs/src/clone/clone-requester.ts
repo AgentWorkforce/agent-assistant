@@ -129,7 +129,12 @@ export class CloneRequester {
   constructor(opts: CloneRequesterOptions) {
     this.baseUrl = requireNonEmpty(opts.baseUrl, "baseUrl").replace(/\/+$/, "");
     this.bearerToken = requireNonEmpty(opts.bearerToken, "bearerToken");
-    this.fetchImpl = opts.fetch ?? globalThis.fetch;
+    // Wrap globalThis.fetch in a lambda so each call resolves the binding at
+    // invocation time. Storing a bare `globalThis.fetch` reference throws
+    // "Illegal invocation" in Cloudflare Workers because the receiver context
+    // is lost when called via a class field. Same pattern used in
+    // clone-status-reader.ts and sentinel.ts.
+    this.fetchImpl = opts.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.cooldownMs = opts.cooldownMs ?? DEFAULT_COOLDOWN_MS;
     this.jobStore = opts.jobStore;
     this.onEvent = opts.onEvent;

@@ -145,6 +145,22 @@ describe('CloneRequester', () => {
     expect(globalFetch).not.toHaveBeenCalled();
   });
 
+  it('default fetch resolves at call time (Worker compat)', async () => {
+    // Codex P1: storing a bare globalThis.fetch reference in the constructor
+    // throws "Illegal invocation" in Cloudflare Workers. The lambda fallback
+    // (input, init) => globalThis.fetch(input, init) defers binding to call
+    // time. Verify by mutating globalThis.fetch AFTER construction.
+    const requester = new CloneRequester({ baseUrl, bearerToken });
+
+    const lateFetch = vi.fn(async () => jsonResponse({ jobId: 'late' }));
+    vi.stubGlobal('fetch', lateFetch);
+
+    const result = await requester.requestIfNeeded(payload);
+
+    expect(result).toEqual({ submitted: true, jobId: 'late' });
+    expect(lateFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('jobStore persists jobId on success', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-02T03:04:05.000Z'));

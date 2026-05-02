@@ -1,4 +1,4 @@
-import { CloneRequester } from './clone-requester.js'
+import { CloneRequester, type CloneRequestResult } from './clone-requester.js'
 import { CloneStatusReader } from './clone-status-reader.js'
 import { readCloneSentinel, type VfsReader } from './sentinel.js'
 import type { CloneAdvisory } from './types.js'
@@ -93,18 +93,40 @@ export async function ensureCloneFresh(
     }
   }
 
-  opts.cloneRequester
-    .requestIfNeeded({
+  // Await the enqueue so the advisory reflects the actual outcome. A
+  // fire-and-forget here would return clone_requested even when the request
+  // 4xx'd / 5xx'd / threw — masking real failures from callers.
+  let requestResult: CloneRequestResult
+  try {
+    requestResult = await opts.cloneRequester.requestIfNeeded({
       workspaceId,
       owner,
       repo,
       ref: opts.defaultRef ?? DEFAULT_REF,
       connectionId,
     })
-    .catch(() => {})
+  } catch (error) {
+    return {
+      notice: 'clone_failed',
+      cloneState: 'unknown',
+      reason: error instanceof Error ? error.message : 'request_threw',
+    }
+  }
 
+  if (requestResult.error) {
+    return {
+      notice: 'clone_failed',
+      cloneState: 'unknown',
+      reason: `request_failed_status_${requestResult.error.status}`,
+    }
+  }
+
+  // submitted=true OR cooldownReason='in_cooldown' both mean the request is
+  // either freshly queued or already in flight from a recent submit — both
+  // are accurately described by clone_requested.
   return {
     notice: 'clone_requested',
     cloneState: 'queued',
+    cloneJobId: requestResult.jobId,
   }
 }
