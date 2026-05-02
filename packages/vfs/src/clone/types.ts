@@ -3,7 +3,11 @@ export interface CloneRequestPayload {
   owner: string;
   repo: string;
   ref: string; // e.g. 'refs/heads/main'
-  connectionId: string; // Nango connection id
+  // Nango connection id. Optional — if omitted, the cloud clone-request
+  // route derives it from the workspace's GitHub integration row in
+  // workspaceIntegrations. Cloud-side derivation is the authoritative
+  // path; consumers shouldn't need to plumb connectionIds across repos.
+  connectionId?: string;
 }
 
 export type CloneJobState = 'queued' | 'running' | 'succeeded' | 'failed';

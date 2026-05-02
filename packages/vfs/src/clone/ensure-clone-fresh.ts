@@ -14,8 +14,15 @@ export interface EnsureCloneFreshOptions {
   staleThresholdMs?: number
   /** Default ref for new requests. */
   defaultRef?: string
-  /** Default connectionId for new requests. */
-  connectionIdResolver: (
+  /**
+   * Optional resolver for the Nango connectionId of a (workspace, owner,
+   * repo). When omitted (or when it returns null), the request is sent to
+   * the cloud clone-request route without a connectionId and the route
+   * derives it from `workspaceIntegrations` server-side. Consumers should
+   * only provide this if they have the connectionId locally cached and
+   * want to skip cloud's lookup.
+   */
+  connectionIdResolver?: (
     workspaceId: string,
     owner: string,
     repo: string,
@@ -84,14 +91,12 @@ export async function ensureCloneFresh(
     return null
   }
 
-  const connectionId = await opts.connectionIdResolver(workspaceId, owner, repo)
-  if (connectionId === null) {
-    return {
-      notice: 'clone_failed',
-      cloneState: 'unknown',
-      reason: 'connection_unresolved',
-    }
-  }
+  // connectionId is optional — when null/missing, the cloud route derives it
+  // from workspaceIntegrations. Connection IDs are dynamic (per-workspace)
+  // so consumers shouldn't be forced to plumb them across processes.
+  const connectionId = opts.connectionIdResolver
+    ? await opts.connectionIdResolver(workspaceId, owner, repo)
+    : null
 
   // Await the enqueue so the advisory reflects the actual outcome. A
   // fire-and-forget here would return clone_requested even when the request
@@ -103,7 +108,7 @@ export async function ensureCloneFresh(
       owner,
       repo,
       ref: opts.defaultRef ?? DEFAULT_REF,
-      connectionId,
+      ...(connectionId ? { connectionId } : {}),
     })
   } catch (error) {
     return {
