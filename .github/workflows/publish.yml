@@ -307,9 +307,14 @@ jobs:
       matrix:
         package: ${{ fromJson(needs.resolve-packages.outputs.matrix) }}
     steps:
+      # Checkout the SAME ref the build job ran on (`github.ref_name` is the
+      # branch the workflow_dispatch was triggered against). Hardcoding `main`
+      # caused stale-dist publishes when running this workflow from a feature
+      # branch: the artifact-restored dist was overwritten by `npm publish`'s
+      # prepack hook, which ran `tsc` against main's source. Fixes PR #76.
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref_name }}
 
       - uses: actions/setup-node@v4
         with:
