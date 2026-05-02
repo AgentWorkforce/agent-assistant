@@ -1,4 +1,4 @@
-import type { CloneRequestPayload } from "./types";
+import type { CloneRequestPayload } from "./types.js";
 
 const DEFAULT_COOLDOWN_MS = 300_000;
 const CLEANUP_THRESHOLD = 1_000;
