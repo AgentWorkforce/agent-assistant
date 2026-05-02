@@ -86,3 +86,12 @@ export type {
   RecordSignalInput,
   SignalInboxStore,
 } from './signal-inbox.js';
+
+export { postWithEvidence } from './evidence-egress.js';
+export type {
+  ClaimEvidence,
+  PostWithEvidenceInput,
+  PostWithEvidenceResult,
+  PostWithEvidenceOptions,
+  ProactiveEgress,
+} from './evidence-egress.js';
