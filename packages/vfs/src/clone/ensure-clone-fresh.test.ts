@@ -276,7 +276,13 @@ describe('ensureCloneFresh', () => {
     });
   });
 
-  it('unresolvable connectionId returns clone_failed', async () => {
+  it('unresolvable connectionId still submits the request and lets cloud derive it', async () => {
+    // Connection IDs are dynamic per workspace and cloud's
+    // /api/v1/github/clone/request derives connectionId from
+    // workspaceIntegrations when omitted. The old behavior (return
+    // connection_unresolved) prevented any clone for workspaces whose
+    // resolver couldn't pre-populate the connectionId — even though the
+    // cloud route can derive it just fine.
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
 
@@ -294,11 +300,48 @@ describe('ensureCloneFresh', () => {
     );
 
     expect(connectionIdResolver).toHaveBeenCalledWith(WORKSPACE_ID, OWNER, REPO);
-    expect(cloneRequester.requestIfNeeded).not.toHaveBeenCalled();
+    // Submitted without connectionId — cloud route fills it in.
+    expect(cloneRequester.requestIfNeeded).toHaveBeenCalledTimes(1);
+    const submittedPayload = cloneRequester.requestIfNeeded.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(submittedPayload).toMatchObject({
+      workspaceId: WORKSPACE_ID,
+      owner: OWNER,
+      repo: REPO,
+    });
+    expect(submittedPayload).not.toHaveProperty('connectionId');
     expect(advisory).toEqual({
-      notice: 'clone_failed',
-      cloneState: 'unknown',
-      reason: 'connection_unresolved',
+      notice: 'clone_requested',
+      cloneState: 'queued',
+      cloneJobId: 'job-req-1',
+    });
+  });
+
+  it('omitted connectionIdResolver still submits the request without connectionId', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    const { options, cloneRequester } = createOptions({
+      status: null,
+      sentinel: null,
+    });
+    // Drop the resolver entirely — consumer never provides one.
+    const optionsWithoutResolver = { ...options };
+    delete (optionsWithoutResolver as { connectionIdResolver?: unknown }).connectionIdResolver;
+
+    const advisory = await ensureCloneFresh(
+      WORKSPACE_ID,
+      OWNER,
+      REPO,
+      optionsWithoutResolver,
+    );
+
+    expect(cloneRequester.requestIfNeeded).toHaveBeenCalledTimes(1);
+    const submittedPayload = cloneRequester.requestIfNeeded.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(submittedPayload).not.toHaveProperty('connectionId');
+    expect(advisory).toEqual({
+      notice: 'clone_requested',
+      cloneState: 'queued',
+      cloneJobId: 'job-req-1',
     });
   });
 
