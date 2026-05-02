@@ -376,6 +376,11 @@ export type HarnessStopReason =
   | 'tool_error_unrecoverable'
   | 'model_refused'
   | 'model_invalid_response'
+  /**
+   * Emitted when post-turn claim-density check (exceedsEvidenceBudget) trips —
+   * the model produced structured factual content from sparse tool evidence.
+   */
+  | 'evidence_density_violation'
   | 'runtime_error'
   | 'cancelled';
 

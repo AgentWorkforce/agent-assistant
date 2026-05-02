@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/harness",
-  "version": "0.10.1",
+  "version": "0.10.3",
   "description": "Bounded iterative assistant-turn runtime for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -37,8 +37,8 @@
   },
   "dependencies": {
     "@agent-assistant/connectivity": "^0.2.6",
-    "@agent-assistant/core": "^0.2.0",
     "@agent-assistant/coordination": "^0.2.6",
+    "@agent-assistant/core": "^0.2.0",
     "@agent-assistant/memory": "^0.4.0",
     "@agent-assistant/traits": "^0.2.0",
     "@agent-assistant/turn-context": "^0.3.4",

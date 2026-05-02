@@ -1,8 +1,12 @@
 export { createHarness } from './harness.js';
 export { USING_RELAYFILE_VFS_SKILL } from './skills/using-relayfile-vfs.js';
 export { HarnessConfigError } from './types.js';
+export { exceedsEvidenceBudget } from './claim-density.js';
+export type { EvidenceBudgetInput, EvidenceBudgetVerdict } from './claim-density.js';
 export { stopReasonToUserMessage } from './stop-reason-message.js';
+export { truthfulFailureReply } from './stop-reason-message.js';
 export type { StopReasonMessageOptions } from './stop-reason-message.js';
+export type { TruthfulFailureReplyOptions } from './stop-reason-message.js';
 export * from './adapter/index.js';
 
 export { OpenRouterModelAdapter, createOpenRouterModelAdapter } from './adapter/openrouter-model-adapter.js';
@@ -29,6 +33,8 @@ export {
   TOOL_DISCIPLINE_CLAUSES,
   TOOL_INPUT_SHAPE_REMINDER_CLAUSE,
 } from './tools/prompt-fragments.js';
+export { buildIntegrationsLayer } from './prompt/integrations-layer.js';
+export type { IntegrationContextInput, IntegrationLayerOptions } from './prompt/integrations-layer.js';
 export {
   createWorkspaceToolRegistry,
   WORKSPACE_LIST_TOOL_NAME,
