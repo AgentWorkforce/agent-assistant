@@ -9,6 +9,13 @@ export interface StopReasonMessageOptions {
   canRetry?: boolean;
 }
 
+export interface TruthfulFailureReplyOptions {
+  /** Optional product-specific suffix appended to the reply text. */
+  suffix?: string;
+  /** When true, the stop reason is included as backticked text for log triage. */
+  includeStopReason?: boolean;
+}
+
 /**
  * Maps a harness stop reason to a one-line, end-user-facing message.
  *
@@ -58,6 +65,8 @@ export function stopReasonToUserMessage(
       return canRetry
         ? "I had trouble with my primary reply path. Retrying with a fallback."
         : "I had trouble producing a usable reply. Try rephrasing the request.";
+    case 'evidence_density_violation':
+      return "I couldn't answer that reliably this turn — the evidence I gathered was too sparse to support a confident answer. Could you re-ask with more specifics (repo/file/ticket)?";
     case 'runtime_error':
       return 'Something went wrong while processing that. Try again in a moment.';
     case 'cancelled':
@@ -65,4 +74,21 @@ export function stopReasonToUserMessage(
     default:
       return "I couldn't complete that request.";
   }
+}
+
+export function truthfulFailureReply(
+  stopReason: HarnessStopReason,
+  opts: TruthfulFailureReplyOptions = {},
+): string {
+  let reply = stopReasonToUserMessage(stopReason);
+
+  if (opts.suffix) {
+    reply += ` ${opts.suffix}`;
+  }
+
+  if (opts.includeStopReason) {
+    reply += ` [\`${stopReason}\`]`;
+  }
+
+  return reply;
 }
