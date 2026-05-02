@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/cloudflare-runtime",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "type": "module",
   "types": "dist/index.d.ts",
   "exports": {
@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@agent-assistant/continuation": "^0.3.4",
-    "@agent-assistant/webhook-runtime": "^0.2.5",
-    "@agent-assistant/surfaces": "^0.3.0"
+    "@agent-assistant/surfaces": "^0.3.0",
+    "@agent-assistant/webhook-runtime": "^0.2.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260417.1",

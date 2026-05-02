@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/sdk",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "Top-level facade for the Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -21,11 +21,11 @@
   "dependencies": {
     "@agent-assistant/core": ">=0.1.0",
     "@agent-assistant/inbox": ">=0.1.0",
-    "@agent-assistant/traits": ">=0.1.0",
+    "@agent-assistant/policy": ">=0.1.0",
+    "@agent-assistant/proactive": ">=0.1.0",
     "@agent-assistant/sessions": ">=0.1.0",
     "@agent-assistant/surfaces": ">=0.1.0",
-    "@agent-assistant/policy": ">=0.1.0",
-    "@agent-assistant/proactive": ">=0.1.0"
+    "@agent-assistant/traits": ">=0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
