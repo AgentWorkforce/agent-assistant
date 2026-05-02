@@ -24,3 +24,12 @@ export type {
   VfsSearchResult,
 } from './types.js';
 export type { TruncatedReadResult } from './output.js';
+// Clone primitives — see './clone' subpath for the focused submodule.
+export type {
+  CloneRequestPayload,
+  CloneJobState,
+  CloneJobStatus,
+  CloneSentinel,
+  CloneAdvisory,
+  CloneAdvisoryNotice,
+} from './clone/types.js';

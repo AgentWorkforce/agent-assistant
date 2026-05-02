@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./clone": {
+      "import": "./dist/clone/index.js",
+      "types": "./dist/clone/index.d.ts"
     }
   },
   "files": [
