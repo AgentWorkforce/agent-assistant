@@ -624,6 +624,12 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
 
   private async requestOnce(input: HarnessModelInput): Promise<HarnessModelOutput> {
     const abortController = new AbortController();
+    const abortFromInput = () => abortController.abort();
+    if (input.signal?.aborted) {
+      abortController.abort();
+    } else {
+      input.signal?.addEventListener('abort', abortFromInput, { once: true });
+    }
     const timeout = setTimeout(() => abortController.abort(), this.timeoutMs);
     let body: OpenRouterResponseBody | undefined;
 
@@ -683,6 +689,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
       );
     } finally {
       clearTimeout(timeout);
+      input.signal?.removeEventListener('abort', abortFromInput);
     }
   }
 }

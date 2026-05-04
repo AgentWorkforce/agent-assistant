@@ -6,6 +6,7 @@ import type {
   HarnessConfig,
   HarnessContinuation,
   HarnessExecutionState,
+  HarnessEvidenceDensityViolation,
   HarnessInvalidOutput,
   HarnessLimits,
   HarnessModelCallRecord,
@@ -14,6 +15,7 @@ import type {
   HarnessResult,
   HarnessStopReason,
   HarnessToolCall,
+  HarnessToolDefinition,
   HarnessToolEvidenceClarification,
   HarnessToolExecutionContext,
   HarnessToolRegistry,
@@ -26,6 +28,7 @@ import type {
   HarnessRuntime,
 } from './types.js';
 import { HarnessConfigError } from './types.js';
+import { exceedsEvidenceBudget } from './claim-density.js';
 
 const DEFAULT_LIMITS: Required<Pick<HarnessLimits, 'maxIterations' | 'maxToolCalls' | 'maxElapsedMs' | 'maxConsecutiveInvalidModelOutputs'>> = {
   maxIterations: 6,
@@ -205,14 +208,30 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       : [];
 
     await emit(config, input, state, { type: 'turn_started' });
+    finalResult = buildCancelledResult(input, state);
+    if (finalResult) {
+      return finalResult;
+    }
 
     for (let iteration = 1; ; iteration += 1) {
       state.iteration = iteration;
+
+      finalResult = buildCancelledResult(input, state);
+      if (finalResult) {
+        return finalResult;
+      }
 
       finalResult = await checkLimits(config, input, state, startedAt);
       if (finalResult) {
         return finalResult;
       }
+
+      const visibleTranscript = await transformTranscriptSafely(
+        config,
+        input,
+        state,
+        startedAt,
+      );
 
       const modelInput: HarnessModelInput = {
         assistantId: input.assistantId,
@@ -225,17 +244,22 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
         instructions: input.instructions,
         context: input.context,
         continuation: input.continuation,
-        transcript: [...state.transcript],
+        transcript: visibleTranscript,
         availableTools,
         iteration,
         toolCallCount: state.toolCallCount,
         elapsedMs: getElapsedMs(config, startedAt),
         remainingBudget: remainingBudget(config, state.usage),
+        signal: input.signal,
         metadata: input.metadata,
       };
 
       await emit(config, input, state, { type: 'model_step_started' });
       const output = await config.model.nextStep(modelInput);
+      finalResult = buildCancelledResult(input, state);
+      if (finalResult) {
+        return finalResult;
+      }
       state.usage.modelCalls += 1;
       state.modelCalls.push({
         iteration,
@@ -255,11 +279,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
 
       switch (output.type) {
         case 'final_answer':
-          finalResult = buildResult(input, state, {
-            outcome: 'completed',
-            stopReason: 'answer_finalized',
-            assistantMessage: { text: output.text },
-          });
+          finalResult = buildAnswerResult(input, state, output.text);
           return finalResult;
 
         case 'clarification': {
@@ -300,6 +320,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
                 sessionId: input.sessionId,
                 userId: input.userId,
                 request: output.request,
+                signal: input.signal,
               })
             : {
                 request: output.request,
@@ -309,6 +330,10 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
                   transcript: summarizeTranscript(state.transcript),
                 }),
               };
+          finalResult = buildCancelledResult(input, state);
+          if (finalResult) {
+            return finalResult;
+          }
           await emit(config, input, state, {
             type: 'approval_requested',
             request: prepared.request,
@@ -355,90 +380,18 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
 
           await emit(config, input, state, { type: 'tool_requested', calls: output.calls });
 
-          for (const [index, call] of output.calls.entries()) {
-            const nextToolCallCount = state.toolCallCount + 1;
-            state.toolCallCount = nextToolCallCount;
-            state.usage.toolCalls = nextToolCallCount;
-            await emit(config, input, state, { type: 'tool_started', call });
-            const result = await executeToolWithRetry(config, input, state, call, {
-              assistantId: input.assistantId,
-              turnId: input.turnId,
-              workspaceId: input.workspaceId,
-              sessionId: input.sessionId,
-              userId: input.userId,
-              threadId: input.threadId,
-              iteration,
-              toolCallIndex: index,
-            });
-            accumulateUsage(state.usage, result.usage);
-            state.transcript.push({ type: 'tool_result', iteration, result });
-
-            if (result.status === 'error') {
-              state.recentToolResultHashes = [];
-              await emit(config, input, state, { type: 'tool_failed', result });
-              await config.hooks?.onToolError?.(result, executionState(input, state, startedAt, config));
-              finalResult = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
-              if (finalResult) {
-                return finalResult;
-              }
-              if (result.error?.retryable !== true) {
-                finalResult = buildResult(input, state, {
-                  outcome: 'failed',
-                  stopReason: 'tool_error_unrecoverable',
-                  metadata: { toolName: result.toolName, code: result.error?.code },
-                });
-                return finalResult;
-              }
-            } else {
-              await emit(config, input, state, { type: 'tool_finished', result });
-              finalResult = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
-              if (finalResult) {
-                return finalResult;
-              }
-              // Compute a hash signature of the tool result so we can detect
-              // the model dead-looping on the same tool call. Two safety
-              // guards (codex P1 + P2 review on PR #63):
-              //
-              // 1. Skip the detector when the tool returned no payload (no
-              //    `output`, no `structuredOutput`). Side-effect tools that
-              //    intentionally return nothing would otherwise all hash to
-              //    `"{}"` and trip the detector after 3 calls even though
-              //    each call had different inputs and made real progress.
-              //
-              // 2. Wrap JSON.stringify in try/catch so non-serializable values
-              //    (BigInt, circular refs) cannot throw and convert a
-              //    successful tool execution into a runtime_error.
-              const signature = computeToolResultSignature(result);
-              if (signature !== null) {
-                state.recentToolResultHashes ??= [];
-                state.recentToolResultHashes.push({ toolName: result.toolName, outputHash: signature });
-                if (state.recentToolResultHashes.length > 5) state.recentToolResultHashes.shift();
-
-                const lastThree = state.recentToolResultHashes.slice(-3);
-                const [first] = lastThree;
-                if (
-                  first &&
-                  lastThree.length === 3 &&
-                  lastThree.every(
-                    (entry) =>
-                      entry.toolName === first.toolName && entry.outputHash === first.outputHash,
-                  )
-                ) {
-                  finalResult = await buildLimitResult(
-                    config,
-                    input,
-                    state,
-                    'redundant_tool_loop',
-                  );
-                  return finalResult;
-                }
-              }
-            }
-
-            finalResult = await checkLimits(config, input, state, startedAt);
-            if (finalResult) {
-              return finalResult;
-            }
+          const batchResult = await executeToolBatch(
+            config,
+            input,
+            state,
+            startedAt,
+            output.calls,
+            availableTools,
+            iteration,
+          );
+          if (batchResult) {
+            finalResult = batchResult;
+            return finalResult;
           }
 
           state.consecutiveInvalidOutputs = 0;
@@ -462,6 +415,13 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       }
     }
   } catch (error) {
+    if (isAbortError(error) || input.signal?.aborted) {
+      finalResult = buildResult(input, state, {
+        outcome: 'failed',
+        stopReason: 'cancelled',
+      });
+      return finalResult;
+    }
     finalResult = buildResult(input, state, {
       outcome: 'failed',
       stopReason: 'runtime_error',
@@ -537,6 +497,238 @@ async function checkLimits(
   return null;
 }
 
+async function transformTranscriptSafely(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  startedAt: number,
+): Promise<HarnessTranscriptItem[]> {
+  const transcript = state.transcript.slice();
+  if (!config.hooks?.transformTranscript) {
+    return transcript;
+  }
+
+  try {
+    const transformed = await config.hooks.transformTranscript(
+      transcript,
+      executionState(input, state, startedAt, config),
+    );
+    return Array.isArray(transformed) ? transformed.slice() : transcript;
+  } catch (error) {
+    console.warn('Harness transformTranscript hook failed; using untransformed transcript', error);
+    return transcript;
+  }
+}
+
+async function executeToolBatch(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  startedAt: number,
+  calls: HarnessToolCall[],
+  availableTools: HarnessToolDefinition[],
+  iteration: number,
+): Promise<HarnessResult | null> {
+  const mode = resolveToolBatchMode(calls, availableTools);
+  await emit(config, input, state, {
+    type: 'tool_batch_started',
+    mode,
+    callCount: calls.length,
+  });
+
+  const results =
+    mode === 'parallel'
+      ? await executeParallelToolBatch(config, input, state, calls, iteration)
+      : await executeSequentialToolBatch(config, input, state, calls, iteration);
+
+  const cancelled = buildCancelledResult(input, state);
+  if (cancelled) {
+    return cancelled;
+  }
+
+  if (
+    results.length > 0 &&
+    results.every((result) => result.status === 'success' && result.terminate === true)
+  ) {
+    for (const result of results) {
+      accumulateUsage(state.usage, result.usage);
+      state.transcript.push({ type: 'tool_result', iteration, result });
+      await emit(config, input, state, { type: 'tool_finished', result });
+      recordToolResultSignature(state, result);
+    }
+
+    const text = results.map(readTerminatingToolText).join('');
+    state.transcript.push({
+      type: 'assistant_step',
+      iteration,
+      outputType: 'final_answer',
+      text,
+    });
+    return buildAnswerResult(input, state, text);
+  }
+
+  for (const result of results) {
+    const processed = await processToolResult(
+      config,
+      input,
+      state,
+      startedAt,
+      iteration,
+      result,
+    );
+    if (processed) {
+      return processed;
+    }
+  }
+
+  return null;
+}
+
+function resolveToolBatchMode(
+  calls: HarnessToolCall[],
+  availableTools: HarnessToolDefinition[],
+): 'sequential' | 'parallel' {
+  const definitions = new Map(availableTools.map((tool) => [tool.name, tool]));
+  return calls.every((call) => definitions.get(call.name)?.executionMode === 'parallel')
+    ? 'parallel'
+    : 'sequential';
+}
+
+async function executeSequentialToolBatch(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  calls: HarnessToolCall[],
+  iteration: number,
+): Promise<HarnessToolResult[]> {
+  const results: HarnessToolResult[] = [];
+  for (const [index, call] of calls.entries()) {
+    results.push(await executeSingleToolCall(config, input, state, call, iteration, index));
+    if (input.signal?.aborted) {
+      break;
+    }
+  }
+  return results;
+}
+
+async function executeParallelToolBatch(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  calls: HarnessToolCall[],
+  iteration: number,
+): Promise<HarnessToolResult[]> {
+  const completed: HarnessToolResult[] = [];
+  const tasks = calls.map(async (call, index) => {
+    const result = await executeSingleToolCall(config, input, state, call, iteration, index);
+    completed.push(result);
+  });
+
+  await Promise.all(tasks);
+  return completed;
+}
+
+async function executeSingleToolCall(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  call: HarnessToolCall,
+  iteration: number,
+  index: number,
+): Promise<HarnessToolResult> {
+  const nextToolCallCount = state.toolCallCount + 1;
+  state.toolCallCount = nextToolCallCount;
+  state.usage.toolCalls = nextToolCallCount;
+  await emit(config, input, state, { type: 'tool_started', call });
+  return executeToolWithRetry(config, input, state, call, {
+    assistantId: input.assistantId,
+    turnId: input.turnId,
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    userId: input.userId,
+    threadId: input.threadId,
+    iteration,
+    toolCallIndex: index,
+    signal: input.signal,
+  });
+}
+
+async function processToolResult(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  startedAt: number,
+  iteration: number,
+  result: HarnessToolResult,
+): Promise<HarnessResult | null> {
+  accumulateUsage(state.usage, result.usage);
+  state.transcript.push({ type: 'tool_result', iteration, result });
+
+  if (result.status === 'error') {
+    state.recentToolResultHashes = [];
+    await emit(config, input, state, { type: 'tool_failed', result });
+    await config.hooks?.onToolError?.(result, executionState(input, state, startedAt, config));
+    const clarification = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
+    if (clarification) {
+      return clarification;
+    }
+    if (result.error?.retryable !== true) {
+      return buildResult(input, state, {
+        outcome: 'failed',
+        stopReason: 'tool_error_unrecoverable',
+        metadata: { toolName: result.toolName, code: result.error?.code },
+      });
+    }
+  } else {
+    await emit(config, input, state, { type: 'tool_finished', result });
+    const clarification = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
+    if (clarification) {
+      return clarification;
+    }
+    if (recordToolResultSignature(state, result)) {
+      const limit = await buildLimitResult(config, input, state, 'redundant_tool_loop');
+      return limit;
+    }
+  }
+
+  return checkLimits(config, input, state, startedAt);
+}
+
+function recordToolResultSignature(state: MutableState, result: HarnessToolResult): boolean {
+  const signature = computeToolResultSignature(result);
+  if (signature === null) {
+    return false;
+  }
+
+  state.recentToolResultHashes ??= [];
+  state.recentToolResultHashes.push({ toolName: result.toolName, outputHash: signature });
+  if (state.recentToolResultHashes.length > 5) state.recentToolResultHashes.shift();
+
+  const lastThree = state.recentToolResultHashes.slice(-3);
+  const [first] = lastThree;
+  return Boolean(
+    first &&
+      lastThree.length === 3 &&
+      lastThree.every(
+        (entry) => entry.toolName === first.toolName && entry.outputHash === first.outputHash,
+      ),
+  );
+}
+
+function readTerminatingToolText(result: HarnessToolResult): string {
+  if (typeof result.output === 'string') {
+    return result.output;
+  }
+  const structured = result.structuredOutput;
+  if (typeof structured?.text === 'string') {
+    return structured.text;
+  }
+  if (typeof structured?.message === 'string') {
+    return structured.message;
+  }
+  return '';
+}
+
 /**
  * Execute a single tool call, transparently retrying when the registry
  * returns `{ status: 'error', error: { retryable: true } }`. Retries are
@@ -563,6 +755,9 @@ async function executeToolWithRetry(
   const maxAttempts = maxRetries + 1;
 
   let lastResult = await tools.execute(call, context);
+  if (context.signal?.aborted) {
+    return lastResult;
+  }
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     if (lastResult.status !== 'error' || lastResult.error?.retryable !== true) {
       return lastResult;
@@ -585,7 +780,13 @@ async function executeToolWithRetry(
     if (backoff > 0) {
       await sleep(backoff);
     }
+    if (context.signal?.aborted) {
+      return lastResult;
+    }
     lastResult = await tools.execute(call, context);
+    if (context.signal?.aborted) {
+      return lastResult;
+    }
   }
 
   return lastResult;
@@ -716,6 +917,92 @@ function buildResult(
     usage: { ...state.usage },
     metadata: partial.metadata,
   };
+}
+
+function buildAnswerResult(
+  input: HarnessTurnInput,
+  state: MutableState,
+  text: string,
+): HarnessResult {
+  const evidenceDensity = buildEvidenceDensityViolation(state, text);
+  if (evidenceDensity) {
+    return buildResult(input, state, {
+      outcome: 'failed',
+      stopReason: 'evidence_density_violation',
+      assistantMessage: { text },
+      metadata: { evidenceDensity },
+    });
+  }
+
+  return buildResult(input, state, {
+    outcome: 'completed',
+    stopReason: 'answer_finalized',
+    assistantMessage: { text },
+  });
+}
+
+function buildEvidenceDensityViolation(
+  state: MutableState,
+  assistantText: string,
+): HarnessEvidenceDensityViolation | null {
+  const toolCalls = state.transcript
+    .filter((item): item is Extract<HarnessTranscriptItem, { type: 'tool_result' }> =>
+      item.type === 'tool_result',
+    )
+    .map((item) => ({
+      name: item.result.toolName,
+      outputChars: toolResultOutputChars(item.result),
+    }));
+
+  const verdict = exceedsEvidenceBudget({ toolCalls, assistantText });
+  if (!verdict.exceeds || !verdict.detail) {
+    return null;
+  }
+
+  const claimsCount = verdict.detail.claimMarkers.length;
+  const evidenceUnits = verdict.detail.outputChars;
+  return {
+    claimsCount,
+    evidenceUnits,
+    ratio: claimsCount / Math.max(1, evidenceUnits),
+    violatingClaims: verdict.detail.claimMarkers.map((marker) => ({
+      text: marker,
+      offset: Math.max(0, assistantText.indexOf(marker)),
+      category: verdict.reason,
+    })),
+  };
+}
+
+function toolResultOutputChars(result: HarnessToolResult): number {
+  if (typeof result.output === 'string') {
+    return result.output.length;
+  }
+  if (result.structuredOutput !== undefined) {
+    try {
+      return JSON.stringify(result.structuredOutput)?.length ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+function buildCancelledResult(
+  input: HarnessTurnInput,
+  state: MutableState,
+): HarnessResult | null {
+  if (!input.signal?.aborted) {
+    return null;
+  }
+
+  return buildResult(input, state, {
+    outcome: 'failed',
+    stopReason: 'cancelled',
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function buildTraceSummary(state: MutableState, hadContinuation: boolean): HarnessTraceSummary {
@@ -920,7 +1207,11 @@ async function emit(
   } as HarnessTraceEvent;
 
   state.finalEventType = event.type;
-  await config.trace.emit(event);
+  try {
+    await config.trace.emit(event);
+  } catch {
+    // Observability failures should not change turn execution semantics.
+  }
 }
 
 async function emitFinishedSafely(
@@ -929,11 +1220,11 @@ async function emitFinishedSafely(
   state: MutableState,
   result: HarnessResult,
 ): Promise<void> {
-  try {
-    if (!config.trace) {
-      return;
-    }
+  if (!config.trace) {
+    return;
+  }
 
+  try {
     await config.trace.emit({
       type: 'turn_finished',
       timestamp: config.clock.nowIso(),
@@ -948,9 +1239,16 @@ async function emitFinishedSafely(
       outcome: result.outcome,
       stopReason: result.stopReason,
     });
-    state.finalEventType = 'turn_finished';
-    result.traceSummary.finalEventType = 'turn_finished';
   } catch {
     // swallow trace sink failures during finalization so runtime result survives
+  }
+
+  state.finalEventType = 'turn_finished';
+  result.traceSummary.finalEventType = 'turn_finished';
+
+  try {
+    await config.trace.flush?.();
+  } catch {
+    // flush failures are observational only
   }
 }

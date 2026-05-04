@@ -30,6 +30,7 @@ const DEFAULT_CAPABILITIES: ExecutionCapabilities = {
   approvalInterrupts: 'none',
   traceDepth: 'standard',
   attachments: false,
+  streaming: 'none',
   maxContextStrategy: 'large',
   notes: [
     'Relay-mediated local execution through a BYOH worker.',
@@ -213,6 +214,22 @@ function negotiateRequest(
         `${requirements?.traceDepth ?? 'Requested'} trace depth was requested but only ${
           capabilities.traceDepth
         } trace facts are available.`,
+      ),
+    );
+  }
+
+  if (requirements?.streaming === 'required' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        'Streaming is required but unavailable in this adapter path.',
+      ),
+    );
+  } else if (requirements?.streaming === 'preferred' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      preferredDegradation(
+        'other',
+        'Streaming is preferred but unavailable in this adapter path.',
       ),
     );
   }
@@ -487,6 +504,24 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
       };
     }
 
+    if (request.signal?.aborted) {
+      return {
+        backendId: this.backendId,
+        status: 'failed',
+        error: {
+          code: 'cancelled',
+          message: 'Execution request was cancelled before it started.',
+          retryable: false,
+        },
+        degradation: negotiation.degraded ? negotiation.reasons : undefined,
+        trace: {
+          summary: {
+            degraded: negotiation.degraded,
+          },
+        },
+      };
+    }
+
     const startedAt = this.now();
     const threadId = request.threadId ?? request.turnId;
     const target = this.workerName ?? this.channelId;
@@ -530,7 +565,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
         const timeout = setTimeout(() => {
           const completedAt = this.now();
-          complete({
+          completeAndClear({
             backendId: this.backendId,
             status: 'failed',
             error: {
@@ -552,8 +587,32 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
         const completeAndClear = (result: ExecutionResult) => {
           clearTimeout(timeout);
+          request.signal?.removeEventListener('abort', abortFromRequest);
           complete(result);
         };
+
+        const abortFromRequest = () => {
+          const completedAt = this.now();
+          completeAndClear({
+            backendId: this.backendId,
+            status: 'failed',
+            error: {
+              code: 'cancelled',
+              message: 'Execution request was cancelled.',
+              retryable: false,
+            },
+            trace: buildTrace(startedAt, completedAt, degraded, [
+              {
+                type: 'failure',
+                at: toIso(completedAt),
+                data: { channelId: this.channelId, target, threadId, cancelled: true },
+              },
+            ]),
+            degradation: negotiation.degraded ? negotiation.reasons : undefined,
+          });
+        };
+
+        request.signal?.addEventListener('abort', abortFromRequest, { once: true });
 
         unsubscribe = this.relay.onEvent((event) => {
           const inbound = relayInbound(event);

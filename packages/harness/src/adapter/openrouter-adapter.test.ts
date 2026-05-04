@@ -41,6 +41,7 @@ describe('OpenRouterExecutionAdapter', () => {
       approvalInterrupts: 'none',
       traceDepth: 'minimal',
       attachments: false,
+      streaming: 'none',
       maxContextStrategy: 'large',
     });
   });
@@ -66,6 +67,41 @@ describe('OpenRouterExecutionAdapter', () => {
     expect(negotiation.supported).toBe(true);
     expect(negotiation.degraded).toBe(true);
     expect(negotiation.reasons[0]?.code).toBe('trace_depth_reduced');
+  });
+
+  it('blocks required streaming and degrades preferred streaming during negotiation', () => {
+    const adapter = new OpenRouterExecutionAdapter({ apiKey: 'test-key' });
+
+    const required = adapter.negotiate({
+      ...baseRequest(),
+      requirements: { streaming: 'required' },
+    });
+    const preferred = adapter.negotiate({
+      ...baseRequest(),
+      requirements: { streaming: 'preferred' },
+    });
+
+    expect(required.supported).toBe(false);
+    expect(required.reasons[0]).toMatchObject({ code: 'other', severity: 'blocking' });
+    expect(preferred.supported).toBe(true);
+    expect(preferred.degraded).toBe(true);
+    expect(preferred.reasons[0]).toMatchObject({ code: 'other', severity: 'warning' });
+  });
+
+  it('returns cancelled when the execution request signal is already aborted', async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+    const adapter = new OpenRouterExecutionAdapter({
+      apiKey: 'test-key',
+      fetchImpl: async () => {
+        throw new Error('fetch should not be called');
+      },
+    });
+
+    const result = await adapter.execute({ ...baseRequest(), signal: abortController.signal });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('cancelled');
   });
 
   it('maps a completed hosted response without tools', async () => {

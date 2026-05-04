@@ -182,6 +182,22 @@ function negotiateRequest(
     );
   }
 
+  if (requirements?.streaming === 'required' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        'Streaming is required but unavailable in this adapter path.',
+      ),
+    );
+  } else if (requirements?.streaming === 'preferred' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      preferredDegradation(
+        'other',
+        'Streaming is preferred but unavailable in this adapter path.',
+      ),
+    );
+  }
+
   const supported = !reasons.some((reason) => reason.severity === 'blocking');
   const degraded = reasons.some((reason) => reason.severity !== 'blocking');
 

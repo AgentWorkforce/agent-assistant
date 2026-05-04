@@ -16,6 +16,7 @@ const OPENROUTER_CAPABILITIES: ExecutionCapabilities = {
   approvalInterrupts: 'none',
   traceDepth: 'minimal',
   attachments: false,
+  streaming: 'none',
   maxContextStrategy: 'large',
   notes: ['Direct hosted API adapter', 'Bounded no-tool proof slice only'],
 };
@@ -210,6 +211,22 @@ function negotiateRequest(request: ExecutionRequest): ExecutionNegotiation {
     );
   }
 
+  if (requirements?.streaming === 'required' && (OPENROUTER_CAPABILITIES.streaming ?? 'none') === 'none') {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        'Streaming is required but unavailable in this OpenRouter proof slice.',
+      ),
+    );
+  } else if (requirements?.streaming === 'preferred' && (OPENROUTER_CAPABILITIES.streaming ?? 'none') === 'none') {
+    reasons.push(
+      preferredDegradation(
+        'other',
+        'Streaming is preferred but unavailable in this OpenRouter proof slice.',
+      ),
+    );
+  }
+
   const supported = !reasons.some((reason) => reason.severity === 'blocking');
   const degraded = reasons.some((reason) => reason.severity !== 'blocking');
 
@@ -285,8 +302,27 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       };
     }
 
+    if (request.signal?.aborted) {
+      return {
+        backendId: this.backendId,
+        status: 'failed',
+        error: {
+          code: 'cancelled',
+          message: 'Execution request was cancelled before it started.',
+          retryable: false,
+        },
+        degradation: negotiation.degraded ? negotiation.reasons : undefined,
+      };
+    }
+
     const startedAt = this.now();
     const abortController = new AbortController();
+    const abortFromRequest = () => abortController.abort();
+    if (request.signal?.aborted) {
+      abortController.abort();
+    } else {
+      request.signal?.addEventListener('abort', abortFromRequest, { once: true });
+    }
     const timeout = setTimeout(() => abortController.abort(), this.timeoutMs);
 
     try {
@@ -362,12 +398,15 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
     } catch (error) {
       const completedAt = this.now();
       const isAbort = error instanceof Error && error.name === 'AbortError';
+      const isCancelled = isAbort && request.signal?.aborted;
       return {
         backendId: this.backendId,
         status: 'failed',
         error: {
-          code: isAbort ? 'timeout' : 'backend_execution_error',
-          message: isAbort
+          code: isCancelled ? 'cancelled' : isAbort ? 'timeout' : 'backend_execution_error',
+          message: isCancelled
+            ? 'Execution request was cancelled.'
+            : isAbort
             ? `OpenRouter request timed out after ${this.timeoutMs}ms.`
             : error instanceof Error
               ? error.message
@@ -385,6 +424,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       };
     } finally {
       clearTimeout(timeout);
+      request.signal?.removeEventListener('abort', abortFromRequest);
     }
   }
 }

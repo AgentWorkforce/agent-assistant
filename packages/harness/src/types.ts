@@ -60,6 +60,7 @@ export interface HarnessTurnInput {
   context?: HarnessPreparedContext;
   continuation?: HarnessContinuation;
   allowedToolNames?: string[];
+  signal?: AbortSignal;
   metadata?: Record<string, unknown>;
 }
 
@@ -119,6 +120,7 @@ export interface HarnessModelInput {
   toolCallCount: number;
   elapsedMs: number;
   remainingBudget?: number;
+  signal?: AbortSignal;
   metadata?: Record<string, unknown>;
 }
 
@@ -224,6 +226,12 @@ export interface HarnessToolDefinition {
   description: string;
   inputSchema?: Record<string, unknown>;
   requiresApproval?: boolean;
+  /**
+   * Controls dispatch when a model requests multiple tools in one batch.
+   * Defaults to `sequential` for backwards compatibility. A batch only runs
+   * concurrently when every requested tool is explicitly marked `parallel`.
+   */
+  executionMode?: 'sequential' | 'parallel';
   metadata?: Record<string, unknown>;
 }
 
@@ -242,6 +250,7 @@ export interface HarnessToolExecutionContext {
   threadId?: string;
   iteration: number;
   toolCallIndex: number;
+  signal?: AbortSignal;
 }
 
 export interface HarnessToolResult {
@@ -252,6 +261,12 @@ export interface HarnessToolResult {
   structuredOutput?: Record<string, unknown>;
   error?: HarnessToolError;
   usage?: HarnessUsage;
+  /**
+   * When every successful result in the current batch sets `terminate: true`,
+   * the harness stops after that batch and synthesizes the final assistant
+   * answer from the terminating result payloads.
+   */
+  terminate?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -273,6 +288,7 @@ export interface HarnessApprovalRequestInput {
   sessionId?: string;
   userId?: string;
   request: HarnessApprovalRequest;
+  signal?: AbortSignal;
 }
 
 export interface HarnessApprovalRequest {
@@ -356,6 +372,17 @@ export interface HarnessResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface HarnessEvidenceDensityViolation {
+  claimsCount: number;
+  evidenceUnits: number;
+  ratio: number;
+  violatingClaims: Array<{
+    text: string;
+    offset: number;
+    category?: string;
+  }>;
+}
+
 export type HarnessOutcome =
   | 'completed'
   | 'needs_clarification'
@@ -405,8 +432,20 @@ export interface HarnessTraceSummary {
   finalEventType: string;
 }
 
+/**
+ * Trace sink for harness execution events.
+ *
+ * Settlement contract: the harness awaits every `emit()` call in order. The
+ * final `turn_finished` event is the last emit; `runTurn` does not resolve
+ * until it has settled. If `flush()` is implemented, the harness awaits it
+ * after the final emit so batched or waitUntil-backed sinks can drain.
+ *
+ * Trace sink failures are swallowed so observability cannot break turn
+ * execution.
+ */
 export interface HarnessTraceSink {
   emit(event: HarnessTraceEvent): Promise<void> | void;
+  flush?(): Promise<void> | void;
 }
 
 export type HarnessTraceEvent =
@@ -415,6 +454,7 @@ export type HarnessTraceEvent =
   | HarnessModelStepStartedEvent
   | HarnessModelStepFinishedEvent
   | HarnessToolRequestedEvent
+  | HarnessToolBatchStartedEvent
   | HarnessToolStartedEvent
   | HarnessToolFinishedEvent
   | HarnessToolFailedEvent
@@ -459,6 +499,12 @@ export interface HarnessModelStepFinishedEvent extends HarnessBaseTraceEvent {
 export interface HarnessToolRequestedEvent extends HarnessBaseTraceEvent {
   type: 'tool_requested';
   calls: HarnessToolCall[];
+}
+
+export interface HarnessToolBatchStartedEvent extends HarnessBaseTraceEvent {
+  type: 'tool_batch_started';
+  mode: 'sequential' | 'parallel';
+  callCount: number;
 }
 
 export interface HarnessToolStartedEvent extends HarnessBaseTraceEvent {
@@ -523,6 +569,10 @@ export interface HarnessHooks {
     result: HarnessResult,
     state: HarnessExecutionState,
   ) => Promise<void> | void;
+  transformTranscript?: (
+    transcript: HarnessTranscriptItem[],
+    state: HarnessExecutionState,
+  ) => HarnessTranscriptItem[] | Promise<HarnessTranscriptItem[]>;
 }
 
 export type HarnessToolEvidenceClarificationReason =

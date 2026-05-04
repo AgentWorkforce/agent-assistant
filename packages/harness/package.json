@@ -15,6 +15,22 @@
       "import": "./dist/adapter/agent-relay-adapter.js",
       "types": "./dist/adapter/agent-relay-adapter.d.ts"
     },
+    "./mcp": {
+      "import": "./dist/mcp/index.js",
+      "types": "./dist/mcp/index.d.ts"
+    },
+    "./registries": {
+      "import": "./dist/registries/index.js",
+      "types": "./dist/registries/index.d.ts"
+    },
+    "./router": {
+      "import": "./dist/router/index.js",
+      "types": "./dist/router/index.d.ts"
+    },
+    "./prompt": {
+      "import": "./dist/prompt/index.js",
+      "types": "./dist/prompt/index.d.ts"
+    },
     "./worker-bridge": {
       "import": "./dist/worker-bridge/index.js",
       "types": "./dist/worker-bridge/index.d.ts"
