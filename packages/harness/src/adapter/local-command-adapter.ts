@@ -1,15 +1,16 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
-import type {
-  ExecutionAdapter,
-  ExecutionCapabilities,
-  ExecutionNegotiation,
-  ExecutionNegotiationReason,
-  ExecutionRequest,
-  ExecutionResult,
-  ExecutionTrace,
-  ExecutionTraceEvent,
+import {
+  EXECUTION_CONTRACT_SCHEMA_VERSION,
+  type ExecutionAdapter,
+  type ExecutionCapabilities,
+  type ExecutionNegotiation,
+  type ExecutionNegotiationReason,
+  type ExecutionRequest,
+  type ExecutionResult,
+  type ExecutionTrace,
+  type ExecutionTraceEvent,
 } from './types.js';
 
 export interface LocalCommandChildProcess extends EventEmitter {
@@ -182,6 +183,22 @@ function negotiateRequest(
     );
   }
 
+  if (requirements?.streaming === 'required' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        'Streaming is required but unavailable in this adapter path.',
+      ),
+    );
+  } else if (requirements?.streaming === 'preferred' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      preferredDegradation(
+        'other',
+        'Streaming is preferred but unavailable in this adapter path.',
+      ),
+    );
+  }
+
   const supported = !reasons.some((reason) => reason.severity === 'blocking');
   const degraded = reasons.some((reason) => reason.severity !== 'blocking');
 
@@ -280,6 +297,7 @@ export class LocalCommandExecutionAdapter implements ExecutionAdapter {
     const negotiation = this.negotiate(request);
     if (!negotiation.supported) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'unsupported',
         error: {
@@ -326,7 +344,8 @@ export class LocalCommandExecutionAdapter implements ExecutionAdapter {
         child.kill?.('SIGTERM');
         const completedAt = this.now();
         resolve({
-          backendId: this.backendId,
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
           status: 'failed',
           error: {
             code: 'timeout',
@@ -357,7 +376,8 @@ export class LocalCommandExecutionAdapter implements ExecutionAdapter {
       child.once('error', (error) => {
         const completedAt = this.now();
         finalize({
-          backendId: this.backendId,
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
           status: 'failed',
           error: {
             code: 'backend_execution_error',
@@ -380,7 +400,8 @@ export class LocalCommandExecutionAdapter implements ExecutionAdapter {
 
         if (code !== 0) {
           finalize({
-            backendId: this.backendId,
+            schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
             status: 'failed',
             error: {
               code: 'backend_execution_error',
@@ -411,7 +432,8 @@ export class LocalCommandExecutionAdapter implements ExecutionAdapter {
 
         if (!parsed) {
           finalize({
-            backendId: this.backendId,
+            schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
             status: 'failed',
             error: {
               code: 'invalid_backend_output',
@@ -432,7 +454,8 @@ export class LocalCommandExecutionAdapter implements ExecutionAdapter {
 
         const toolCallCount = parsed.toolCalls?.length ?? 0;
         finalize({
-          backendId: this.backendId,
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
           status: 'completed',
           output: buildOutput(parsed),
           trace: buildTrace(startedAt, completedAt, toolCallCount, degraded, [

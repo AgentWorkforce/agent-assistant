@@ -1,4 +1,6 @@
 export { ClaudeCodeExecutionAdapter, createClaudeCodeAdapter } from './claude-code-adapter.js';
+export { BuiltInHarnessAdapter, createBuiltInHarnessAdapter } from './built-in-harness-adapter.js';
+export type { BuiltInHarnessAdapterConfig } from './built-in-harness-adapter.js';
 // NOTE: AgentRelayExecutionAdapter is intentionally NOT re-exported from
 // the default barrel. It imports RelayAdapter from @agent-relay/sdk, which
 // has a Node-only implementation — the SDK's workerd/worker conditional
@@ -11,6 +13,9 @@ export { ClaudeCodeExecutionAdapter, createClaudeCodeAdapter } from './claude-co
 // for it explicitly, so worker bundles stay clean.
 export { LocalCommandExecutionAdapter, createLocalCommandAdapter } from './local-command-adapter.js';
 export { OpenRouterExecutionAdapter, createOpenRouterAdapter } from './openrouter-adapter.js';
+export { AnthropicModelAdapter, createAnthropicModelAdapter } from './anthropic-model-adapter.js';
+export { OpenAIModelAdapter, createOpenAIModelAdapter } from './openai-model-adapter.js';
+export { GeminiModelAdapter, createGeminiModelAdapter } from './gemini-model-adapter.js';
 
 // Type-only re-exports are stripped by the TS compiler to nothing in JS,
 // so bundlers never follow the link. Safe to keep here for convenience.
@@ -30,6 +35,9 @@ export type {
   LocalCommandSpawnFn,
   ParsedLocalCommandOutput,
 } from './local-command-adapter.js';
+export type { AnthropicModelAdapterConfig } from './anthropic-model-adapter.js';
+export type { OpenAIModelAdapterConfig } from './openai-model-adapter.js';
+export type { GeminiModelAdapterConfig } from './gemini-model-adapter.js';
 export type {
   ExecutionAdapter,
   ExecutionCapabilities,
@@ -38,7 +46,11 @@ export type {
   ExecutionRequest,
   ExecutionRequirements,
   ExecutionResult,
+  ExecutionStreamError,
+  ExecutionStreamEvent,
   ExecutionToolDescriptor,
+  ExecutionToolResult,
   ExecutionTrace,
   ExecutionTraceEvent,
+  ExecutionUsage,
 } from './types.js';

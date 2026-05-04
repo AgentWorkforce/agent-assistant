@@ -255,6 +255,70 @@ describe('AgentRelayExecutionAdapter', () => {
     });
   });
 
+  it('negotiates streaming requirements against the advertised capability', () => {
+    const adapter = new AgentRelayExecutionAdapter({
+      relay: new FakeRelayTransport(),
+      capabilities: {
+        toolUse: 'adapter-mediated',
+        structuredToolCalls: true,
+        continuationSupport: 'none',
+        approvalInterrupts: 'none',
+        traceDepth: 'standard',
+        attachments: false,
+        streaming: 'none',
+      },
+    });
+
+    const required = adapter.negotiate({
+      ...baseRequest(),
+      requirements: { streaming: 'required' },
+    });
+    const preferred = adapter.negotiate({
+      ...baseRequest(),
+      requirements: { streaming: 'preferred' },
+    });
+
+    expect(required.supported).toBe(false);
+    expect(required.reasons[0]).toMatchObject({ code: 'other', severity: 'blocking' });
+    expect(preferred.supported).toBe(true);
+    expect(preferred.degraded).toBe(true);
+    expect(preferred.reasons[0]).toMatchObject({ code: 'other', severity: 'warning' });
+  });
+
+  it('returns cancelled without publishing when the request signal is already aborted', async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+    const relay = new FakeRelayTransport();
+    const adapter = new AgentRelayExecutionAdapter({ relay, workerName: 'local-worker' });
+
+    const result = await adapter.execute({ ...baseRequest(), signal: abortController.signal });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('cancelled');
+    expect(relay.sent).toHaveLength(0);
+  });
+
+  it('returns cancelled without publishing when the request signal aborts during relay.start', async () => {
+    // Codex P1 regression: AbortSignal does NOT replay past abort events,
+    // so a signal that fires while we're awaiting relay.start() / ensureWorker()
+    // must still short-circuit before the message is published. Asserting via
+    // an instrumented transport whose start() flips the abort during its await.
+    const abortController = new AbortController();
+    const relay = new FakeRelayTransport();
+    const originalStart = relay.start.bind(relay);
+    relay.start = async () => {
+      abortController.abort();
+      await originalStart();
+    };
+    const adapter = new AgentRelayExecutionAdapter({ relay, workerName: 'local-worker' });
+
+    const result = await adapter.execute({ ...baseRequest(), signal: abortController.signal });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('cancelled');
+    expect(relay.sent).toHaveLength(0);
+  });
+
   it('maps Relay publish failures to retryable backend execution errors', async () => {
     const adapter = new AgentRelayExecutionAdapter({
       relay: new FakeRelayTransport({ failSend: true }),
