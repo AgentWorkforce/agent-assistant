@@ -5,15 +5,16 @@ import type {
   SendMessageInput,
 } from '@agent-relay/sdk';
 
-import type {
-  ExecutionAdapter,
-  ExecutionCapabilities,
-  ExecutionNegotiation,
-  ExecutionNegotiationReason,
-  ExecutionRequest,
-  ExecutionResult,
-  ExecutionTrace,
-  ExecutionTraceEvent,
+import {
+  EXECUTION_CONTRACT_SCHEMA_VERSION,
+  type ExecutionAdapter,
+  type ExecutionCapabilities,
+  type ExecutionNegotiation,
+  type ExecutionNegotiationReason,
+  type ExecutionRequest,
+  type ExecutionResult,
+  type ExecutionTrace,
+  type ExecutionTraceEvent,
 } from './types.js';
 
 export const AGENT_RELAY_EXECUTION_REQUEST_TYPE = 'agent-assistant.execution-request.v1';
@@ -24,6 +25,7 @@ const DEFAULT_ORCHESTRATOR_NAME = 'agent-assistant';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 const DEFAULT_CAPABILITIES: ExecutionCapabilities = {
+  schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
   toolUse: 'adapter-mediated',
   structuredToolCalls: true,
   continuationSupport: 'none',
@@ -141,6 +143,17 @@ function negotiateRequest(
   const requirements = request.requirements;
   const hasTools = (request.tools?.length ?? 0) > 0;
   const hasAttachments = (request.message.attachments?.length ?? 0) > 0;
+
+  const requestedSchema = request.schemaVersion ?? EXECUTION_CONTRACT_SCHEMA_VERSION;
+  const supportedSchema = capabilities.schemaVersion ?? EXECUTION_CONTRACT_SCHEMA_VERSION;
+  if (requestedSchema > supportedSchema) {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        `Request schemaVersion ${requestedSchema} exceeds adapter-supported ${supportedSchema}.`,
+      ),
+    );
+  }
 
   if (hasTools && requirements?.toolUse === 'forbidden') {
     reasons.push(requiredUnsupported('tool_use_unsupported', 'Request forbids tool use but tools were supplied.'));
@@ -489,6 +502,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
     const negotiation = this.negotiate(request);
     if (!negotiation.supported) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'unsupported',
         error: {
@@ -506,6 +520,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
     if (request.signal?.aborted) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'failed',
         error: {
@@ -532,6 +547,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
     const finish = (result: ExecutionResult): ExecutionResult => ({
       ...result,
+      schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
       backendId: this.backendId,
       degradation: negotiation.degraded
         ? [...(result.degradation ?? []), ...negotiation.reasons]
@@ -566,7 +582,8 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
         const timeout = setTimeout(() => {
           const completedAt = this.now();
           completeAndClear({
-            backendId: this.backendId,
+            schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
             status: 'failed',
             error: {
               code: 'timeout',
@@ -594,7 +611,8 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
         const abortFromRequest = () => {
           const completedAt = this.now();
           completeAndClear({
-            backendId: this.backendId,
+            schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
             status: 'failed',
             error: {
               code: 'cancelled',
@@ -684,7 +702,8 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
           .catch((error) => {
             const completedAt = this.now();
             completeAndClear({
-              backendId: this.backendId,
+              schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
               status: 'failed',
               error: {
                 code: 'backend_execution_error',
@@ -705,6 +724,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
     } catch (error) {
       const completedAt = this.now();
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'failed',
         error: {

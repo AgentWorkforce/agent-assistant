@@ -14,6 +14,8 @@ import type {
   HarnessModelOutput,
   HarnessResult,
   HarnessStopReason,
+  HarnessStreamEvent,
+  HarnessStreamSink,
   HarnessToolCall,
   HarnessToolDefinition,
   HarnessToolEvidenceClarification,
@@ -76,7 +78,124 @@ export function createHarness(config: HarnessConfig): HarnessRuntime {
     async runTurn(input) {
       return runTurn(normalized, input);
     },
+    runTurnStreaming(input) {
+      return iterateTurnStream(normalized, input);
+    },
   };
+}
+
+/**
+ * Wraps {@link runTurn} with a per-call stream sink so callers can consume
+ * `HarnessStreamEvent` values as the turn progresses. Trace emissions on
+ * `config.trace` continue to fire in parallel — this is purely additive.
+ *
+ * Implementation: install a stream sink that pushes events into an
+ * unbounded async queue, run the turn, and yield events as they arrive.
+ * The final `turn_finished` event is emitted from this wrapper (not from
+ * `runTurn` itself) so the iterable always closes with the result.
+ */
+function iterateTurnStream(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+): AsyncIterable<HarnessStreamEvent> {
+  const queue = createAsyncQueue<HarnessStreamEvent>();
+  const userSink = config.stream;
+  const teeSink: HarnessStreamSink = {
+    async emit(event) {
+      queue.push(event);
+      try {
+        await userSink?.emit(event);
+      } catch {
+        // Mirror trace-sink behavior: swallow user-supplied sink failures so
+        // the turn itself isn't disrupted by an observer fault.
+      }
+    },
+  };
+
+  const wrappedConfig: NormalizedConfig = { ...config, stream: teeSink };
+
+  void runTurn(wrappedConfig, input)
+    .then((result) => {
+      queue.push({ type: 'turn_finished', result });
+      queue.close();
+    })
+    .catch((error) => {
+      queue.push({
+        type: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+      queue.close();
+    });
+
+  return queue;
+}
+
+interface AsyncQueue<T> extends AsyncIterable<T> {
+  push(value: T): void;
+  close(): void;
+}
+
+function createAsyncQueue<T>(): AsyncQueue<T> {
+  const buffer: T[] = [];
+  const waiters: Array<(result: IteratorResult<T>) => void> = [];
+  let closed = false;
+
+  return {
+    push(value) {
+      if (closed) return;
+      const waiter = waiters.shift();
+      if (waiter) {
+        waiter({ value, done: false });
+        return;
+      }
+      buffer.push(value);
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      while (waiters.length > 0) {
+        const waiter = waiters.shift();
+        waiter?.({ value: undefined as unknown as T, done: true });
+      }
+    },
+    [Symbol.asyncIterator]() {
+      return {
+        next(): Promise<IteratorResult<T>> {
+          if (buffer.length > 0) {
+            const value = buffer.shift() as T;
+            return Promise.resolve({ value, done: false });
+          }
+          if (closed) {
+            return Promise.resolve({ value: undefined as unknown as T, done: true });
+          }
+          return new Promise((resolve) => {
+            waiters.push(resolve);
+          });
+        },
+        return(): Promise<IteratorResult<T>> {
+          closed = true;
+          while (waiters.length > 0) {
+            const waiter = waiters.shift();
+            waiter?.({ value: undefined as unknown as T, done: true });
+          }
+          return Promise.resolve({ value: undefined as unknown as T, done: true });
+        },
+      };
+    },
+  };
+}
+
+async function emitStream(
+  config: NormalizedConfig,
+  event: HarnessStreamEvent,
+): Promise<void> {
+  if (!config.stream) return;
+  try {
+    await config.stream.emit(event);
+  } catch {
+    // Stream sink failures are non-fatal: the trace path is the source of
+    // truth for correctness, the stream is purely a UX convenience.
+  }
 }
 
 function normalizeConfig(config: HarnessConfig): NormalizedConfig {
@@ -255,7 +374,16 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       };
 
       await emit(config, input, state, { type: 'model_step_started' });
-      const output = await config.model.nextStep(modelInput);
+      // When the model adapter exposes a native `streamStep` AND the caller
+      // wired a stream sink, use streaming so users see token-by-token
+      // text deltas. Otherwise fall back to batch nextStep.
+      let streamingHandled = false;
+      const output = config.model.streamStep && config.stream
+        ? await config.model.streamStep(modelInput, (delta) => {
+            streamingHandled = true;
+            void emitStream(config, { type: 'text_delta', iteration, text: delta });
+          })
+        : await config.model.nextStep(modelInput);
       finalResult = buildCancelledResult(input, state);
       if (finalResult) {
         return finalResult;
@@ -273,12 +401,26 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
         outputType: output.type,
         usage: output.usage,
       });
+      await emitStream(config, {
+        type: 'step_finished',
+        iteration,
+        outputType: output.type,
+        usage: output.usage,
+      });
 
       const assistantStep = toAssistantStep(iteration, output);
       state.transcript.push(assistantStep);
 
       switch (output.type) {
         case 'final_answer':
+          if (!streamingHandled) {
+            await emitStream(config, {
+              type: 'text_delta',
+              iteration,
+              text: output.text,
+              outputType: 'final_answer',
+            });
+          }
           finalResult = buildAnswerResult(input, state, output.text);
           return finalResult;
 
@@ -297,6 +439,14 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             type: 'clarification_requested',
             question: output.question,
           });
+          if (!streamingHandled) {
+            await emitStream(config, {
+              type: 'text_delta',
+              iteration,
+              text: output.question,
+              outputType: 'clarification',
+            });
+          }
           finalResult = buildResult(input, state, {
             outcome: 'needs_clarification',
             stopReason: 'clarification_required',
@@ -338,6 +488,14 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             type: 'approval_requested',
             request: prepared.request,
           });
+          if (!streamingHandled) {
+            await emitStream(config, {
+              type: 'text_delta',
+              iteration,
+              text: prepared.request.summary,
+              outputType: 'approval_request',
+            });
+          }
           finalResult = buildResult(input, state, {
             outcome: 'awaiting_approval',
             stopReason: 'approval_required',
@@ -399,6 +557,14 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
         }
 
         case 'refusal':
+          if (!streamingHandled) {
+            await emitStream(config, {
+              type: 'text_delta',
+              iteration,
+              text: output.reason,
+              outputType: 'refusal',
+            });
+          }
           finalResult = buildResult(input, state, {
             outcome: 'failed',
             stopReason: 'model_refused',
@@ -640,6 +806,7 @@ async function executeSingleToolCall(
   state.toolCallCount = nextToolCallCount;
   state.usage.toolCalls = nextToolCallCount;
   await emit(config, input, state, { type: 'tool_started', call });
+  await emitStream(config, { type: 'tool_started', iteration, call });
   return executeToolWithRetry(config, input, state, call, {
     assistantId: input.assistantId,
     turnId: input.turnId,
@@ -667,6 +834,7 @@ async function processToolResult(
   if (result.status === 'error') {
     state.recentToolResultHashes = [];
     await emit(config, input, state, { type: 'tool_failed', result });
+    await emitStream(config, { type: 'tool_failed', iteration, result });
     await config.hooks?.onToolError?.(result, executionState(input, state, startedAt, config));
     const clarification = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
     if (clarification) {
@@ -681,6 +849,7 @@ async function processToolResult(
     }
   } else {
     await emit(config, input, state, { type: 'tool_finished', result });
+    await emitStream(config, { type: 'tool_finished', iteration, result });
     const clarification = await maybeClarifyFromToolResult(config, input, state, startedAt, result);
     if (clarification) {
       return clarification;

@@ -230,4 +230,75 @@ describe('direct provider model adapters', () => {
       code: 'timeout',
     });
   });
+
+  it('Anthropic applies cache_control to system prompt and tool definitions on every call', async () => {
+    let captured: Record<string, unknown> | undefined;
+    const adapter = new AnthropicModelAdapter({
+      apiKey: 'key',
+      fetchImpl: vi.fn(async (_url, init) => {
+        captured = JSON.parse((init?.body as string) ?? '{}');
+        return jsonResponse({ content: [{ type: 'text', text: 'hi' }] });
+      }),
+    });
+    await adapter.nextStep(input());
+    const system = captured?.system as Array<Record<string, unknown>>;
+    expect(system[system.length - 1]).toMatchObject({ cache_control: { type: 'ephemeral' } });
+    const tools = captured?.tools as Array<Record<string, unknown>>;
+    expect(tools[tools.length - 1]).toMatchObject({ cache_control: { type: 'ephemeral' } });
+  });
+
+  it('Anthropic caches transcript prefix when cacheTrailingTranscriptItems is set and transcript is long enough', async () => {
+    let captured: Record<string, unknown> | undefined;
+    const adapter = new AnthropicModelAdapter({
+      apiKey: 'key',
+      cacheTrailingTranscriptItems: 2,
+      fetchImpl: vi.fn(async (_url, init) => {
+        captured = JSON.parse((init?.body as string) ?? '{}');
+        return jsonResponse({ content: [{ type: 'text', text: 'hi' }] });
+      }),
+    });
+    const longInput: HarnessModelInput = {
+      ...input(),
+      transcript: [
+        { type: 'assistant_step', iteration: 1, outputType: 'final_answer', text: 'A1' },
+        { type: 'assistant_step', iteration: 2, outputType: 'final_answer', text: 'A2' },
+        { type: 'assistant_step', iteration: 3, outputType: 'final_answer', text: 'A3' },
+        { type: 'assistant_step', iteration: 4, outputType: 'final_answer', text: 'A4' },
+      ],
+    };
+    await adapter.nextStep(longInput);
+    const messages = captured?.messages as Array<{ content: Array<Record<string, unknown>> }>;
+    const userContent = messages[0].content;
+    // The cached prefix block carries cache_control; the live block does not.
+    const cached = userContent.find((c) => c.cache_control);
+    const live = userContent.find((c) => !c.cache_control);
+    expect(cached).toBeDefined();
+    expect(cached?.text).toContain('A1');
+    expect(cached?.text).toContain('A2');
+    expect(cached?.text).not.toContain('A3');
+    expect(live).toBeDefined();
+    expect(live?.text).toContain('A3');
+    expect(live?.text).toContain('A4');
+  });
+
+  it('Anthropic does not add a transcript-prefix breakpoint when cacheTrailingTranscriptItems is unset', async () => {
+    let captured: Record<string, unknown> | undefined;
+    const adapter = new AnthropicModelAdapter({
+      apiKey: 'key',
+      fetchImpl: vi.fn(async (_url, init) => {
+        captured = JSON.parse((init?.body as string) ?? '{}');
+        return jsonResponse({ content: [{ type: 'text', text: 'hi' }] });
+      }),
+    });
+    await adapter.nextStep({
+      ...input(),
+      transcript: [
+        { type: 'assistant_step', iteration: 1, outputType: 'final_answer', text: 'A' },
+        { type: 'assistant_step', iteration: 2, outputType: 'final_answer', text: 'B' },
+      ],
+    });
+    const messages = captured?.messages as Array<{ content: Array<Record<string, unknown>> }>;
+    const userContent = messages[0].content;
+    expect(userContent.some((c) => c.cache_control)).toBe(false);
+  });
 });

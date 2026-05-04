@@ -12,7 +12,9 @@ import {
   isTransientProviderStatus,
   parseToolArguments,
   readJsonResponse,
+  readSseFrames,
   readString,
+  safeParseJson,
   type ProviderFetch,
 } from './provider-error-mapping.js';
 
@@ -173,6 +175,90 @@ export class GeminiModelAdapter implements HarnessModelAdapter {
       return json ? outputFromBody(json, this.model) : invalid('provider_error', 'Gemini response body was not valid JSON', { code: 'unknown' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown Gemini error';
+      return invalid('transient', message, { code: classifyProviderError(undefined, message), metadata: { modelId: this.model } });
+    }
+  }
+
+  /**
+   * Native streaming via Gemini `streamGenerateContent` SSE
+   * (`?alt=sse`). Each event is a JSON candidate chunk; we accumulate
+   * text deltas across chunks and aggregate functionCall parts into a
+   * single `tool_request` after the stream ends.
+   */
+  async streamStep(
+    input: HarnessModelInput,
+    onDelta: (delta: string) => void,
+  ): Promise<HarnessModelOutput> {
+    if (!this.apiKey) {
+      return invalid('provider_error', 'Gemini API key is not configured.', { code: 'auth_failed', metadata: { modelId: this.model } });
+    }
+
+    const url = `${this.baseUrl}/${encodeURIComponent(this.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(this.apiKey)}`;
+    let response: Response | undefined;
+    try {
+      response = await this.fetchImpl(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...this.defaultHeaders },
+        body: JSON.stringify(buildBody(input)),
+        signal: input.signal,
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return invalid(isTransientProviderStatus(response.status) ? 'transient' : 'provider_error', text || `Gemini stream failed (${response.status})`, {
+          code: classifyProviderError(response.status, text),
+          httpStatus: response.status,
+          metadata: { modelId: this.model },
+        });
+      }
+      if (!response.body) {
+        return invalid('empty_response', 'Gemini streaming response had no body', { code: 'unknown', metadata: { modelId: this.model } });
+      }
+
+      let aggregated = '';
+      let finishReason: string | undefined;
+      let safetyRatings: unknown;
+      const calls: HarnessToolCall[] = [];
+
+      for await (const frame of readSseFrames(response.body)) {
+        const json = safeParseJson(frame);
+        if (!isRecord(json)) continue;
+        const candidate = firstCandidate(json);
+        if (!candidate) continue;
+        const reason = readString(candidate.finishReason);
+        if (reason) finishReason = reason;
+        if (candidate.safetyRatings) safetyRatings = candidate.safetyRatings;
+        const content = isRecord(candidate.content) ? candidate.content : undefined;
+        if (!content) continue;
+        const parsed = parseParts(content.parts);
+        if ('type' in parsed) return parsed;
+        if (parsed.text) {
+          aggregated += parsed.text;
+          onDelta(parsed.text);
+        }
+        for (const call of parsed.calls) {
+          calls.push({ ...call, id: `gemini-${calls.length + 1}` });
+        }
+      }
+
+      if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
+        return {
+          type: 'refusal',
+          reason: `Gemini blocked the response: ${finishReason}`,
+          metadata: { modelId: this.model, safetyRatings },
+        };
+      }
+      if (calls.length > 0) {
+        return { type: 'tool_request', calls, metadata: { modelId: this.model } };
+      }
+      if (aggregated) {
+        return { type: 'final_answer', text: aggregated, metadata: { modelId: this.model } };
+      }
+      return invalid('empty_response', 'Gemini stream completed without content', { code: 'unknown', metadata: { modelId: this.model } });
+    } catch (error) {
+      if (response?.body && !response.bodyUsed) {
+        await response.body.cancel().catch(() => {});
+      }
+      const message = error instanceof Error ? error.message : 'Unknown Gemini streaming error';
       return invalid('transient', message, { code: classifyProviderError(undefined, message), metadata: { modelId: this.model } });
     }
   }

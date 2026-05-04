@@ -41,7 +41,7 @@ describe('OpenRouterExecutionAdapter', () => {
       approvalInterrupts: 'none',
       traceDepth: 'minimal',
       attachments: false,
-      streaming: 'none',
+      streaming: 'native',
       maxContextStrategy: 'large',
     });
   });
@@ -69,7 +69,7 @@ describe('OpenRouterExecutionAdapter', () => {
     expect(negotiation.reasons[0]?.code).toBe('trace_depth_reduced');
   });
 
-  it('blocks required streaming and degrades preferred streaming during negotiation', () => {
+  it('accepts required and preferred streaming because the adapter declares native streaming', () => {
     const adapter = new OpenRouterExecutionAdapter({ apiKey: 'test-key' });
 
     const required = adapter.negotiate({
@@ -81,11 +81,9 @@ describe('OpenRouterExecutionAdapter', () => {
       requirements: { streaming: 'preferred' },
     });
 
-    expect(required.supported).toBe(false);
-    expect(required.reasons[0]).toMatchObject({ code: 'other', severity: 'blocking' });
+    expect(required.supported).toBe(true);
     expect(preferred.supported).toBe(true);
-    expect(preferred.degraded).toBe(true);
-    expect(preferred.reasons[0]).toMatchObject({ code: 'other', severity: 'warning' });
+    expect(preferred.degraded).toBe(false);
   });
 
   it('returns cancelled when the execution request signal is already aborted', async () => {

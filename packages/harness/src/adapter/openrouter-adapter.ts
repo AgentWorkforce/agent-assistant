@@ -1,24 +1,27 @@
-import type {
-  ExecutionAdapter,
-  ExecutionCapabilities,
-  ExecutionNegotiation,
-  ExecutionNegotiationReason,
-  ExecutionRequest,
-  ExecutionResult,
-  ExecutionTrace,
-  ExecutionTraceEvent,
+import {
+  EXECUTION_CONTRACT_SCHEMA_VERSION,
+  type ExecutionAdapter,
+  type ExecutionCapabilities,
+  type ExecutionNegotiation,
+  type ExecutionNegotiationReason,
+  type ExecutionRequest,
+  type ExecutionResult,
+  type ExecutionStreamEvent,
+  type ExecutionTrace,
+  type ExecutionTraceEvent,
 } from './types.js';
 
 const OPENROUTER_CAPABILITIES: ExecutionCapabilities = {
+  schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
   toolUse: 'none',
   structuredToolCalls: false,
   continuationSupport: 'none',
   approvalInterrupts: 'none',
   traceDepth: 'minimal',
   attachments: false,
-  streaming: 'none',
+  streaming: 'native',
   maxContextStrategy: 'large',
-  notes: ['Direct hosted API adapter', 'Bounded no-tool proof slice only'],
+  notes: ['Direct hosted API adapter', 'Bounded no-tool proof slice (text-only)'],
 };
 
 export interface OpenRouterMessage {
@@ -275,6 +278,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
     const negotiation = this.negotiate(request);
     if (!negotiation.supported) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'unsupported',
         error: {
@@ -292,6 +296,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
 
     if (!this.apiKey) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'failed',
         error: {
@@ -304,6 +309,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
 
     if (request.signal?.aborted) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'failed',
         error: {
@@ -341,7 +347,8 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
 
       if (!response.ok) {
         return {
-          backendId: this.backendId,
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
           status: 'failed',
           error: {
             code: 'backend_execution_error',
@@ -366,7 +373,8 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       const text = parseResponseText(body);
       if (!text) {
         return {
-          backendId: this.backendId,
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
           status: 'failed',
           error: {
             code: 'invalid_backend_output',
@@ -385,6 +393,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       }
 
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'completed',
         output: { text },
@@ -400,6 +409,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       const isAbort = error instanceof Error && error.name === 'AbortError';
       const isCancelled = isAbort && request.signal?.aborted;
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'failed',
         error: {
@@ -427,6 +437,310 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       request.signal?.removeEventListener('abort', abortFromRequest);
     }
   }
+
+  /**
+   * Native SSE streaming. Calls the OpenRouter chat-completions endpoint
+   * with `stream: true`, parses Server-Sent Events frames, and yields
+   * `text_delta` events as content arrives. Closes with exactly one
+   * `turn_finished` carrying an ExecutionResult that mirrors `execute()`
+   * for the same request (modulo timing).
+   *
+   * Workers-fetch rule: uses `globalThis.fetch` at call time and consumes
+   * (or cancels) the response body in every termination path.
+   */
+  executeStreaming(request: ExecutionRequest): AsyncIterable<ExecutionStreamEvent> {
+    const negotiation = this.negotiate(request);
+    const backendId = this.backendId;
+    const startedAt = this.now();
+    const baseUrl = this.baseUrl;
+    const apiKey = this.apiKey;
+    const model = this.model;
+    const fetchImpl = this.fetchImpl;
+    const timeoutMs = this.timeoutMs;
+    const now = this.now;
+
+    if (!negotiation.supported) {
+      return makeUnsupportedStream(backendId, negotiation.reasons);
+    }
+
+    if (!apiKey) {
+      return makeFailedStream(backendId, {
+        code: 'backend_execution_error',
+        message: 'OpenRouter API key is not configured.',
+      });
+    }
+
+    const degraded = negotiation.degraded;
+    const degradation = negotiation.degraded ? negotiation.reasons : undefined;
+
+    return {
+      async *[Symbol.asyncIterator]() {
+        if (request.signal?.aborted) {
+          yield* emitCancelledStream(backendId, startedAt, now);
+          return;
+        }
+
+        const abortController = new AbortController();
+        const abortFromRequest = () => abortController.abort();
+        request.signal?.addEventListener('abort', abortFromRequest, { once: true });
+        const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+
+        let response: Response | undefined;
+        let aggregated = '';
+        try {
+          response = await fetchImpl(baseUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              Accept: 'text/event-stream',
+            },
+            body: JSON.stringify({ ...buildRequestBody(request, model), stream: true }),
+            signal: abortController.signal,
+          });
+
+          if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            const completedAt = now();
+            yield {
+              type: 'turn_finished',
+              result: {
+                schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+                backendId,
+                status: 'failed',
+                error: {
+                  code: 'backend_execution_error',
+                  message: text || `OpenRouter request failed with status ${response.status}.`,
+                  retryable: response.status >= 500,
+                  metadata: { status: response.status },
+                },
+                trace: buildTrace(startedAt, completedAt, degraded, [
+                  { type: 'failure', at: toIso(completedAt), data: { status: response.status } },
+                ]),
+                degradation,
+              },
+            };
+            return;
+          }
+
+          if (!response.body) {
+            const completedAt = now();
+            yield {
+              type: 'turn_finished',
+              result: {
+                schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+                backendId,
+                status: 'failed',
+                error: {
+                  code: 'invalid_backend_output',
+                  message: 'OpenRouter streaming response had no body.',
+                },
+                trace: buildTrace(startedAt, completedAt, degraded),
+                degradation,
+              },
+            };
+            return;
+          }
+
+          for await (const event of parseSseStream(response.body)) {
+            if (event === '[DONE]') break;
+            const json = safeParseJson(event);
+            const delta = extractDeltaText(json);
+            if (delta) {
+              aggregated += delta;
+              yield { type: 'text_delta', text: delta };
+            }
+          }
+
+          const completedAt = now();
+          yield {
+            type: 'turn_finished',
+            result: {
+              schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+              backendId,
+              status: 'completed',
+              output: { text: aggregated },
+              trace: buildTrace(startedAt, completedAt, degraded, [
+                { type: 'model_started', at: toIso(startedAt) },
+                { type: 'model_completed', at: toIso(completedAt) },
+              ]),
+              degradation,
+            },
+          };
+        } catch (error) {
+          // Cancel response body on error paths to avoid Workers stalled-response cap.
+          if (response?.body) {
+            await response.body.cancel().catch(() => {});
+          }
+          const completedAt = now();
+          const isAbort = error instanceof Error && error.name === 'AbortError';
+          const isCancelled = isAbort && request.signal?.aborted;
+          yield {
+            type: 'error',
+            error: {
+              code: isCancelled ? 'cancelled' : isAbort ? 'timeout' : 'backend_execution_error',
+              message: error instanceof Error ? error.message : String(error),
+              retryable: !isCancelled,
+            },
+          };
+          yield {
+            type: 'turn_finished',
+            result: {
+              schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+              backendId,
+              status: 'failed',
+              error: {
+                code: isCancelled ? 'cancelled' : isAbort ? 'timeout' : 'backend_execution_error',
+                message: error instanceof Error ? error.message : String(error),
+                retryable: !isCancelled,
+              },
+              trace: buildTrace(startedAt, completedAt, degraded),
+              degradation,
+            },
+          };
+        } finally {
+          clearTimeout(timeout);
+          request.signal?.removeEventListener('abort', abortFromRequest);
+        }
+      },
+    };
+  }
+}
+
+function makeUnsupportedStream(
+  backendId: string,
+  reasons: ExecutionNegotiationReason[],
+): AsyncIterable<ExecutionStreamEvent> {
+  const message = reasons.map((reason) => reason.message).join(' ');
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: 'error', error: { code: 'unsupported_capability', message, retryable: false } };
+      yield {
+        type: 'turn_finished',
+        result: {
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+          backendId,
+          status: 'unsupported',
+          error: { code: 'unsupported_capability', message },
+          degradation: reasons,
+          trace: { summary: { degraded: false } },
+        },
+      };
+    },
+  };
+}
+
+function makeFailedStream(
+  backendId: string,
+  err: { code: 'backend_execution_error'; message: string; retryable?: boolean },
+): AsyncIterable<ExecutionStreamEvent> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: 'error', error: { code: err.code, message: err.message, retryable: err.retryable } };
+      yield {
+        type: 'turn_finished',
+        result: {
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+          backendId,
+          status: 'failed',
+          error: { code: err.code, message: err.message, retryable: err.retryable },
+          trace: { summary: { degraded: false } },
+        },
+      };
+    },
+  };
+}
+
+async function* emitCancelledStream(
+  backendId: string,
+  startedAt: number,
+  now: () => number,
+): AsyncIterable<ExecutionStreamEvent> {
+  const completedAt = now();
+  yield {
+    type: 'error',
+    error: { code: 'cancelled', message: 'Execution request was cancelled before it started.', retryable: false },
+  };
+  yield {
+    type: 'turn_finished',
+    result: {
+      schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+      backendId,
+      status: 'failed',
+      error: { code: 'cancelled', message: 'Execution request was cancelled before it started.', retryable: false },
+      trace: buildTrace(startedAt, completedAt, false),
+    },
+  };
+}
+
+/**
+ * Streams Server-Sent Events frames out of a ReadableStream. Each yielded
+ * value is the raw `data:` payload for one event (without the `data: ` prefix).
+ * Handles UTF-8 byte boundaries and chunk-split lines via a buffer + TextDecoder.
+ */
+async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex = buffer.indexOf('\n\n');
+      while (newlineIndex !== -1) {
+        const frame = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 2);
+        const dataLine = frame
+          .split('\n')
+          .find((line) => line.startsWith('data:'));
+        if (dataLine) {
+          yield dataLine.slice(5).trimStart();
+        }
+        newlineIndex = buffer.indexOf('\n\n');
+      }
+    }
+    // Flush any final partial frame.
+    buffer += decoder.decode();
+    const trimmed = buffer.trim();
+    if (trimmed.startsWith('data:')) {
+      yield trimmed.slice(5).trim();
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Ignored — releaseLock can throw if already released.
+    }
+  }
+}
+
+function safeParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function extractDeltaText(json: unknown): string | undefined {
+  if (!json || typeof json !== 'object') return undefined;
+  const choices = (json as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0) return undefined;
+  const first = choices[0];
+  if (!first || typeof first !== 'object') return undefined;
+  const delta = (first as { delta?: unknown }).delta;
+  if (delta && typeof delta === 'object') {
+    const content = (delta as { content?: unknown }).content;
+    if (typeof content === 'string' && content.length > 0) return content;
+  }
+  // Some providers send the full message in `message.content` on the final frame.
+  const message = (first as { message?: unknown }).message;
+  if (message && typeof message === 'object') {
+    const content = (message as { content?: unknown }).content;
+    if (typeof content === 'string' && content.length > 0) return content;
+  }
+  return undefined;
 }
 
 export function createOpenRouterAdapter(

@@ -88,3 +88,57 @@ export function parseToolArguments(value: unknown): Record<string, unknown> | nu
     return null;
   }
 }
+
+/**
+ * Parses Server-Sent Events frames out of a Response body. Yields the raw
+ * `data:` payload string for every event in order, handling UTF-8 byte
+ * boundaries and chunk-split frames. Multi-line `data:` values within a
+ * single frame are joined with `\n`.
+ *
+ * Workers-fetch rule: callers MUST cancel the response body if they exit
+ * early — this iterator releases the reader on completion.
+ */
+export async function* readSseFrames(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx = buffer.indexOf('\n\n');
+      while (idx !== -1) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        const dataLines = frame
+          .split('\n')
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).trimStart());
+        if (dataLines.length > 0) {
+          yield dataLines.join('\n');
+        }
+        idx = buffer.indexOf('\n\n');
+      }
+    }
+    buffer += decoder.decode();
+    const trimmed = buffer.trim();
+    if (trimmed.startsWith('data:')) {
+      yield trimmed.slice(5).trim();
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Ignored — lock may already be released.
+    }
+  }
+}
+
+export function safeParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}

@@ -8,6 +8,8 @@ export { truthfulFailureReply } from './stop-reason-message.js';
 export type { StopReasonMessageOptions } from './stop-reason-message.js';
 export type { TruthfulFailureReplyOptions } from './stop-reason-message.js';
 export * from './adapter/index.js';
+export { EXECUTION_CONTRACT_SCHEMA_VERSION } from './adapter/types.js';
+export type { ExecutionContractSchemaVersion } from './adapter/types.js';
 
 export { OpenRouterModelAdapter, createOpenRouterModelAdapter } from './adapter/openrouter-model-adapter.js';
 export type { OpenRouterModelAdapterConfig } from './adapter/openrouter-model-adapter.js';

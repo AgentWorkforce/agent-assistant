@@ -1,4 +1,6 @@
 export { ClaudeCodeExecutionAdapter, createClaudeCodeAdapter } from './claude-code-adapter.js';
+export { BuiltInHarnessAdapter, createBuiltInHarnessAdapter } from './built-in-harness-adapter.js';
+export type { BuiltInHarnessAdapterConfig } from './built-in-harness-adapter.js';
 // NOTE: AgentRelayExecutionAdapter is intentionally NOT re-exported from
 // the default barrel. It imports RelayAdapter from @agent-relay/sdk, which
 // has a Node-only implementation — the SDK's workerd/worker conditional

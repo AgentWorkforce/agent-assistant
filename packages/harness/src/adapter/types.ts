@@ -1,3 +1,13 @@
+/**
+ * Schema version for the BYOH execution contract. Bumped on additive changes
+ * to ExecutionRequest, ExecutionResult, or ExecutionCapabilities so adapters
+ * can negotiate compatibility instead of silently misinterpreting unknown
+ * fields. Adapters MAY reject requests with `schemaVersion > supported` and
+ * SHOULD tolerate older schemas through additive defaulting.
+ */
+export const EXECUTION_CONTRACT_SCHEMA_VERSION = 1 as const;
+export type ExecutionContractSchemaVersion = typeof EXECUTION_CONTRACT_SCHEMA_VERSION;
+
 export interface ExecutionAdapter {
   readonly backendId: string;
   describeCapabilities(): ExecutionCapabilities;
@@ -7,6 +17,11 @@ export interface ExecutionAdapter {
 }
 
 export interface ExecutionRequest {
+  /**
+   * Contract schema version. Defaults to {@link EXECUTION_CONTRACT_SCHEMA_VERSION}
+   * when absent. See `EXECUTION_CONTRACT_SCHEMA_VERSION` for evolution rules.
+   */
+  schemaVersion?: number;
   assistantId: string;
   turnId: string;
   sessionId?: string;
@@ -73,6 +88,11 @@ export interface ExecutionRequirements {
 }
 
 export interface ExecutionCapabilities {
+  /**
+   * Highest contract schema version this adapter understands. Defaults to
+   * {@link EXECUTION_CONTRACT_SCHEMA_VERSION} when absent.
+   */
+  schemaVersion?: number;
   toolUse: 'none' | 'adapter-mediated' | 'native-iterative';
   structuredToolCalls: boolean;
   continuationSupport: 'none' | 'opaque-resume' | 'structured';
@@ -107,6 +127,11 @@ export interface ExecutionNegotiationReason {
 }
 
 export interface ExecutionResult {
+  /**
+   * Contract schema version this result was produced against. Defaults to
+   * {@link EXECUTION_CONTRACT_SCHEMA_VERSION} when absent.
+   */
+  schemaVersion?: number;
   backendId: string;
   status:
     | 'completed'

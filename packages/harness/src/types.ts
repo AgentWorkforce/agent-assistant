@@ -1,12 +1,55 @@
 export interface HarnessRuntime {
   runTurn(input: HarnessTurnInput): Promise<HarnessResult>;
+  /**
+   * Streaming variant of {@link runTurn}. Yields {@link HarnessStreamEvent}
+   * values as the turn progresses (text deltas from terminal model outputs,
+   * tool start/finish/fail boundaries) and ends with a single
+   * `turn_finished` event carrying the final {@link HarnessResult}. Trace
+   * events continue to be emitted to `config.trace` in parallel — stream
+   * and trace co-exist; one does not subsume the other.
+   *
+   * Optional. `createHarness` provides a default implementation; alternate
+   * runtimes MAY omit it. Consumers that want to know whether a runtime
+   * supports streaming should check for the method's presence.
+   */
+  runTurnStreaming?(input: HarnessTurnInput): AsyncIterable<HarnessStreamEvent>;
 }
+
+/**
+ * Inner-harness streaming event surface. Distinct from
+ * `ExecutionStreamEvent` (the BYOH adapter-level surface): this is what
+ * the harness loop emits while `runTurnStreaming` is running. Adapters
+ * MAY translate these to `ExecutionStreamEvent` 1-to-1 or aggregate as
+ * needed.
+ */
+export type HarnessStreamEvent =
+  /**
+   * Text delta. `outputType` is set when the delta represents the FULL
+   * terminal text for a step (final_answer / clarification / approval /
+   * refusal); it is undefined for mid-stream chunks emitted via the
+   * model adapter's `streamStep` hook.
+   */
+  | { type: 'text_delta'; iteration: number; text: string; outputType?: 'final_answer' | 'clarification' | 'approval_request' | 'refusal' }
+  | { type: 'tool_started'; iteration: number; call: HarnessToolCall }
+  | { type: 'tool_finished'; iteration: number; result: HarnessToolResult }
+  | { type: 'tool_failed'; iteration: number; result: HarnessToolResult }
+  | { type: 'step_finished'; iteration: number; outputType: HarnessModelOutput['type']; usage?: HarnessUsage }
+  | { type: 'turn_finished'; result: HarnessResult }
+  | { type: 'error'; message: string; retryable?: boolean };
 
 export interface HarnessConfig {
   model: HarnessModelAdapter;
   tools?: HarnessToolRegistry;
   approvals?: HarnessApprovalAdapter;
   trace?: HarnessTraceSink;
+  /**
+   * Optional in-loop stream sink. When set, runTurn emits
+   * {@link HarnessStreamEvent} values to it as the turn progresses, in
+   * parallel with `trace`. Used internally by `runTurnStreaming` to fan
+   * events out to its async iterable. End-user code rarely sets this
+   * directly — call `runTurnStreaming(input)` instead.
+   */
+  stream?: HarnessStreamSink;
   clock?: HarnessClock;
   limits?: HarnessLimits;
   hooks?: HarnessHooks;
@@ -101,6 +144,19 @@ export interface HarnessContextBlock {
 
 export interface HarnessModelAdapter {
   nextStep(input: HarnessModelInput): Promise<HarnessModelOutput>;
+  /**
+   * Optional native streaming hook. When present, the harness uses this in
+   * place of `nextStep` whenever {@link HarnessConfig.stream} is set. The
+   * adapter MUST call `onDelta(text)` for each incremental text chunk and
+   * resolve the returned promise with the final assembled
+   * {@link HarnessModelOutput}. Adapters that wrap an HTTP API SHOULD use
+   * the provider's native SSE / chunked-response endpoint and obey the
+   * workers-fetch rule.
+   */
+  streamStep?(
+    input: HarnessModelInput,
+    onDelta: (delta: string) => void,
+  ): Promise<HarnessModelOutput>;
 }
 
 export interface HarnessModelInput {
@@ -446,6 +502,10 @@ export interface HarnessTraceSummary {
 export interface HarnessTraceSink {
   emit(event: HarnessTraceEvent): Promise<void> | void;
   flush?(): Promise<void> | void;
+}
+
+export interface HarnessStreamSink {
+  emit(event: HarnessStreamEvent): Promise<void> | void;
 }
 
 export type HarnessTraceEvent =

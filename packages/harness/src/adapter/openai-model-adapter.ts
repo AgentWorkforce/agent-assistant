@@ -12,7 +12,9 @@ import {
   isTransientProviderStatus,
   parseToolArguments,
   readJsonResponse,
+  readSseFrames,
   readString,
+  safeParseJson,
   type ProviderFetch,
 } from './provider-error-mapping.js';
 
@@ -181,6 +183,122 @@ export class OpenAIModelAdapter implements HarnessModelAdapter {
       return json ? outputFromBody(json, this.model) : invalid('provider_error', 'OpenAI response body was not valid JSON', { code: 'unknown' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown OpenAI error';
+      return invalid('transient', message, { code: classifyProviderError(undefined, message), metadata: { modelId: this.model } });
+    }
+  }
+
+  /**
+   * Native streaming via OpenAI Chat Completions SSE (`stream: true`).
+   * Emits text deltas through `onDelta` and resolves with the final
+   * assembled {@link HarnessModelOutput}. Tool calls are accumulated by
+   * function index and surfaced as a `tool_request` after the stream ends.
+   */
+  async streamStep(
+    input: HarnessModelInput,
+    onDelta: (delta: string) => void,
+  ): Promise<HarnessModelOutput> {
+    if (!this.apiKey) {
+      return invalid('provider_error', 'OpenAI API key is not configured.', { code: 'auth_failed', metadata: { modelId: this.model } });
+    }
+
+    let response: Response | undefined;
+    try {
+      response = await this.fetchImpl(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+          ...this.defaultHeaders,
+        },
+        body: JSON.stringify({
+          ...buildBody(input, { maxTokens: this.maxTokens, responseFormat: this.responseFormat }, this.model),
+          stream: true,
+        }),
+        signal: input.signal,
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return invalid(isTransientProviderStatus(response.status) ? 'transient' : 'provider_error', text || `OpenAI stream failed (${response.status})`, {
+          code: classifyProviderError(response.status, text),
+          httpStatus: response.status,
+          metadata: { modelId: this.model },
+        });
+      }
+      if (!response.body) {
+        return invalid('empty_response', 'OpenAI streaming response had no body', { code: 'unknown', metadata: { modelId: this.model } });
+      }
+
+      let accumulatedText = '';
+      let refusal: string | undefined;
+      let id: string | undefined;
+      const toolCalls = new Map<number, { id?: string; name?: string; argsJson: string }>();
+
+      for await (const frame of readSseFrames(response.body)) {
+        if (frame === '[DONE]') break;
+        const json = safeParseJson(frame);
+        if (!isRecord(json)) continue;
+        if (!id) id = readString(json.id);
+        const choices = Array.isArray(json.choices) ? json.choices : [];
+        const choice = isRecord(choices[0]) ? choices[0] : undefined;
+        if (!choice) continue;
+        const delta = isRecord(choice.delta) ? choice.delta : undefined;
+        if (!delta) continue;
+        const content = readString(delta.content);
+        if (content) {
+          accumulatedText += content;
+          onDelta(content);
+        }
+        const refusalChunk = readString(delta.refusal);
+        if (refusalChunk) {
+          refusal = (refusal ?? '') + refusalChunk;
+        }
+        const calls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+        for (const call of calls) {
+          if (!isRecord(call)) continue;
+          const index = typeof call.index === 'number' ? call.index : 0;
+          const slot = toolCalls.get(index) ?? { argsJson: '' };
+          if (!slot.id) slot.id = readString(call.id);
+          if (isRecord(call.function)) {
+            const fnName = readString(call.function.name);
+            if (fnName) slot.name = fnName;
+            const argChunk = readString(call.function.arguments);
+            if (argChunk !== undefined) slot.argsJson += argChunk;
+          }
+          toolCalls.set(index, slot);
+        }
+      }
+
+      if (toolCalls.size > 0) {
+        const calls = [...toolCalls.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, slot]) => {
+            if (!slot.id || !slot.name) return null;
+            const parsed = parseToolArguments(slot.argsJson || '{}');
+            if (parsed === null) return null;
+            return { id: slot.id, name: slot.name, input: parsed };
+          });
+        if (calls.some((call) => call === null)) {
+          return invalid('schema_mismatch', 'OpenAI streamed tool call was malformed', {
+            code: 'invalid_request',
+            metadata: { modelId: this.model },
+          });
+        }
+        return { type: 'tool_request', calls: calls as HarnessToolCall[], metadata: { modelId: this.model, id } };
+      }
+
+      if (refusal) {
+        return { type: 'refusal', reason: refusal, metadata: { modelId: this.model, id } };
+      }
+      if (accumulatedText) {
+        return { type: 'final_answer', text: accumulatedText, metadata: { modelId: this.model, id } };
+      }
+      return invalid('empty_response', 'OpenAI stream completed without content', { code: 'unknown', metadata: { modelId: this.model } });
+    } catch (error) {
+      if (response?.body && !response.bodyUsed) {
+        await response.body.cancel().catch(() => {});
+      }
+      const message = error instanceof Error ? error.message : 'Unknown OpenAI streaming error';
       return invalid('transient', message, { code: classifyProviderError(undefined, message), metadata: { modelId: this.model } });
     }
   }
