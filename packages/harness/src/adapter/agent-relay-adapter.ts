@@ -566,7 +566,47 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
     try {
       await this.relay.start();
+      // Re-check cancellation after each async setup step. AbortSignal does
+      // NOT replay past abort events, so a signal that fires during
+      // `relay.start()` or `ensureWorker()` would be missed by the
+      // addEventListener call below. Short-circuit to a `cancelled` result
+      // before publishing any Relay message that would trigger backend work.
+      if (request.signal?.aborted) {
+        const completedAt = this.now();
+        return finish({
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+          backendId: this.backendId,
+          status: 'failed',
+          error: {
+            code: 'cancelled',
+            message: 'Execution request was cancelled before Relay handoff.',
+            retryable: false,
+          },
+          trace: buildTrace(startedAt, completedAt, degraded, [
+            { type: 'failure', at: toIso(completedAt), data: { phase: 'after_relay_start', cancelled: true } },
+          ]),
+          degradation: negotiation.degraded ? negotiation.reasons : undefined,
+        });
+      }
+
       await this.ensureWorker();
+      if (request.signal?.aborted) {
+        const completedAt = this.now();
+        return finish({
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+          backendId: this.backendId,
+          status: 'failed',
+          error: {
+            code: 'cancelled',
+            message: 'Execution request was cancelled before Relay handoff.',
+            retryable: false,
+          },
+          trace: buildTrace(startedAt, completedAt, degraded, [
+            { type: 'failure', at: toIso(completedAt), data: { phase: 'after_ensure_worker', cancelled: true } },
+          ]),
+          degradation: negotiation.degraded ? negotiation.reasons : undefined,
+        });
+      }
 
       return await new Promise<ExecutionResult>((resolve) => {
         const complete = (result: ExecutionResult) => {
@@ -685,6 +725,16 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
           },
           sentAt: toIso(startedAt),
         };
+
+        // Final pre-publish guard. The listener at line ~675 covers in-flight
+        // aborts, but if the signal fires synchronously between listener
+        // registration and sendMessage's microtask we still want to bail
+        // before triggering backend work. Belt-and-suspenders with the post-
+        // ensureWorker check above.
+        if (request.signal?.aborted) {
+          abortFromRequest();
+          return;
+        }
 
         void this.relay
           .sendMessage({

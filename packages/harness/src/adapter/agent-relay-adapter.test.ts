@@ -298,6 +298,27 @@ describe('AgentRelayExecutionAdapter', () => {
     expect(relay.sent).toHaveLength(0);
   });
 
+  it('returns cancelled without publishing when the request signal aborts during relay.start', async () => {
+    // Codex P1 regression: AbortSignal does NOT replay past abort events,
+    // so a signal that fires while we're awaiting relay.start() / ensureWorker()
+    // must still short-circuit before the message is published. Asserting via
+    // an instrumented transport whose start() flips the abort during its await.
+    const abortController = new AbortController();
+    const relay = new FakeRelayTransport();
+    const originalStart = relay.start.bind(relay);
+    relay.start = async () => {
+      abortController.abort();
+      await originalStart();
+    };
+    const adapter = new AgentRelayExecutionAdapter({ relay, workerName: 'local-worker' });
+
+    const result = await adapter.execute({ ...baseRequest(), signal: abortController.signal });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('cancelled');
+    expect(relay.sent).toHaveLength(0);
+  });
+
   it('maps Relay publish failures to retryable backend execution errors', async () => {
     const adapter = new AgentRelayExecutionAdapter({
       relay: new FakeRelayTransport({ failSend: true }),
