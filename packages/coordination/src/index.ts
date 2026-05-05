@@ -7,6 +7,17 @@ export {
 } from './coordination.js';
 
 export {
+  boundedParallel,
+  BOUNDED_PARALLEL_TIMEOUT_REASON,
+  BOUNDED_PARALLEL_ABORTED_REASON,
+} from './bounded-parallel.js';
+
+export type {
+  BoundedParallelOptions,
+  BoundedParallelResult,
+} from './bounded-parallel.js';
+
+export {
   CoordinationBlockedError,
   CoordinationError,
   DelegationPlanError,
