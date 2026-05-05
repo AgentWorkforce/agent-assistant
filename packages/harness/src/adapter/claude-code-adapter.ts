@@ -1,7 +1,8 @@
-import type {
-  ExecutionAdapter,
-  ExecutionCapabilities,
-  ExecutionRequest,
+import {
+  EXECUTION_CONTRACT_SCHEMA_VERSION,
+  type ExecutionAdapter,
+  type ExecutionCapabilities,
+  type ExecutionRequest,
 } from './types.js';
 import {
   LocalCommandExecutionAdapter,
@@ -10,6 +11,7 @@ import {
 } from './local-command-adapter.js';
 
 const CLAUDE_CODE_CAPABILITIES: ExecutionCapabilities = {
+  schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
   toolUse: 'native-iterative',
   structuredToolCalls: true,
   continuationSupport: 'none',

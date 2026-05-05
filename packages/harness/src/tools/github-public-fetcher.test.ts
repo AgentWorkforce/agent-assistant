@@ -366,6 +366,47 @@ describe('GitHubPublicFetcher', () => {
     });
   });
 
+  it('rejects public repo file content that is explicitly not base64 encoded', async () => {
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/contents/large.bin`]: jsonResponse({
+          type: 'file',
+          path: 'large.bin',
+          encoding: 'none',
+          content: '',
+        }),
+      }),
+    });
+
+    await expect(fetcher.readFile('acme', 'widgets', 'large.bin')).rejects.toMatchObject({
+      name: 'GitHubPublicFetchError',
+      code: 'invalid_request',
+      message: expect.stringContaining('not base64 encoded'),
+    } satisfies Partial<GitHubPublicFetchError>);
+  });
+
+  it('enforces the file byte cap after applying a line range', async () => {
+    const oversizedLine = 'x'.repeat(101 * 1024);
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/contents/src/big.txt`]: jsonResponse({
+          type: 'file',
+          path: 'src/big.txt',
+          encoding: 'base64',
+          content: packageJsonContent(`header\n${oversizedLine}\nfooter`),
+        }),
+      }),
+    });
+
+    const result = await fetcher.readFile('acme', 'widgets', 'src/big.txt', {
+      lineRange: { start: 2, end: 2 },
+    });
+
+    expect(result.path).toBe('src/big.txt');
+    expect(result.truncated).toBe(true);
+    expect(new TextEncoder().encode(result.content).byteLength).toBe(100 * 1024);
+  });
+
   it('fetches recent commits scoped to a path', async () => {
     const fetcher = new GitHubPublicFetcher({
       fetchImpl: makeFetchMock({

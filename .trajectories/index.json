@@ -1,56 +1,7 @@
 {
   "version": 1,
-  "lastUpdated": "2026-05-05T08:09:18.212Z",
+  "lastUpdated": "2026-05-05T08:18:45.222Z",
   "trajectories": {
-    "traj_34202idd4b5w": {
-      "title": "aa-proactive-signals-03-slack-presence-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-23T12:21:58.315Z",
-      "completedAt": "2026-04-23T12:31:01.753Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_34202idd4b5w.json"
-    },
-    "traj_mm17idagk2py": {
-      "title": "aa-proactive-signals-04-github-signals-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-23T12:21:58.315Z",
-      "completedAt": "2026-04-23T12:30:27.964Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_mm17idagk2py.json"
-    },
-    "traj_r2i6w7lgt8tv": {
-      "title": "aa-proactive-signals-master-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-23T12:13:51.275Z",
-      "completedAt": "2026-04-23T12:31:15.522Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_r2i6w7lgt8tv.json"
-    },
-    "traj_0sh4kstep7a9": {
-      "title": "aa-proactive-signals-01-quiet-hours-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-23T12:14:02.823Z",
-      "completedAt": "2026-04-23T12:21:55.898Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_0sh4kstep7a9.json"
-    },
-    "traj_5vovw7tpi074": {
-      "title": "Add agent-assistant VFS primitive for Sage",
-      "status": "completed",
-      "startedAt": "2026-04-17T11:24:14.375Z",
-      "completedAt": "2026-04-17T11:34:41.147Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_5vovw7tpi074.json"
-    },
-    "traj_roa2c5cr79dx": {
-      "title": "aa-proactive-signals-02-signal-inbox-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-23T12:14:02.823Z",
-      "completedAt": "2026-04-23T12:20:58.745Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_roa2c5cr79dx.json"
-    },
-    "traj_z976eyovjwme": {
-      "title": "Fix agent-assistant VFS publish build",
-      "status": "completed",
-      "startedAt": "2026-04-17T12:11:46.926Z",
-      "completedAt": "2026-04-17T12:12:54.010Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/2026-04/traj_z976eyovjwme.json"
-    },
     "traj_1775887868833_95cb9380": {
       "title": "relay-agent-assistant-connectivity-spike-workflow",
       "status": "abandoned",
@@ -64,13 +15,6 @@
       "startedAt": "2026-04-11T06:26:11.020Z",
       "completedAt": "2026-04-11T06:39:44.640Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775888771020_34e35ffe.json"
-    },
-    "traj_1775890480125_a333bfe3": {
-      "title": "relay-agent-assistant-connectivity-spike-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T06:54:40.125Z",
-      "completedAt": "2026-04-11T06:54:43.401Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775890480125_a333bfe3.json"
     },
     "traj_1775890672399_ab8377f5": {
       "title": "relay-agent-assistant-specs-and-v1-program-workflow",
@@ -100,188 +44,6 @@
       "completedAt": "2026-04-11T07:08:38.854Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775891295398_33d56411.json"
     },
-    "traj_1775891472430_23763a1b": {
-      "title": "relay-agent-assistant-specs-and-v1-program-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T07:11:12.430Z",
-      "completedAt": "2026-04-11T08:18:43.207Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775891472430_23763a1b.json"
-    },
-    "traj_1775893668447_1f61f282": {
-      "title": "relay-agent-assistant-specs-and-v1-program-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T07:47:48.447Z",
-      "completedAt": "2026-04-11T08:02:21.502Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775893668447_1f61f282.json"
-    },
-    "traj_1775895992843_78c775f3": {
-      "title": "relay-agent-assistant-reconcile-plan-docs-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T08:26:32.843Z",
-      "completedAt": "2026-04-11T09:36:27.601Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775895992843_78c775f3.json"
-    },
-    "traj_1775898163412_2c0cf3b1": {
-      "title": "relay-agent-assistant-reconcile-plan-docs-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T09:02:43.412Z",
-      "completedAt": "2026-04-11T09:14:34.501Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775898163412_2c0cf3b1.json"
-    },
-    "traj_1775899152711_44973df5": {
-      "title": "relay-agent-assistant-reconcile-canonical-specs-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T09:19:12.711Z",
-      "completedAt": "2026-04-11T09:27:46.665Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775899152711_44973df5.json"
-    },
-    "traj_1775900904377_715dd67d": {
-      "title": "relay-agent-assistant-implement-v1-core-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T09:48:24.377Z",
-      "completedAt": "2026-04-11T09:57:31.993Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775900904377_715dd67d.json"
-    },
-    "traj_1775902178125_2b37c66d": {
-      "title": "relay-agent-assistant-implement-v1-sessions-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T10:09:38.125Z",
-      "completedAt": "2026-04-11T10:19:33.268Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775902178125_2b37c66d.json"
-    },
-    "traj_1775903795360_cd0b8f10": {
-      "title": "relay-agent-assistant-implement-v1-surfaces-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T10:36:35.360Z",
-      "completedAt": "2026-04-11T10:47:46.797Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775903795360_cd0b8f10.json"
-    },
-    "traj_1775905712064_b9bf6c9a": {
-      "title": "relay-agent-assistant-implement-v1-foundation-integration-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T11:08:32.064Z",
-      "completedAt": "2026-04-11T11:22:03.092Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775905712064_b9bf6c9a.json"
-    },
-    "traj_1775907905098_8ba7612e": {
-      "title": "relay-agent-assistant-specify-v1-connectivity-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T11:45:05.098Z",
-      "completedAt": "2026-04-11T11:58:04.286Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775907905098_8ba7612e.json"
-    },
-    "traj_1775910945742_2ff3fe6e": {
-      "title": "relay-agent-assistant-implement-v1-connectivity-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T12:35:45.742Z",
-      "completedAt": "2026-04-11T12:48:16.584Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775910945742_2ff3fe6e.json"
-    },
-    "traj_1775913327056_1fe960c8": {
-      "title": "relay-agent-assistant-harden-v1-connectivity-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T13:15:27.056Z",
-      "completedAt": "2026-04-11T13:22:16.801Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775913327056_1fe960c8.json"
-    },
-    "traj_1775914685903_8a215365": {
-      "title": "relay-agent-assistant-implement-v1-coordination-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T13:38:05.903Z",
-      "completedAt": "2026-04-11T13:50:42.526Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775914685903_8a215365.json"
-    },
-    "traj_1775916250659_564c77aa": {
-      "title": "relay-agent-assistant-harden-v1-coordination-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T14:04:10.659Z",
-      "completedAt": "2026-04-11T15:08:19.959Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775916250659_564c77aa.json"
-    },
-    "traj_1775919588789_8923b104": {
-      "title": "relay-agent-assistant-harden-v1-coordination-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T14:59:48.789Z",
-      "completedAt": "2026-04-11T15:06:48.556Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775919588789_8923b104.json"
-    },
-    "traj_1775920802333_b442e929": {
-      "title": "relay-agent-assistant-implement-v1-routing-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T15:20:02.333Z",
-      "completedAt": "2026-04-11T15:31:03.186Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775920802333_b442e929.json"
-    },
-    "traj_1775922708899_2fed0c74": {
-      "title": "relay-agent-assistant-implement-v1-coordination-routing-integration-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T15:51:48.899Z",
-      "completedAt": "2026-04-11T16:04:03.851Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775922708899_2fed0c74.json"
-    },
-    "traj_1775924045856_ffb1d5db": {
-      "title": "relay-agent-assistant-audit-sdk-and-traits-alignment-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T16:14:05.856Z",
-      "completedAt": "2026-04-11T17:20:40.358Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775924045856_ffb1d5db.json"
-    },
-    "traj_1775926361867_a8ce05fb": {
-      "title": "relay-agent-assistant-audit-sdk-and-traits-alignment-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T16:52:41.867Z",
-      "completedAt": "2026-04-11T17:03:47.783Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775926361867_a8ce05fb.json"
-    },
-    "traj_1775928840731_599ab69e": {
-      "title": "relay-agent-assistant-cleanup-post-audit-and-package-followups-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T17:34:00.731Z",
-      "completedAt": "2026-04-11T17:41:25.834Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775928840731_599ab69e.json"
-    },
-    "traj_1775929539127_5ec70446": {
-      "title": "relay-agent-assistant-investigate-and-specify-v1-memory-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T17:45:39.127Z",
-      "completedAt": "2026-04-11T18:01:59.488Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775929539127_5ec70446.json"
-    },
-    "traj_1775932215797_95d9ba52": {
-      "title": "relay-agent-assistant-reconcile-v1-memory-spec-to-relay-memory-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T18:30:15.797Z",
-      "completedAt": "2026-04-11T18:38:21.527Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775932215797_95d9ba52.json"
-    },
-    "traj_1775932923283_87d1c13d": {
-      "title": "relay-agent-assistant-implement-v1-memory-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T18:42:03.283Z",
-      "completedAt": "2026-04-11T18:58:18.430Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775932923283_87d1c13d.json"
-    },
-    "traj_1775934267253_654d804d": {
-      "title": "relay-assistant-specify-v1-traits-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T19:04:27.253Z",
-      "completedAt": "2026-04-11T19:12:51.499Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775934267253_654d804d.json"
-    },
-    "traj_1775936268472_e3b1f603": {
-      "title": "relay-assistant-implement-v1-traits-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-11T19:37:48.472Z",
-      "completedAt": "2026-04-11T19:47:15.626Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1775936268472_e3b1f603.json"
-    },
-    "traj_1776021172849_dde21b60": {
-      "title": "rename-relay-assistant-to-agent-assistant-sdk-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-12T19:12:52.849Z",
-      "completedAt": "2026-04-12T20:50:50.303Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1776021172849_dde21b60.json"
-    },
     "traj_1776024918201_20453a76": {
       "title": "apply-agent-assistant-sdk-rename-workflow",
       "status": "abandoned",
@@ -289,33 +51,12 @@
       "completedAt": "2026-04-12T20:27:41.247Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1776024918201_20453a76.json"
     },
-    "traj_1776026211599_140e2b55": {
-      "title": "remediate-agent-assistant-sdk-rename-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-12T20:36:51.599Z",
-      "completedAt": "2026-04-12T20:46:56.769Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1776026211599_140e2b55.json"
-    },
-    "traj_1776027407513_37387d30": {
-      "title": "remediate-agent-assistant-sdk-rename-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-12T20:56:47.513Z",
-      "completedAt": "2026-04-12T21:05:01.474Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1776027407513_37387d30.json"
-    },
     "traj_1776027908379_f3c289da": {
       "title": "agent-assistant-remediate-publish-infrastructure-workflow",
       "status": "abandoned",
       "startedAt": "2026-04-12T21:05:08.379Z",
       "completedAt": "2026-04-12T21:13:42.155Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-proactive-signals/.trajectories/completed/traj_1776027908379_f3c289da.json"
-    },
-    "traj_8senjkr25v60": {
-      "title": "Add metadata-bearing librarian VFS enumeration",
-      "status": "completed",
-      "startedAt": "2026-04-25T22:31:06.254Z",
-      "completedAt": "2026-04-25T22:35:56.838Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-vfs-query/.trajectories/completed/2026-04/traj_8senjkr25v60.json"
     },
     "traj_8b12bu65l1qt": {
       "title": "add-notion-librarian-to-agent-assistant-workflow",
@@ -329,88 +70,296 @@
       "startedAt": "2026-04-26T00:41:52.014Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_znshefbf3jtn.json"
     },
-    "traj_nhoot50i38bn": {
-      "title": "Add memory turn-context helpers",
-      "status": "completed",
-      "startedAt": "2026-04-27T15:37:38.560Z",
-      "completedAt": "2026-04-27T15:42:47.931Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant-issue-134-memory-adoption/.trajectories/completed/2026-04/traj_nhoot50i38bn.json"
-    },
-    "traj_6d6yy2wwkanb": {
-      "title": "aa-01-design-subagent-api-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-30T06:05:20.608Z",
-      "completedAt": "2026-04-30T06:08:20.051Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_6d6yy2wwkanb.json"
-    },
     "traj_8mai1ecewv90": {
       "title": "aa-02-impl-subagent-registry-workflow",
       "status": "active",
       "startedAt": "2026-04-30T06:08:21.849Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_8mai1ecewv90.json"
     },
-    "traj_bqz9mlr4fsv2": {
-      "title": "aa-01-design-subagent-api-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-30T06:22:02.894Z",
-      "completedAt": "2026-04-30T06:23:51.035Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_bqz9mlr4fsv2.json"
+    "traj_nmxaazsrfu3c": {
+      "title": "ricky-spec-agent-assistant-harness-v0-5-v0-6-v0-7-impr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-04T09:30:44.928Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_nmxaazsrfu3c.json"
     },
-    "traj_uzw3lac99cv3": {
-      "title": "aa-02-impl-subagent-registry-workflow",
-      "status": "completed",
-      "startedAt": "2026-04-30T06:23:52.858Z",
-      "completedAt": "2026-04-30T06:31:25.721Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_uzw3lac99cv3.json"
+    "traj_wfp3rnu178pc": {
+      "title": "ricky-spec-agent-assistant-harness-v0-5-v0-6-v0-7-impr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-04T11:01:41.211Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_wfp3rnu178pc.json"
     },
-    "traj_hn0lp61uo0tc": {
-      "title": "aa-03-impl-planning-tool-workflow",
+    "traj_0sh4kstep7a9": {
+      "title": "aa-proactive-signals-01-quiet-hours-workflow",
       "status": "completed",
-      "startedAt": "2026-04-30T06:31:29.685Z",
-      "completedAt": "2026-04-30T06:40:59.832Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_hn0lp61uo0tc.json"
+      "startedAt": "2026-04-23T12:14:02.823Z",
+      "completedAt": "2026-04-23T12:21:55.898Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_0sh4kstep7a9.json"
     },
-    "traj_ocosdwyyec6a": {
-      "title": "aa-04-impl-scratchpad-filesystem-workflow",
+    "traj_34202idd4b5w": {
+      "title": "aa-proactive-signals-03-slack-presence-workflow",
       "status": "completed",
-      "startedAt": "2026-04-30T06:41:02.309Z",
-      "completedAt": "2026-04-30T06:49:48.110Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_ocosdwyyec6a.json"
+      "startedAt": "2026-04-23T12:21:58.315Z",
+      "completedAt": "2026-04-23T12:31:01.753Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_34202idd4b5w.json"
     },
-    "traj_bctlqak330mw": {
-      "title": "aa-05-tests-subagent-workflow",
+    "traj_5vovw7tpi074": {
+      "title": "Add agent-assistant VFS primitive for Sage",
       "status": "completed",
-      "startedAt": "2026-04-30T06:49:49.527Z",
-      "completedAt": "2026-04-30T06:57:53.730Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_bctlqak330mw.json"
+      "startedAt": "2026-04-17T11:24:14.375Z",
+      "completedAt": "2026-04-17T11:34:41.147Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_5vovw7tpi074.json"
     },
-    "traj_840le0lo8pap": {
-      "title": "aa-06-tests-planning-workflow",
+    "traj_8senjkr25v60": {
+      "title": "Add metadata-bearing librarian VFS enumeration",
       "status": "completed",
-      "startedAt": "2026-04-30T06:57:55.277Z",
-      "completedAt": "2026-04-30T07:05:55.242Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_840le0lo8pap.json"
+      "startedAt": "2026-04-25T22:31:06.254Z",
+      "completedAt": "2026-04-25T22:35:56.838Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_8senjkr25v60.json"
     },
-    "traj_mkqmg1ps612o": {
-      "title": "aa-07-tests-scratchpad-workflow",
+    "traj_mm17idagk2py": {
+      "title": "aa-proactive-signals-04-github-signals-workflow",
       "status": "completed",
-      "startedAt": "2026-04-30T07:05:56.796Z",
-      "completedAt": "2026-04-30T07:14:14.059Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_mkqmg1ps612o.json"
+      "startedAt": "2026-04-23T12:21:58.315Z",
+      "completedAt": "2026-04-23T12:30:27.964Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_mm17idagk2py.json"
     },
-    "traj_uvdgbhw7ke7d": {
-      "title": "aa-08-typecheck-and-lint-workflow",
+    "traj_nhoot50i38bn": {
+      "title": "Add memory turn-context helpers",
       "status": "completed",
-      "startedAt": "2026-04-30T07:14:15.570Z",
-      "completedAt": "2026-04-30T07:20:34.169Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_uvdgbhw7ke7d.json"
+      "startedAt": "2026-04-27T15:37:38.560Z",
+      "completedAt": "2026-04-27T15:42:47.931Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_nhoot50i38bn.json"
     },
-    "traj_0vsse0xh4jr6": {
-      "title": "aa-99-bump-version-and-pr-workflow",
+    "traj_r2i6w7lgt8tv": {
+      "title": "aa-proactive-signals-master-workflow",
       "status": "completed",
-      "startedAt": "2026-04-30T07:20:36.109Z",
-      "completedAt": "2026-04-30T07:22:36.620Z",
-      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_0vsse0xh4jr6.json"
+      "startedAt": "2026-04-23T12:13:51.275Z",
+      "completedAt": "2026-04-23T12:31:15.522Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_r2i6w7lgt8tv.json"
+    },
+    "traj_roa2c5cr79dx": {
+      "title": "aa-proactive-signals-02-signal-inbox-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-23T12:14:02.823Z",
+      "completedAt": "2026-04-23T12:20:58.745Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_roa2c5cr79dx.json"
+    },
+    "traj_z976eyovjwme": {
+      "title": "Fix agent-assistant VFS publish build",
+      "status": "completed",
+      "startedAt": "2026-04-17T12:11:46.926Z",
+      "completedAt": "2026-04-17T12:12:54.010Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_z976eyovjwme.json"
+    },
+    "traj_1775890480125_a333bfe3": {
+      "title": "relay-agent-assistant-connectivity-spike-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T06:54:40.125Z",
+      "completedAt": "2026-04-11T06:54:43.401Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775890480125_a333bfe3.json"
+    },
+    "traj_1775891472430_23763a1b": {
+      "title": "relay-agent-assistant-specs-and-v1-program-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T07:11:12.430Z",
+      "completedAt": "2026-04-11T08:18:43.207Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775891472430_23763a1b.json"
+    },
+    "traj_1775893668447_1f61f282": {
+      "title": "relay-agent-assistant-specs-and-v1-program-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T07:47:48.447Z",
+      "completedAt": "2026-04-11T08:02:21.502Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775893668447_1f61f282.json"
+    },
+    "traj_1775895992843_78c775f3": {
+      "title": "relay-agent-assistant-reconcile-plan-docs-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T08:26:32.843Z",
+      "completedAt": "2026-04-11T09:36:27.601Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775895992843_78c775f3.json"
+    },
+    "traj_1775898163412_2c0cf3b1": {
+      "title": "relay-agent-assistant-reconcile-plan-docs-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T09:02:43.412Z",
+      "completedAt": "2026-04-11T09:14:34.501Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775898163412_2c0cf3b1.json"
+    },
+    "traj_1775899152711_44973df5": {
+      "title": "relay-agent-assistant-reconcile-canonical-specs-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T09:19:12.711Z",
+      "completedAt": "2026-04-11T09:27:46.665Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775899152711_44973df5.json"
+    },
+    "traj_1775900904377_715dd67d": {
+      "title": "relay-agent-assistant-implement-v1-core-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T09:48:24.377Z",
+      "completedAt": "2026-04-11T09:57:31.993Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775900904377_715dd67d.json"
+    },
+    "traj_1775902178125_2b37c66d": {
+      "title": "relay-agent-assistant-implement-v1-sessions-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T10:09:38.125Z",
+      "completedAt": "2026-04-11T10:19:33.268Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775902178125_2b37c66d.json"
+    },
+    "traj_1775903795360_cd0b8f10": {
+      "title": "relay-agent-assistant-implement-v1-surfaces-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T10:36:35.360Z",
+      "completedAt": "2026-04-11T10:47:46.797Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775903795360_cd0b8f10.json"
+    },
+    "traj_1775905712064_b9bf6c9a": {
+      "title": "relay-agent-assistant-implement-v1-foundation-integration-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T11:08:32.064Z",
+      "completedAt": "2026-04-11T11:22:03.092Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775905712064_b9bf6c9a.json"
+    },
+    "traj_1775907905098_8ba7612e": {
+      "title": "relay-agent-assistant-specify-v1-connectivity-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T11:45:05.098Z",
+      "completedAt": "2026-04-11T11:58:04.286Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775907905098_8ba7612e.json"
+    },
+    "traj_1775910945742_2ff3fe6e": {
+      "title": "relay-agent-assistant-implement-v1-connectivity-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T12:35:45.742Z",
+      "completedAt": "2026-04-11T12:48:16.584Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775910945742_2ff3fe6e.json"
+    },
+    "traj_1775913327056_1fe960c8": {
+      "title": "relay-agent-assistant-harden-v1-connectivity-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T13:15:27.056Z",
+      "completedAt": "2026-04-11T13:22:16.801Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775913327056_1fe960c8.json"
+    },
+    "traj_1775914685903_8a215365": {
+      "title": "relay-agent-assistant-implement-v1-coordination-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T13:38:05.903Z",
+      "completedAt": "2026-04-11T13:50:42.526Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775914685903_8a215365.json"
+    },
+    "traj_1775916250659_564c77aa": {
+      "title": "relay-agent-assistant-harden-v1-coordination-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T14:04:10.659Z",
+      "completedAt": "2026-04-11T15:08:19.959Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775916250659_564c77aa.json"
+    },
+    "traj_1775919588789_8923b104": {
+      "title": "relay-agent-assistant-harden-v1-coordination-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T14:59:48.789Z",
+      "completedAt": "2026-04-11T15:06:48.556Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775919588789_8923b104.json"
+    },
+    "traj_1775920802333_b442e929": {
+      "title": "relay-agent-assistant-implement-v1-routing-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T15:20:02.333Z",
+      "completedAt": "2026-04-11T15:31:03.186Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775920802333_b442e929.json"
+    },
+    "traj_1775922708899_2fed0c74": {
+      "title": "relay-agent-assistant-implement-v1-coordination-routing-integration-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T15:51:48.899Z",
+      "completedAt": "2026-04-11T16:04:03.851Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775922708899_2fed0c74.json"
+    },
+    "traj_1775924045856_ffb1d5db": {
+      "title": "relay-agent-assistant-audit-sdk-and-traits-alignment-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T16:14:05.856Z",
+      "completedAt": "2026-04-11T17:20:40.358Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775924045856_ffb1d5db.json"
+    },
+    "traj_1775926361867_a8ce05fb": {
+      "title": "relay-agent-assistant-audit-sdk-and-traits-alignment-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T16:52:41.867Z",
+      "completedAt": "2026-04-11T17:03:47.783Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775926361867_a8ce05fb.json"
+    },
+    "traj_1775928840731_599ab69e": {
+      "title": "relay-agent-assistant-cleanup-post-audit-and-package-followups-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T17:34:00.731Z",
+      "completedAt": "2026-04-11T17:41:25.834Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775928840731_599ab69e.json"
+    },
+    "traj_1775929539127_5ec70446": {
+      "title": "relay-agent-assistant-investigate-and-specify-v1-memory-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T17:45:39.127Z",
+      "completedAt": "2026-04-11T18:01:59.488Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775929539127_5ec70446.json"
+    },
+    "traj_1775932215797_95d9ba52": {
+      "title": "relay-agent-assistant-reconcile-v1-memory-spec-to-relay-memory-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T18:30:15.797Z",
+      "completedAt": "2026-04-11T18:38:21.527Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775932215797_95d9ba52.json"
+    },
+    "traj_1775932923283_87d1c13d": {
+      "title": "relay-agent-assistant-implement-v1-memory-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T18:42:03.283Z",
+      "completedAt": "2026-04-11T18:58:18.430Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775932923283_87d1c13d.json"
+    },
+    "traj_1775934267253_654d804d": {
+      "title": "relay-assistant-specify-v1-traits-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T19:04:27.253Z",
+      "completedAt": "2026-04-11T19:12:51.499Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775934267253_654d804d.json"
+    },
+    "traj_1775936268472_e3b1f603": {
+      "title": "relay-assistant-implement-v1-traits-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-11T19:37:48.472Z",
+      "completedAt": "2026-04-11T19:47:15.626Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1775936268472_e3b1f603.json"
+    },
+    "traj_1776021172849_dde21b60": {
+      "title": "rename-relay-assistant-to-agent-assistant-sdk-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-12T19:12:52.849Z",
+      "completedAt": "2026-04-12T20:50:50.303Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1776021172849_dde21b60.json"
+    },
+    "traj_1776026211599_140e2b55": {
+      "title": "remediate-agent-assistant-sdk-rename-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-12T20:36:51.599Z",
+      "completedAt": "2026-04-12T20:46:56.769Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1776026211599_140e2b55.json"
+    },
+    "traj_1776027407513_37387d30": {
+      "title": "remediate-agent-assistant-sdk-rename-workflow",
+      "status": "completed",
+      "startedAt": "2026-04-12T20:56:47.513Z",
+      "completedAt": "2026-04-12T21:05:01.474Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/traj_1776027407513_37387d30.json"
+    },
+    "traj_vv6iamch038o": {
+      "title": "ricky-spec-agent-assistant-harness-v0-5-v0-6-v0-7-impr-workflow",
+      "status": "completed",
+      "startedAt": "2026-05-04T11:21:52.195Z",
+      "completedAt": "2026-05-04T11:38:20.525Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_vv6iamch038o.json"
     },
     "traj_9u91zzp2fl2d": {
       "title": "Compare recent sage updates for agent-assistant feature parity",
@@ -425,6 +374,13 @@
       "startedAt": "2026-05-05T08:08:43.897Z",
       "completedAt": "2026-05-05T08:09:18.106Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_7ja5dll9qouq.json"
+    },
+    "traj_60oxhp8avjun": {
+      "title": "Address PR 80 feedback and conflicts",
+      "status": "completed",
+      "startedAt": "2026-05-05T08:15:38.732Z",
+      "completedAt": "2026-05-05T08:18:45.059Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_60oxhp8avjun.json"
     }
   }
 }

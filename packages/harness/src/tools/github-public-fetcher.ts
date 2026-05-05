@@ -138,6 +138,7 @@ interface GitHubRepoResponse {
 
 interface GitHubContentResponse {
   content?: unknown;
+  encoding?: unknown;
 }
 
 interface GitHubTopLevelEntryResponse {
@@ -401,10 +402,16 @@ export class GitHubPublicFetcher {
         { code: 'invalid_request' },
       );
     }
+    if (payload.encoding !== undefined && payload.encoding !== 'base64') {
+      throw new GitHubPublicFetchError(
+        `GitHub file content is not base64 encoded: ${owner}/${repo}/${path}`,
+        { code: 'invalid_request' },
+      );
+    }
 
     const decoded = decodeBase64Utf8(payload.content);
     const ranged = sliceLineRange(decoded, options.lineRange);
-    const truncated = options.lineRange ? { content: ranged, truncated: false } : truncateContent(ranged);
+    const truncated = truncateContent(ranged);
 
     return {
       path: optionalString(payload.path) ?? path,

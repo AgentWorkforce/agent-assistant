@@ -40,6 +40,16 @@ function createClock(times: number[]) {
   };
 }
 
+function deferred<T = void>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('createHarness', () => {
   it('rejects invalid config', () => {
     expect(() => createHarness({} as never)).toThrow(HarnessConfigError);
@@ -140,6 +150,507 @@ describe('harness runtime', () => {
     expect(result.usage.toolCalls).toBe(2);
     expect(executeOrder).toEqual(['call-1', 'call-2']);
     expect(result.traceSummary.iterationCount).toBe(2);
+  });
+
+  it('runs a batch in parallel only when every requested tool opts in', async () => {
+    const bothStarted = deferred();
+    const steps: HarnessModelOutput[] = [
+      {
+        type: 'tool_request',
+        calls: [
+          { id: 'call-1', name: 'lookupA', input: {} },
+          { id: 'call-2', name: 'lookupB', input: {} },
+        ],
+      },
+      { type: 'final_answer', text: 'done' },
+    ];
+    const started: string[] = [];
+
+    const harness = createHarness({
+      model: { nextStep: async () => steps.shift() as HarnessModelOutput },
+      tools: {
+        listAvailable: async () => [
+          { name: 'lookupA', description: 'A', executionMode: 'parallel' },
+          { name: 'lookupB', description: 'B', executionMode: 'parallel' },
+        ],
+        execute: async (call) => {
+          started.push(call.id);
+          if (started.length === 2) bothStarted.resolve();
+          await bothStarted.promise;
+          return { callId: call.id, toolName: call.name, status: 'success', output: call.id };
+        },
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6, 7]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('completed');
+    expect(started).toEqual(['call-1', 'call-2']);
+  });
+
+  it('falls back to sequential execution for mixed-mode batches and emits tool_batch_started', async () => {
+    const trace: HarnessTraceEvent[] = [];
+    const executeOrder: string[] = [];
+    const steps: HarnessModelOutput[] = [
+      {
+        type: 'tool_request',
+        calls: [
+          { id: 'call-1', name: 'parallelLookup', input: {} },
+          { id: 'call-2', name: 'sequentialLookup', input: {} },
+        ],
+      },
+      { type: 'final_answer', text: 'done' },
+    ];
+
+    const harness = createHarness({
+      model: { nextStep: async () => steps.shift() as HarnessModelOutput },
+      tools: {
+        listAvailable: async () => [
+          { name: 'parallelLookup', description: 'Parallel', executionMode: 'parallel' },
+          { name: 'sequentialLookup', description: 'Sequential' },
+        ],
+        execute: async (call) => {
+          executeOrder.push(call.id);
+          return { callId: call.id, toolName: call.name, status: 'success', output: call.id };
+        },
+      },
+      trace: { emit: (event) => trace.push(event) },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6, 7]),
+    });
+
+    await harness.runTurn(createInput());
+
+    expect(executeOrder).toEqual(['call-1', 'call-2']);
+    expect(trace).toContainEqual(
+      expect.objectContaining({ type: 'tool_batch_started', mode: 'sequential', callCount: 2 }),
+    );
+  });
+
+  it('terminates after an all-terminating tool batch without another model round-trip', async () => {
+    const nextStep = vi.fn(async () => ({
+      type: 'tool_request' as const,
+      calls: [{ id: 'call-1', name: 'submitAnswer', input: {} }],
+    }));
+
+    const harness = createHarness({
+      model: { nextStep },
+      tools: {
+        listAvailable: async () => [{ name: 'submitAnswer', description: 'Submit answer' }],
+        execute: async (call) => ({
+          callId: call.id,
+          toolName: call.name,
+          status: 'success',
+          output: 'submitted',
+          terminate: true,
+        }),
+      },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('completed');
+    expect(result.stopReason).toBe('answer_finalized');
+    expect(result.assistantMessage?.text).toBe('submitted');
+    expect(nextStep).toHaveBeenCalledOnce();
+  });
+
+  it('concatenates all-terminating parallel tool batches in completion order', async () => {
+    const releaseFirst = deferred();
+    const nextStep = vi.fn(async () => ({
+      type: 'tool_request' as const,
+      calls: [
+        { id: 'call-1', name: 'submitA', input: {} },
+        { id: 'call-2', name: 'submitB', input: {} },
+      ],
+    }));
+
+    const harness = createHarness({
+      model: { nextStep },
+      tools: {
+        listAvailable: async () => [
+          { name: 'submitA', description: 'Submit A', executionMode: 'parallel' },
+          { name: 'submitB', description: 'Submit B', executionMode: 'parallel' },
+        ],
+        execute: async (call) => {
+          if (call.id === 'call-1') {
+            await releaseFirst.promise;
+            return { callId: call.id, toolName: call.name, status: 'success', output: 'A', terminate: true };
+          }
+          releaseFirst.resolve();
+          return { callId: call.id, toolName: call.name, status: 'success', output: 'B', terminate: true };
+        },
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('completed');
+    expect(result.assistantMessage?.text).toBe('BA');
+    expect(nextStep).toHaveBeenCalledOnce();
+  });
+
+  it('ignores terminate when only part of the batch terminates', async () => {
+    const steps: HarnessModelOutput[] = [
+      {
+        type: 'tool_request',
+        calls: [
+          { id: 'call-1', name: 'submitAnswer', input: {} },
+          { id: 'call-2', name: 'lookup', input: {} },
+        ],
+      },
+      { type: 'final_answer', text: 'model finalized' },
+    ];
+    const nextStep = vi.fn(async () => steps.shift() as HarnessModelOutput);
+
+    const harness = createHarness({
+      model: { nextStep },
+      tools: {
+        listAvailable: async () => [
+          { name: 'submitAnswer', description: 'Submit answer' },
+          { name: 'lookup', description: 'Lookup' },
+        ],
+        execute: async (call) => ({
+          callId: call.id,
+          toolName: call.name,
+          status: 'success',
+          output: call.name,
+          terminate: call.name === 'submitAnswer',
+        }),
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.assistantMessage?.text).toBe('model finalized');
+    expect(nextStep).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores terminate on errored tool results and keeps normal tool-error handling', async () => {
+    const harness = createHarness({
+      model: {
+        nextStep: async () => ({
+          type: 'tool_request',
+          calls: [{ id: 'call-1', name: 'submitAnswer', input: {} }],
+        }),
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'submitAnswer', description: 'Submit answer' }],
+        execute: async (call) => ({
+          callId: call.id,
+          toolName: call.name,
+          status: 'error',
+          terminate: true,
+          error: { code: 'fatal', message: 'submit failed' },
+        }),
+      },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('failed');
+    expect(result.stopReason).toBe('tool_error_unrecoverable');
+  });
+
+  it('uses transformTranscript for the next model call without mutating execution state', async () => {
+    const onTurnFinished = vi.fn();
+    const seenTranscriptLengths: number[] = [];
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'lookup', input: {} }] },
+      { type: 'final_answer', text: 'done' },
+    ];
+
+    const harness = createHarness({
+      model: {
+        nextStep: async (input) => {
+          seenTranscriptLengths.push(input.transcript.length);
+          return steps.shift() as HarnessModelOutput;
+        },
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'lookup', description: 'Lookup' }],
+        execute: async (call) => ({ callId: call.id, toolName: call.name, status: 'success', output: 'verbose result' }),
+      },
+      hooks: {
+        transformTranscript: async (transcript) =>
+          transcript.length > 0 ? [{ type: 'assistant_step', iteration: 0, outputType: 'final_answer', text: 'summary' }] : transcript,
+        onTurnFinished,
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6]),
+    });
+
+    await harness.runTurn(createInput());
+    const [, state] = onTurnFinished.mock.calls[0];
+
+    expect(seenTranscriptLengths).toEqual([0, 1]);
+    expect(state.transcript.filter((item) => item.type === 'tool_result')).toHaveLength(1);
+  });
+
+  it('falls back to the canonical transcript when transformTranscript throws', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const seenTranscriptLengths: number[] = [];
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'lookup', input: {} }] },
+      { type: 'final_answer', text: 'done' },
+    ];
+
+    const harness = createHarness({
+      model: {
+        nextStep: async (input) => {
+          seenTranscriptLengths.push(input.transcript.length);
+          return steps.shift() as HarnessModelOutput;
+        },
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'lookup', description: 'Lookup' }],
+        execute: async (call) => ({ callId: call.id, toolName: call.name, status: 'success', output: 'verbose result' }),
+      },
+      hooks: {
+        transformTranscript: (transcript) => {
+          if (transcript.length > 0) {
+            throw new Error('compactor unavailable');
+          }
+          return transcript;
+        },
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6]),
+    });
+
+    try {
+      const result = await harness.runTurn(createInput());
+      expect(result.outcome).toBe('completed');
+      expect(seenTranscriptLengths).toEqual([0, 2]);
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('surfaces evidence density violation payloads', async () => {
+    const steps: HarnessModelOutput[] = [
+      { type: 'tool_request', calls: [{ id: 'call-1', name: 'workspace_search', input: {} }] },
+      {
+        type: 'final_answer',
+        text: '1. AgentWorkforce/agent-assistant changed on 2026-05-01\n2. abc1234 landed on 2026-05-02\n3. AgentWorkforce/harness changed on 2026-05-03',
+      },
+    ];
+
+    const harness = createHarness({
+      model: { nextStep: async () => steps.shift() as HarnessModelOutput },
+      tools: {
+        listAvailable: async () => [{ name: 'workspace_search', description: 'Search' }],
+        execute: async (call) => ({ callId: call.id, toolName: call.name, status: 'success', output: 'one sparse result' }),
+      },
+      clock: createClock([0, 1, 2, 3, 4, 5, 6]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('failed');
+    expect(result.stopReason).toBe('evidence_density_violation');
+    expect(result.metadata?.evidenceDensity).toMatchObject({
+      claimsCount: expect.any(Number),
+      evidenceUnits: expect.any(Number),
+      violatingClaims: expect.any(Array),
+    });
+  });
+
+  it('waits for trace flush after turn_finished before resolving', async () => {
+    const flush = deferred();
+    const runResolved = vi.fn();
+    const harness = createHarness({
+      model: { nextStep: async () => ({ type: 'final_answer', text: 'done' }) },
+      trace: {
+        emit: async () => undefined,
+        flush: async () => flush.promise,
+      },
+      clock: createClock([0, 1, 2, 3]),
+    });
+
+    const pending = harness.runTurn(createInput()).then(runResolved);
+    await Promise.resolve();
+    expect(runResolved).not.toHaveBeenCalled();
+    flush.resolve();
+    await pending;
+    expect(runResolved).toHaveBeenCalledOnce();
+  });
+
+  it('continues later trace emits and flushes when an earlier trace emit rejects', async () => {
+    const events: string[] = [];
+    const flush = vi.fn();
+    const harness = createHarness({
+      model: { nextStep: async () => ({ type: 'final_answer', text: 'done' }) },
+      trace: {
+        emit: async (event) => {
+          events.push(event.type);
+          if (event.type === 'turn_started') {
+            throw new Error('sink failed once');
+          }
+        },
+        flush,
+      },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    const result = await harness.runTurn(createInput());
+
+    expect(result.outcome).toBe('completed');
+    expect(events).toEqual([
+      'turn_started',
+      'model_step_started',
+      'model_step_finished',
+      'turn_finished',
+    ]);
+    expect(flush).toHaveBeenCalledOnce();
+  });
+
+  it('swallows trace flush failures after the final trace event', async () => {
+    const harness = createHarness({
+      model: { nextStep: async () => ({ type: 'final_answer', text: 'done' }) },
+      trace: {
+        emit: async () => undefined,
+        flush: async () => {
+          throw new Error('flush failed');
+        },
+      },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    await expect(harness.runTurn(createInput())).resolves.toMatchObject({
+      outcome: 'completed',
+      stopReason: 'answer_finalized',
+    });
+  });
+
+  it('cancels before the first model call when the turn signal is already aborted', async () => {
+    const trace: HarnessTraceEvent[] = [];
+    const nextStep = vi.fn(async () => ({ type: 'final_answer' as const, text: 'Done' }));
+    const abortController = new AbortController();
+    abortController.abort();
+
+    const harness = createHarness({
+      model: { nextStep },
+      trace: { emit: (event) => trace.push(event) },
+      clock: createClock([0, 1, 2, 3]),
+    });
+
+    const result = await harness.runTurn({
+      ...createInput(),
+      signal: abortController.signal,
+    });
+
+    expect(result.outcome).toBe('failed');
+    expect(result.stopReason).toBe('cancelled');
+    expect(nextStep).not.toHaveBeenCalled();
+    expect(trace.map((event) => event.type)).toEqual(['turn_started', 'turn_finished']);
+    expect(trace.filter((event) => event.type === 'turn_finished')).toHaveLength(1);
+  });
+
+  it('passes the turn signal to model, tool, and approval adapters', async () => {
+    const abortController = new AbortController();
+    const approvalSignal = vi.fn();
+    const toolSignal = vi.fn();
+    const modelSignal = vi.fn();
+
+    const approvalHarness = createHarness({
+      model: {
+        nextStep: async (input) => {
+          modelSignal(input.signal);
+          return {
+            type: 'approval_request',
+            request: { id: 'approval-1', kind: 'write', summary: 'Write data' },
+          };
+        },
+      },
+      approvals: {
+        prepareRequest: async (input) => {
+          approvalSignal(input.signal);
+          return {
+            request: input.request,
+            continuation: {
+              id: 'approval-cont',
+              type: 'approval',
+              createdAt: '2026-04-13T00:00:00.000Z',
+              turnId: 'turn-1',
+              resumeToken: 'resume-1',
+              state: {},
+            },
+          };
+        },
+      },
+      clock: createClock([0, 1, 2, 3]),
+    });
+
+    await approvalHarness.runTurn({ ...createInput(), signal: abortController.signal });
+
+    const toolHarness = createHarness({
+      model: {
+        nextStep: async (input) => {
+          modelSignal(input.signal);
+          return { type: 'tool_request', calls: [{ id: 'call-1', name: 'lookup', input: {} }] };
+        },
+      },
+      tools: {
+        listAvailable: async () => [{ name: 'lookup', description: 'Lookup' }],
+        execute: async (_call, context) => {
+          toolSignal(context.signal);
+          return { callId: 'call-1', toolName: 'lookup', status: 'success', output: 'ok' };
+        },
+      },
+      limits: { maxIterations: 1 },
+      clock: createClock([0, 1, 2, 3, 4]),
+    });
+
+    await toolHarness.runTurn({ ...createInput(), signal: abortController.signal });
+
+    expect(modelSignal).toHaveBeenCalledWith(abortController.signal);
+    expect(approvalSignal).toHaveBeenCalledWith(abortController.signal);
+    expect(toolSignal).toHaveBeenCalledWith(abortController.signal);
+  });
+
+  it('discards a tool result and returns cancelled when the signal aborts during the tool call', async () => {
+    const trace: HarnessTraceEvent[] = [];
+    const onTurnFinished = vi.fn();
+    const abortController = new AbortController();
+    const nextStep = vi.fn(async () => ({
+      type: 'tool_request' as const,
+      calls: [{ id: 'call-1', name: 'lookup', input: {} }],
+    }));
+
+    const harness = createHarness({
+      model: { nextStep },
+      tools: {
+        listAvailable: async () => [{ name: 'lookup', description: 'Lookup' }],
+        execute: async () => {
+          abortController.abort();
+          return { callId: 'call-1', toolName: 'lookup', status: 'success', output: 'late result' };
+        },
+      },
+      hooks: { onTurnFinished },
+      trace: { emit: (event) => trace.push(event) },
+      clock: createClock([0, 1, 2, 3, 4, 5]),
+    });
+
+    const result = await harness.runTurn({ ...createInput(), signal: abortController.signal });
+    const [, state] = onTurnFinished.mock.calls[0];
+
+    expect(result.outcome).toBe('failed');
+    expect(result.stopReason).toBe('cancelled');
+    expect(nextStep).toHaveBeenCalledOnce();
+    expect(state.transcript.filter((item) => item.type === 'tool_result')).toHaveLength(0);
+    expect(trace.map((event) => event.type)).toEqual([
+      'turn_started',
+      'model_step_started',
+      'model_step_finished',
+      'tool_requested',
+      'tool_batch_started',
+      'tool_started',
+      'turn_finished',
+    ]);
   });
 
   it('returns clarification with continuation', async () => {

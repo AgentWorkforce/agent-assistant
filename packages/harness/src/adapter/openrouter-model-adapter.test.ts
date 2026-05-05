@@ -103,6 +103,24 @@ describe('OpenRouterModelAdapter', () => {
     expect(body.tool_choice).toBe('auto');
   });
 
+  it('forwards the model input AbortSignal into the fetch request', async () => {
+    const abortController = new AbortController();
+    let capturedInit: RequestInit | undefined;
+    const fetchImpl = vi.fn((_url: string, init?: RequestInit) => {
+      capturedInit = init;
+      abortController.abort();
+      return makeOkResponse({
+        choices: [{ message: { content: 'done' } }],
+      });
+    });
+    const adapter = new OpenRouterModelAdapter({ apiKey: 'test-key', fetchImpl });
+    await adapter.nextStep(makeInput({ signal: abortController.signal }));
+
+    expect(capturedInit?.signal).toBeInstanceOf(AbortSignal);
+    expect(capturedInit?.signal).not.toBe(abortController.signal);
+    expect(capturedInit?.signal?.aborted).toBe(true);
+  });
+
   it('case 4: maps system + developerPrompt + transcript to messages array correctly', async () => {
     const fetchImpl = vi.fn().mockReturnValue(
       makeOkResponse({

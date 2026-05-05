@@ -5,15 +5,16 @@ import type {
   SendMessageInput,
 } from '@agent-relay/sdk';
 
-import type {
-  ExecutionAdapter,
-  ExecutionCapabilities,
-  ExecutionNegotiation,
-  ExecutionNegotiationReason,
-  ExecutionRequest,
-  ExecutionResult,
-  ExecutionTrace,
-  ExecutionTraceEvent,
+import {
+  EXECUTION_CONTRACT_SCHEMA_VERSION,
+  type ExecutionAdapter,
+  type ExecutionCapabilities,
+  type ExecutionNegotiation,
+  type ExecutionNegotiationReason,
+  type ExecutionRequest,
+  type ExecutionResult,
+  type ExecutionTrace,
+  type ExecutionTraceEvent,
 } from './types.js';
 
 export const AGENT_RELAY_EXECUTION_REQUEST_TYPE = 'agent-assistant.execution-request.v1';
@@ -24,12 +25,14 @@ const DEFAULT_ORCHESTRATOR_NAME = 'agent-assistant';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 const DEFAULT_CAPABILITIES: ExecutionCapabilities = {
+  schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
   toolUse: 'adapter-mediated',
   structuredToolCalls: true,
   continuationSupport: 'none',
   approvalInterrupts: 'none',
   traceDepth: 'standard',
   attachments: false,
+  streaming: 'none',
   maxContextStrategy: 'large',
   notes: [
     'Relay-mediated local execution through a BYOH worker.',
@@ -141,6 +144,17 @@ function negotiateRequest(
   const hasTools = (request.tools?.length ?? 0) > 0;
   const hasAttachments = (request.message.attachments?.length ?? 0) > 0;
 
+  const requestedSchema = request.schemaVersion ?? EXECUTION_CONTRACT_SCHEMA_VERSION;
+  const supportedSchema = capabilities.schemaVersion ?? EXECUTION_CONTRACT_SCHEMA_VERSION;
+  if (requestedSchema > supportedSchema) {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        `Request schemaVersion ${requestedSchema} exceeds adapter-supported ${supportedSchema}.`,
+      ),
+    );
+  }
+
   if (hasTools && requirements?.toolUse === 'forbidden') {
     reasons.push(requiredUnsupported('tool_use_unsupported', 'Request forbids tool use but tools were supplied.'));
   }
@@ -213,6 +227,22 @@ function negotiateRequest(
         `${requirements?.traceDepth ?? 'Requested'} trace depth was requested but only ${
           capabilities.traceDepth
         } trace facts are available.`,
+      ),
+    );
+  }
+
+  if (requirements?.streaming === 'required' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      requiredUnsupported(
+        'other',
+        'Streaming is required but unavailable in this adapter path.',
+      ),
+    );
+  } else if (requirements?.streaming === 'preferred' && (capabilities.streaming ?? 'none') === 'none') {
+    reasons.push(
+      preferredDegradation(
+        'other',
+        'Streaming is preferred but unavailable in this adapter path.',
       ),
     );
   }
@@ -472,6 +502,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
     const negotiation = this.negotiate(request);
     if (!negotiation.supported) {
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'unsupported',
         error: {
@@ -487,6 +518,25 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
       };
     }
 
+    if (request.signal?.aborted) {
+      return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
+        status: 'failed',
+        error: {
+          code: 'cancelled',
+          message: 'Execution request was cancelled before it started.',
+          retryable: false,
+        },
+        degradation: negotiation.degraded ? negotiation.reasons : undefined,
+        trace: {
+          summary: {
+            degraded: negotiation.degraded,
+          },
+        },
+      };
+    }
+
     const startedAt = this.now();
     const threadId = request.threadId ?? request.turnId;
     const target = this.workerName ?? this.channelId;
@@ -497,6 +547,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
     const finish = (result: ExecutionResult): ExecutionResult => ({
       ...result,
+      schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
       backendId: this.backendId,
       degradation: negotiation.degraded
         ? [...(result.degradation ?? []), ...negotiation.reasons]
@@ -515,7 +566,47 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
     try {
       await this.relay.start();
+      // Re-check cancellation after each async setup step. AbortSignal does
+      // NOT replay past abort events, so a signal that fires during
+      // `relay.start()` or `ensureWorker()` would be missed by the
+      // addEventListener call below. Short-circuit to a `cancelled` result
+      // before publishing any Relay message that would trigger backend work.
+      if (request.signal?.aborted) {
+        const completedAt = this.now();
+        return finish({
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+          backendId: this.backendId,
+          status: 'failed',
+          error: {
+            code: 'cancelled',
+            message: 'Execution request was cancelled before Relay handoff.',
+            retryable: false,
+          },
+          trace: buildTrace(startedAt, completedAt, degraded, [
+            { type: 'failure', at: toIso(completedAt), data: { phase: 'after_relay_start', cancelled: true } },
+          ]),
+          degradation: negotiation.degraded ? negotiation.reasons : undefined,
+        });
+      }
+
       await this.ensureWorker();
+      if (request.signal?.aborted) {
+        const completedAt = this.now();
+        return finish({
+          schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+          backendId: this.backendId,
+          status: 'failed',
+          error: {
+            code: 'cancelled',
+            message: 'Execution request was cancelled before Relay handoff.',
+            retryable: false,
+          },
+          trace: buildTrace(startedAt, completedAt, degraded, [
+            { type: 'failure', at: toIso(completedAt), data: { phase: 'after_ensure_worker', cancelled: true } },
+          ]),
+          degradation: negotiation.degraded ? negotiation.reasons : undefined,
+        });
+      }
 
       return await new Promise<ExecutionResult>((resolve) => {
         const complete = (result: ExecutionResult) => {
@@ -530,8 +621,9 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
         const timeout = setTimeout(() => {
           const completedAt = this.now();
-          complete({
-            backendId: this.backendId,
+          completeAndClear({
+            schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
             status: 'failed',
             error: {
               code: 'timeout',
@@ -552,8 +644,33 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
 
         const completeAndClear = (result: ExecutionResult) => {
           clearTimeout(timeout);
+          request.signal?.removeEventListener('abort', abortFromRequest);
           complete(result);
         };
+
+        const abortFromRequest = () => {
+          const completedAt = this.now();
+          completeAndClear({
+            schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
+            status: 'failed',
+            error: {
+              code: 'cancelled',
+              message: 'Execution request was cancelled.',
+              retryable: false,
+            },
+            trace: buildTrace(startedAt, completedAt, degraded, [
+              {
+                type: 'failure',
+                at: toIso(completedAt),
+                data: { channelId: this.channelId, target, threadId, cancelled: true },
+              },
+            ]),
+            degradation: negotiation.degraded ? negotiation.reasons : undefined,
+          });
+        };
+
+        request.signal?.addEventListener('abort', abortFromRequest, { once: true });
 
         unsubscribe = this.relay.onEvent((event) => {
           const inbound = relayInbound(event);
@@ -609,6 +726,16 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
           sentAt: toIso(startedAt),
         };
 
+        // Final pre-publish guard. The listener at line ~675 covers in-flight
+        // aborts, but if the signal fires synchronously between listener
+        // registration and sendMessage's microtask we still want to bail
+        // before triggering backend work. Belt-and-suspenders with the post-
+        // ensureWorker check above.
+        if (request.signal?.aborted) {
+          abortFromRequest();
+          return;
+        }
+
         void this.relay
           .sendMessage({
             to: target,
@@ -625,7 +752,8 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
           .catch((error) => {
             const completedAt = this.now();
             completeAndClear({
-              backendId: this.backendId,
+              schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
+        backendId: this.backendId,
               status: 'failed',
               error: {
                 code: 'backend_execution_error',
@@ -646,6 +774,7 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
     } catch (error) {
       const completedAt = this.now();
       return {
+        schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
         backendId: this.backendId,
         status: 'failed',
         error: {
