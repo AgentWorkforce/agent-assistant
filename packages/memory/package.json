@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/memory",
-  "version": "0.4.27",
+  "version": "0.4.28",
   "description": "Assistant-scoped memory composition layer over @agent-relay/memory",
   "type": "module",
   "main": "dist/index.js",
