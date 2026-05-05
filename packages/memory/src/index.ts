@@ -59,3 +59,9 @@ export type {
   TurnMemoryContext,
   TurnMemoryScopeKind,
 } from './turn-memory.js';
+
+export { createSupermemoryClient } from './supermemory-client.js';
+export type {
+  CreateSupermemoryClientOptions,
+  EnvSource,
+} from './supermemory-client.js';
