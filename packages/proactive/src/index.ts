@@ -103,6 +103,7 @@ export {
   UNVERIFIED_PREFIX,
 } from './decide-posting-policy.js';
 export type {
+  EnvSource,
   PolicyDecision,
   PolicyEnv,
   VerifyDraftOutcome,

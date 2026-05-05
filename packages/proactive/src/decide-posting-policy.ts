@@ -40,6 +40,29 @@ export interface PolicyEnv {
 }
 
 /**
+ * Plain map of env var names to their values. Avoids `NodeJS.ProcessEnv` in
+ * the public API so this package stays usable from non-Node runtimes
+ * (Cloudflare Workers without `nodejs_compat`, browsers, Deno, etc.) — the
+ * `NodeJS` global type isn't available there and the emitted `.d.ts` would
+ * fail to load. Callers that DO have a Node `process.env` can pass it
+ * directly; the runtime structural shape matches.
+ */
+export type EnvSource = Readonly<Record<string, string | undefined>>;
+
+/**
+ * Best-effort read of the host `process.env` without dragging Node typings
+ * into the public surface. Returns `{}` on hosts where `process` is
+ * undefined (pure Workers, browsers) instead of throwing — the caller's
+ * intent in not passing an env is "use whatever the host provides," and
+ * "the host provides nothing" is a valid answer that should fall through
+ * to the policy default.
+ */
+function defaultEnvSource(): EnvSource {
+  const proc = (globalThis as { process?: { env?: EnvSource } }).process;
+  return proc?.env ?? {};
+}
+
+/**
  * Read the fail-open kill switch. Default is fail-open. Operator can flip
  * `AA_PROACTIVE_FAIL_OPEN_VERIFICATION=false` (or the legacy
  * `SAGE_PROACTIVE_FAIL_OPEN_VERIFICATION=false` for one deprecation cycle)
@@ -49,8 +72,14 @@ export interface PolicyEnv {
  * fail-open. This is intentionally conservative: an operator running the
  * legacy env var to intentionally fail-closed during an incident must not
  * silently start failing-open after the migration.
+ *
+ * Worker-safe: when called without an explicit `env`, falls back to
+ * `globalThis.process?.env ?? {}` so Cloudflare Worker consumers without
+ * `nodejs_compat` get the policy default rather than a `process is not
+ * defined` ReferenceError. (Codex / CodeRabbit P1 review feedback on
+ * AA PR #82.)
  */
-export function readFailOpenFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+export function readFailOpenFromEnv(env: EnvSource = defaultEnvSource()): boolean {
   if (env['AA_PROACTIVE_FAIL_OPEN_VERIFICATION'] === 'false') return false;
   if (env['SAGE_PROACTIVE_FAIL_OPEN_VERIFICATION'] === 'false') return false;
   return true;

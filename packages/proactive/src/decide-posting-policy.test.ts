@@ -138,4 +138,23 @@ describe('readFailOpenFromEnv', () => {
     expect(readFailOpenFromEnv({ AA_PROACTIVE_FAIL_OPEN_VERIFICATION: 'no' })).toBe(true);
     expect(readFailOpenFromEnv({ AA_PROACTIVE_FAIL_OPEN_VERIFICATION: 'False' })).toBe(true);
   });
+
+  it('does not throw on hosts without globalThis.process (pure Workers / browsers)', () => {
+    // Codex / CodeRabbit P1 on AA PR #82: previous shape used
+    // `env: NodeJS.ProcessEnv = process.env` which threw ReferenceError on
+    // Workers without nodejs_compat. Verify the no-arg default falls back
+    // safely when `process` is undefined on the host.
+    const original = (globalThis as { process?: unknown }).process;
+    try {
+      delete (globalThis as { process?: unknown }).process;
+      expect(() => readFailOpenFromEnv()).not.toThrow();
+      expect(readFailOpenFromEnv()).toBe(true);
+    } finally {
+      if (original === undefined) {
+        delete (globalThis as { process?: unknown }).process;
+      } else {
+        (globalThis as { process?: unknown }).process = original;
+      }
+    }
+  });
 });
