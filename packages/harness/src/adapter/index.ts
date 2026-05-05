@@ -39,6 +39,10 @@ export type { AnthropicModelAdapterConfig } from './anthropic-model-adapter.js';
 export type { OpenAIModelAdapterConfig } from './openai-model-adapter.js';
 export type { GeminiModelAdapterConfig } from './gemini-model-adapter.js';
 export type {
+  OpenRouterResponseCacheConfig,
+  OpenRouterResponseCacheOption,
+} from './openrouter-cache.js';
+export type {
   ExecutionAdapter,
   ExecutionCapabilities,
   ExecutionNegotiation,

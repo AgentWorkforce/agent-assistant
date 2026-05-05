@@ -10,6 +10,10 @@ import type {
   HarnessToolResultStep,
   HarnessUsage,
 } from '../types.js';
+import {
+  buildOpenRouterCacheHeaders,
+  type OpenRouterResponseCacheOption,
+} from './openrouter-cache.js';
 
 export interface OpenRouterModelAdapterConfig {
   apiKey?: string;
@@ -19,6 +23,7 @@ export interface OpenRouterModelAdapterConfig {
   timeoutMs?: number;
   defaultTemperature?: number;
   transientRetryDelayMs?: number;
+  responseCache?: OpenRouterResponseCacheOption;
 }
 
 const DEFAULT_MODEL = 'anthropic/claude-sonnet-4-6';
@@ -579,6 +584,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
   private readonly timeoutMs: number;
   private readonly defaultTemperature?: number;
   private readonly transientRetryDelayMs: number;
+  private readonly cacheHeaders: Record<string, string>;
 
   constructor(config: OpenRouterModelAdapterConfig = {}) {
     this.apiKey = config.apiKey;
@@ -594,6 +600,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.defaultTemperature = config.defaultTemperature;
     this.transientRetryDelayMs = config.transientRetryDelayMs ?? DEFAULT_TRANSIENT_RETRY_DELAY_MS;
+    this.cacheHeaders = buildOpenRouterCacheHeaders(config.responseCache ?? true);
   }
 
   async nextStep(input: HarnessModelInput): Promise<HarnessModelOutput> {
@@ -641,6 +648,7 @@ export class OpenRouterModelAdapter implements HarnessModelAdapter {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
+          ...this.cacheHeaders,
         },
         body: JSON.stringify(requestBody),
         signal: abortController.signal,

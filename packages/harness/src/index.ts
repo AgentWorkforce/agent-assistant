@@ -13,6 +13,10 @@ export type { ExecutionContractSchemaVersion } from './adapter/types.js';
 
 export { OpenRouterModelAdapter, createOpenRouterModelAdapter } from './adapter/openrouter-model-adapter.js';
 export type { OpenRouterModelAdapterConfig } from './adapter/openrouter-model-adapter.js';
+export type {
+  OpenRouterResponseCacheConfig,
+  OpenRouterResponseCacheOption,
+} from './adapter/openrouter-cache.js';
 import { createBashToolRegistry as createBashToolRegistryFromSubpath } from './tools/bash-tool-registry.js';
 import { createGitHubPublicReviewToolRegistry as createGitHubPublicReviewToolRegistryFromSubpath } from './tools/github-public-review-tool-registry.js';
 import { createWorkspaceToolRegistry as createWorkspaceToolRegistryFromSubpath } from './tools/workspace-tool-registry.js';
