@@ -90,6 +90,42 @@ describe('OpenRouterSingleShotAdapter', () => {
     expect(messages[1].content).toBe('DEV');
   });
 
+  it('adds OpenRouter response cache headers when configured', async () => {
+    const fetchImpl = makeFetchOk('response');
+    const adapter = new OpenRouterSingleShotAdapter({
+      apiKey: 'key',
+      fetchImpl,
+      responseCache: true,
+    });
+
+    await adapter.generate(baseInput());
+
+    expect(fetchImpl.mock.calls[0][1].headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+    });
+  });
+
+  it('enables OpenRouter response caching by default and allows opt-out', async () => {
+    const defaultFetchImpl = makeFetchOk('response');
+    await new OpenRouterSingleShotAdapter({
+      apiKey: 'key',
+      fetchImpl: defaultFetchImpl,
+    }).generate(baseInput());
+
+    expect(defaultFetchImpl.mock.calls[0][1].headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+    });
+
+    const optOutFetchImpl = makeFetchOk('response');
+    await new OpenRouterSingleShotAdapter({
+      apiKey: 'key',
+      fetchImpl: optOutFetchImpl,
+      responseCache: false,
+    }).generate(baseInput());
+
+    expect(optOutFetchImpl.mock.calls[0][1].headers).not.toHaveProperty('X-OpenRouter-Cache');
+  });
+
   it('throws on HTTP error including status', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: false,

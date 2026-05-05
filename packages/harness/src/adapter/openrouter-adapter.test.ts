@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { OpenRouterExecutionAdapter } from './openrouter-adapter.js';
 import type { ExecutionRequest } from './types.js';
@@ -127,6 +127,62 @@ describe('OpenRouterExecutionAdapter', () => {
     expect(result.backendId).toBe('openrouter-api');
     expect(result.trace?.summary.toolCallCount).toBe(0);
     expect(result.metadata).toEqual({ responseId: 'resp_123' });
+  });
+
+  it('adds OpenRouter response cache headers for non-streaming execution', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'The direction is cached.' } }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    const adapter = new OpenRouterExecutionAdapter({
+      apiKey: 'test-key',
+      fetchImpl,
+      responseCache: { ttlSeconds: 120 },
+    });
+
+    const result = await adapter.execute(baseRequest());
+
+    expect(result.status).toBe('completed');
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+      'X-OpenRouter-Cache-TTL': '120',
+    });
+  });
+
+  it('enables OpenRouter response caching by default and allows opt-out', async () => {
+    const defaultFetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'cached by default' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await new OpenRouterExecutionAdapter({
+      apiKey: 'test-key',
+      fetchImpl: defaultFetchImpl,
+    }).execute(baseRequest());
+
+    expect(defaultFetchImpl.mock.calls[0][1].headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+    });
+
+    const optOutFetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'fresh' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await new OpenRouterExecutionAdapter({
+      apiKey: 'test-key',
+      fetchImpl: optOutFetchImpl,
+      responseCache: false,
+    }).execute(baseRequest());
+
+    expect(optOutFetchImpl.mock.calls[0][1].headers).not.toHaveProperty('X-OpenRouter-Cache');
   });
 
   it('maps backend HTTP failure to failed result', async () => {

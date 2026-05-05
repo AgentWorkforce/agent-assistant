@@ -121,6 +121,63 @@ describe('OpenRouterModelAdapter', () => {
     expect(capturedInit?.signal?.aborted).toBe(true);
   });
 
+  it('adds OpenRouter response cache headers when configured', async () => {
+    const fetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: 'cached maybe' } }],
+      }),
+    );
+    const adapter = new OpenRouterModelAdapter({
+      apiKey: 'test-key',
+      fetchImpl,
+      responseCache: { ttlSeconds: 60, clear: true },
+    });
+
+    await adapter.nextStep(makeInput());
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+      'X-OpenRouter-Cache-TTL': '60',
+      'X-OpenRouter-Cache-Clear': 'true',
+    });
+  });
+
+  it('enables OpenRouter response caching by default and allows opt-out', async () => {
+    const defaultFetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: 'default cached' } }],
+      }),
+    );
+    await new OpenRouterModelAdapter({
+      apiKey: 'test-key',
+      fetchImpl: defaultFetchImpl,
+    }).nextStep(makeInput());
+
+    expect(defaultFetchImpl.mock.calls[0][1].headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+    });
+
+    const optOutFetchImpl = vi.fn().mockReturnValue(
+      makeOkResponse({
+        choices: [{ message: { content: 'fresh' } }],
+      }),
+    );
+    await new OpenRouterModelAdapter({
+      apiKey: 'test-key',
+      fetchImpl: optOutFetchImpl,
+      responseCache: false,
+    }).nextStep(makeInput());
+
+    expect(optOutFetchImpl.mock.calls[0][1].headers).not.toHaveProperty('X-OpenRouter-Cache');
+  });
+
+  it('rejects invalid OpenRouter response cache TTL configuration', () => {
+    expect(() => new OpenRouterModelAdapter({ responseCache: { ttlSeconds: 0 } })).toThrow(
+      /ttlSeconds/,
+    );
+  });
+
   it('case 4: maps system + developerPrompt + transcript to messages array correctly', async () => {
     const fetchImpl = vi.fn().mockReturnValue(
       makeOkResponse({

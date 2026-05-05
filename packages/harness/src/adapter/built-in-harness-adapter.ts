@@ -503,4 +503,3 @@ export class BuiltInHarnessAdapter implements ExecutionAdapter {
 export function createBuiltInHarnessAdapter(config: BuiltInHarnessAdapterConfig): ExecutionAdapter {
   return new BuiltInHarnessAdapter(config);
 }
-

@@ -1,4 +1,8 @@
 import type { HarnessUsage } from '../types.js';
+import {
+  buildOpenRouterCacheHeaders,
+  type OpenRouterResponseCacheOption,
+} from '../adapter/openrouter-cache.js';
 import type { SingleShotAdapter, SingleShotInput, SingleShotResult } from './types.js';
 
 export interface OpenRouterSingleShotAdapterConfig {
@@ -8,6 +12,7 @@ export interface OpenRouterSingleShotAdapterConfig {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   defaultTemperature?: number;
+  responseCache?: OpenRouterResponseCacheOption;
 }
 
 const DEFAULT_MODEL = 'anthropic/claude-haiku-4-5';
@@ -54,6 +59,7 @@ export class OpenRouterSingleShotAdapter implements SingleShotAdapter {
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private readonly defaultTemperature?: number;
+  private readonly cacheHeaders: Record<string, string>;
 
   constructor(config: OpenRouterSingleShotAdapterConfig = {}) {
     this.apiKey = config.apiKey;
@@ -65,6 +71,7 @@ export class OpenRouterSingleShotAdapter implements SingleShotAdapter {
       config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.defaultTemperature = config.defaultTemperature;
+    this.cacheHeaders = buildOpenRouterCacheHeaders(config.responseCache ?? true);
   }
 
   async generate(input: SingleShotInput): Promise<SingleShotResult> {
@@ -111,6 +118,7 @@ export class OpenRouterSingleShotAdapter implements SingleShotAdapter {
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
+            ...this.cacheHeaders,
           },
           body: JSON.stringify(requestBody),
           signal: abortController.signal,

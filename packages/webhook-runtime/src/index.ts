@@ -23,6 +23,18 @@ export type {
   SlackSpecialistFactoryInput,
   SlackSpecialistKind,
 } from "./specialist-bridge.js";
+export {
+  buildAgentAssistantA2aCard,
+  registerA2aRoutes,
+} from "./a2a-runtime.js";
+export type {
+  A2aSkillDispatcher,
+  A2aSkillDispatchInput,
+  A2aSkillDispatchResult,
+  AgentAssistantA2aSkill,
+  BuildAgentAssistantA2aCardOptions,
+  RegisterA2aRoutesOptions,
+} from "./a2a-runtime.js";
 
 // TODO: Implement the Hono HTTP runtime in a later step.
 export { startHttpRuntime } from "./http-runtime.js";

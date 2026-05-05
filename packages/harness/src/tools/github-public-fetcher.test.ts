@@ -309,4 +309,181 @@ describe('GitHubPublicFetcher', () => {
     expect(review.owner).toBe('acme');
     expect(review.repo).toBe('widgets');
   });
+
+  it('lists public repo trees with optional ref and truncates large directories', async () => {
+    const entries = Array.from({ length: 102 }, (_, index) => ({
+      path: `src/file-${index}.ts`,
+      type: 'file',
+      size: index,
+      sha: `sha-${index}`,
+    }));
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/contents/src?ref=main`]: jsonResponse(entries),
+      }),
+    });
+
+    const tree = await fetcher.listTree('acme', 'widgets', { path: 'src', ref: 'main' });
+
+    expect(tree).toHaveLength(100);
+    expect(tree[0]).toEqual({
+      path: 'src/file-0.ts',
+      type: 'file',
+      size: 0,
+      sha: 'sha-0',
+    });
+    expect(tree.at(-1)).toEqual({
+      path: '...',
+      type: 'truncated',
+      omittedCount: 3,
+    });
+  });
+
+  it('reads a public repo file and supports focused line ranges', async () => {
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/contents/src/index.ts?ref=main`]: jsonResponse({
+          type: 'file',
+          path: 'src/index.ts',
+          sha: 'file-sha',
+          size: 33,
+          content: packageJsonContent('line one\nline two\nline three'),
+        }),
+      }),
+    });
+
+    const result = await fetcher.readFile('acme', 'widgets', 'src/index.ts', {
+      ref: 'main',
+      lineRange: { start: 2, end: 3 },
+    });
+
+    expect(result).toEqual({
+      path: 'src/index.ts',
+      content: 'line two\nline three',
+      sha: 'file-sha',
+      size: 33,
+      truncated: false,
+    });
+  });
+
+  it('rejects public repo file content that is explicitly not base64 encoded', async () => {
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/contents/large.bin`]: jsonResponse({
+          type: 'file',
+          path: 'large.bin',
+          encoding: 'none',
+          content: '',
+        }),
+      }),
+    });
+
+    await expect(fetcher.readFile('acme', 'widgets', 'large.bin')).rejects.toMatchObject({
+      name: 'GitHubPublicFetchError',
+      code: 'invalid_request',
+      message: expect.stringContaining('not base64 encoded'),
+    } satisfies Partial<GitHubPublicFetchError>);
+  });
+
+  it('enforces the file byte cap after applying a line range', async () => {
+    const oversizedLine = 'x'.repeat(101 * 1024);
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/contents/src/big.txt`]: jsonResponse({
+          type: 'file',
+          path: 'src/big.txt',
+          encoding: 'base64',
+          content: packageJsonContent(`header\n${oversizedLine}\nfooter`),
+        }),
+      }),
+    });
+
+    const result = await fetcher.readFile('acme', 'widgets', 'src/big.txt', {
+      lineRange: { start: 2, end: 2 },
+    });
+
+    expect(result.path).toBe('src/big.txt');
+    expect(result.truncated).toBe(true);
+    expect(new TextEncoder().encode(result.content).byteLength).toBe(100 * 1024);
+  });
+
+  it('fetches recent commits scoped to a path', async () => {
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({
+        [`${BASE_URL}/commits?per_page=3&path=src%2Findex.ts`]: jsonResponse([
+          {
+            sha: 'abc123',
+            commit: {
+              message: 'Touch entrypoint',
+              author: {
+                name: 'A. Developer',
+                date: '2026-05-01T00:00:00Z',
+              },
+            },
+          },
+        ]),
+      }),
+    });
+
+    await expect(
+      fetcher.recentCommits('acme', 'widgets', { path: 'src/index.ts', limit: 3 }),
+    ).resolves.toEqual([
+      {
+        sha: 'abc123',
+        message: 'Touch entrypoint',
+        authorName: 'A. Developer',
+        authorDate: '2026-05-01T00:00:00Z',
+      },
+    ]);
+  });
+
+  it('searches code only when a public token is configured', async () => {
+    const expectedUrl = new URL('https://api.github.com/search/code');
+    expectedUrl.searchParams.set('q', 'createHarness repo:acme/widgets path:src');
+    expectedUrl.searchParams.set('per_page', '30');
+    const fetchMock = makeFetchMock({
+      [expectedUrl.toString()]: jsonResponse({
+        items: [
+          {
+            path: 'src/index.ts',
+            text_matches: [{ fragment: 'export function createHarness() {}' }],
+          },
+        ],
+      }),
+    });
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: fetchMock,
+      publicToken: 'ghp_test',
+    });
+
+    expect(fetcher.canSearchCode()).toBe(true);
+    await expect(
+      fetcher.searchCode('acme', 'widgets', 'createHarness', { path: 'src' }),
+    ).resolves.toEqual([
+      {
+        path: 'src/index.ts',
+        lineMatches: [{ lineNumber: 1, text: 'export function createHarness() {}' }],
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expectedUrl.toString(),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer ghp_test',
+        }),
+      }),
+    );
+  });
+
+  it('rejects code search when no public token is configured', async () => {
+    const fetcher = new GitHubPublicFetcher({
+      fetchImpl: makeFetchMock({}),
+    });
+
+    expect(fetcher.canSearchCode()).toBe(false);
+    await expect(fetcher.searchCode('acme', 'widgets', 'foo')).rejects.toMatchObject({
+      name: 'GitHubPublicFetchError',
+      code: 'invalid_request',
+    } satisfies Partial<GitHubPublicFetchError>);
+  });
 });

@@ -6,6 +6,12 @@ local or HTTP consumers, and fanning events out consistently.
 This package removes duplicated webhook plumbing that sage / nightcto /
 my-senior-dev all hand-roll today.
 
+## A2A Discovery And RPC
+
+`registerA2aRoutes` adds a reusable public Agent-to-Agent discovery surface to any Hono app. It publishes `/.well-known/agent-card.json`, redirects the legacy `/.well-known/agent.json` path, and handles authenticated `message/send` JSON-RPC calls on `/a2a/rpc`.
+
+Provide the agent name, public URL, version, skill descriptors, an auth token, and a `dispatchSkill` function. The helper validates the card with `@relaycast/a2a`, decodes `data` or JSON `text` message parts, verifies Bearer auth by default, and returns a standard A2A task/message pair. Use `buildAgentAssistantA2aCard` when you only need to generate the card JSON.
+
 ## Persona contract (cf-runtime)
 
 Every persona package that targets the Cloudflare runtime exports two functions

@@ -67,6 +67,31 @@ describe('OpenRouterExecutionAdapter.executeStreaming', () => {
     expect(events[events.length - 1]).toBe(finishes[0]);
   });
 
+  it('adds OpenRouter response cache headers for streaming execution', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        sseStream([
+          'data: {"choices":[{"delta":{"content":"cached stream"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]) as Response,
+    );
+    const adapter = new OpenRouterExecutionAdapter({
+      apiKey: 'k',
+      fetchImpl,
+      responseCache: { ttlSeconds: 300, clear: true },
+    });
+
+    await collect(adapter.executeStreaming!(request()));
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({
+      'X-OpenRouter-Cache': 'true',
+      'X-OpenRouter-Cache-TTL': '300',
+      'X-OpenRouter-Cache-Clear': 'true',
+      Accept: 'text/event-stream',
+    });
+  });
+
   it('handles SSE frames split across read chunks', async () => {
     // Same payload as above but split mid-frame to simulate partial reads.
     const fetchImpl = vi.fn(

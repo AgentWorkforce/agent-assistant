@@ -10,6 +10,10 @@ import {
   type ExecutionTrace,
   type ExecutionTraceEvent,
 } from './types.js';
+import {
+  buildOpenRouterCacheHeaders,
+  type OpenRouterResponseCacheOption,
+} from './openrouter-cache.js';
 
 const OPENROUTER_CAPABILITIES: ExecutionCapabilities = {
   schemaVersion: EXECUTION_CONTRACT_SCHEMA_VERSION,
@@ -57,6 +61,7 @@ export interface OpenRouterAdapterConfig {
   fetchImpl?: typeof fetch;
   now?: () => number;
   timeoutMs?: number;
+  responseCache?: OpenRouterResponseCacheOption;
 }
 
 function toIso(timestamp: number): string {
@@ -250,6 +255,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
   private readonly fetchImpl: typeof fetch;
   private readonly now: NonNullable<OpenRouterAdapterConfig['now']>;
   private readonly timeoutMs: number;
+  private readonly cacheHeaders: Record<string, string>;
 
   constructor(config: OpenRouterAdapterConfig = {}) {
     this.apiKey = config.apiKey;
@@ -261,6 +267,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
       config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     this.now = config.now ?? Date.now;
     this.timeoutMs = config.timeoutMs ?? 30_000;
+    this.cacheHeaders = buildOpenRouterCacheHeaders(config.responseCache ?? true);
   }
 
   describeCapabilities(): ExecutionCapabilities {
@@ -337,6 +344,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
+          ...this.cacheHeaders,
         },
         body: JSON.stringify(buildRequestBody(request, this.model)),
         signal: abortController.signal,
@@ -458,6 +466,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
     const fetchImpl = this.fetchImpl;
     const timeoutMs = this.timeoutMs;
     const now = this.now;
+    const cacheHeaders = this.cacheHeaders;
 
     if (!negotiation.supported) {
       return makeUnsupportedStream(backendId, negotiation.reasons);
@@ -494,6 +503,7 @@ export class OpenRouterExecutionAdapter implements ExecutionAdapter {
               Authorization: `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
               Accept: 'text/event-stream',
+              ...cacheHeaders,
             },
             body: JSON.stringify({ ...buildRequestBody(request, model), stream: true }),
             signal: abortController.signal,

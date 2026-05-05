@@ -13,6 +13,10 @@ export type { ExecutionContractSchemaVersion } from './adapter/types.js';
 
 export { OpenRouterModelAdapter, createOpenRouterModelAdapter } from './adapter/openrouter-model-adapter.js';
 export type { OpenRouterModelAdapterConfig } from './adapter/openrouter-model-adapter.js';
+export type {
+  OpenRouterResponseCacheConfig,
+  OpenRouterResponseCacheOption,
+} from './adapter/openrouter-cache.js';
 import { createBashToolRegistry as createBashToolRegistryFromSubpath } from './tools/bash-tool-registry.js';
 import { createGitHubPublicReviewToolRegistry as createGitHubPublicReviewToolRegistryFromSubpath } from './tools/github-public-review-tool-registry.js';
 import { createWorkspaceToolRegistry as createWorkspaceToolRegistryFromSubpath } from './tools/workspace-tool-registry.js';
@@ -149,12 +153,28 @@ export type { BashToolConfig } from './tools/bash-tool-registry.js';
 export { GitHubPublicFetcher, GitHubPublicFetchError } from './tools/github-public-fetcher.js';
 export type {
   GitHubPublicFetcherOptions,
+  GitHubPublicMetadata,
+  GitHubPublicReadFileOptions,
+  GitHubPublicReadFileResult,
+  GitHubPublicRecentCommit,
   GitHubPublicReview,
+  GitHubPublicSearchCodeResult,
+  GitHubPublicTreeEntry,
 } from './tools/github-public-fetcher.js';
 export {
   GITHUB_PUBLIC_REVIEW_TOOL_NAME,
 } from './tools/github-public-review-tool-registry.js';
 export type { GitHubPublicReviewToolRegistryOptions } from './tools/github-public-review-tool-registry.js';
+export {
+  createPublicGitHubToolRegistry,
+  PUBLIC_REPO_LIST_TREE_TOOL_NAME,
+  PUBLIC_REPO_METADATA_TOOL_NAME,
+  PUBLIC_REPO_READ_FILE_TOOL_NAME,
+  PUBLIC_REPO_RECENT_COMMITS_TOOL_NAME,
+  PUBLIC_REPO_SEARCH_CODE_TOOL_NAME,
+  publicRepoAlternativesFor,
+} from './tools/github-public-tool-registry.js';
+export type { PublicGitHubToolRegistryOptions } from './tools/github-public-tool-registry.js';
 export {
   CITE_SOURCE_PATHS_CLAUSE,
   EMPTY_RESULT_HONESTY_CLAUSE,

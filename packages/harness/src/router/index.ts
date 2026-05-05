@@ -1,5 +1,9 @@
 export { OpenRouterSingleShotAdapter, createOpenRouterSingleShotAdapter } from './openrouter-singleshot-adapter.js';
 export type { OpenRouterSingleShotAdapterConfig } from './openrouter-singleshot-adapter.js';
+export type {
+  OpenRouterResponseCacheConfig,
+  OpenRouterResponseCacheOption,
+} from '../adapter/openrouter-cache.js';
 export { createTieredRunner } from './tiered-runner.js';
 export type { TieredRunnerConfig } from './tiered-runner.js';
 export type {
