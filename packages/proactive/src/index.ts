@@ -95,3 +95,27 @@ export type {
   PostWithEvidenceOptions,
   ProactiveEgress,
 } from './evidence-egress.js';
+
+export {
+  applyUnverifiedPrefix,
+  decidePostingPolicy,
+  readFailOpenFromEnv,
+  UNVERIFIED_PREFIX,
+} from './decide-posting-policy.js';
+export type {
+  PolicyDecision,
+  PolicyEnv,
+  VerifyDraftOutcome,
+} from './decide-posting-policy.js';
+
+export { runFollowUpBatch } from './run-follow-up-batch.js';
+export type {
+  RunFollowUpBatchInput,
+  RunFollowUpBatchResult,
+  RunFollowUpBatchStats,
+} from './run-follow-up-batch.js';
+
+export type {
+  ProactiveBlockCounter,
+  ProactiveBlockCounterReader,
+} from './proactive-block-counter.js';
