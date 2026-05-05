@@ -92,4 +92,54 @@ describe('pickChannel', () => {
     const picked = await pickChannel(chat, channels, payload);
     expect(picked?.reason.split(/\s+/).length).toBe(15);
   });
+
+  // Smarter fallback (PR notes the prod symptom: every fresh workspace was
+  // landing on whichever channel happened to be first in the bot's joined
+  // list, usually random). When the LLM declines or errors, prefer
+  // `#general` (case-insensitive) before the first joined channel.
+  describe('fallback prefers #general', () => {
+    const channelsWithGeneral: BotChannel[] = [
+      { id: 'C_RANDOM', name: 'random' },
+      { id: 'C_GENERAL', name: 'general' },
+      { id: 'C_ENG', name: 'engineering' },
+    ];
+
+    it('picks #general when LLM returns invalid JSON and the bot is a member of #general', async () => {
+      const chat = mockChat('not json at all');
+      const picked = await pickChannel(chat, channelsWithGeneral, payload);
+      expect(picked).toMatchObject({
+        channelId: 'C_GENERAL',
+        confidence: 0.3,
+        reason: 'llm-parse-fallback',
+      });
+    });
+
+    it('picks #general when chat throws', async () => {
+      const chat: ChatFn = vi.fn(async () => {
+        throw new Error('boom');
+      });
+      const picked = await pickChannel(chat, channelsWithGeneral, payload);
+      expect(picked?.channelId).toBe('C_GENERAL');
+    });
+
+    it('matches #general case-insensitively', async () => {
+      const list: BotChannel[] = [
+        { id: 'C_ENG', name: 'engineering' },
+        { id: 'C_GENERAL', name: 'General' },
+      ];
+      const chat = mockChat('not json');
+      const picked = await pickChannel(chat, list, payload);
+      expect(picked?.channelId).toBe('C_GENERAL');
+    });
+
+    it('falls back to the first channel when #general is not present', async () => {
+      const list: BotChannel[] = [
+        { id: 'C_ENG', name: 'engineering' },
+        { id: 'C_DESIGN', name: 'design' },
+      ];
+      const chat = mockChat('not json');
+      const picked = await pickChannel(chat, list, payload);
+      expect(picked?.channelId).toBe('C_ENG');
+    });
+  });
 });

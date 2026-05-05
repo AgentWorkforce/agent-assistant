@@ -66,8 +66,32 @@ function channelToPick(channel: BotChannel, confidence: number, reason: string):
   };
 }
 
-function fallbackChannel(channel: BotChannel): PickedChannel {
-  return channelToPick(channel, FALLBACK_CONFIDENCE, FALLBACK_REASON);
+/**
+ * Fallback when the LLM declines / errors / returns a malformed pick.
+ * Prefers a channel literally named `general` (case-insensitive — Slack
+ * allows `General`/`general`/etc.) the bot is a member of, then the first
+ * channel in the joined list. Both branches use {@link FALLBACK_CONFIDENCE}
+ * + {@link FALLBACK_REASON} so callers can distinguish fallback picks
+ * from real LLM picks via the returned `confidence` and `reason` fields.
+ *
+ * Sage's prod symptom (2026-05-05) was every fresh workspace falling
+ * through to `fallbackChannel(first)` and posting to whichever channel
+ * happened to be first in the bot's joined list — usually random. The
+ * `#general` preference makes the default land in the channel admins
+ * actually expect.
+ */
+function fallbackChannel(channels: BotChannel[]): PickedChannel | null {
+  if (channels.length === 0) {
+    return null;
+  }
+  const general = channels.find(
+    (c) => typeof c.name === 'string' && c.name.toLowerCase() === 'general',
+  );
+  const chosen = general ?? channels[0];
+  if (!chosen) {
+    return null;
+  }
+  return channelToPick(chosen, FALLBACK_CONFIDENCE, FALLBACK_REASON);
 }
 
 function limitReason(value: string): string {
@@ -150,8 +174,8 @@ export async function pickChannel(
       ],
       { temperature: 0 },
     );
-    return parsePickedChannel(response.content, channels) ?? fallbackChannel(first);
+    return parsePickedChannel(response.content, channels) ?? fallbackChannel(channels);
   } catch {
-    return fallbackChannel(first);
+    return fallbackChannel(channels);
   }
 }
