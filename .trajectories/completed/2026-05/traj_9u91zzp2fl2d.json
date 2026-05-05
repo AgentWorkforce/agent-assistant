@@ -1,0 +1,65 @@
+{
+  "id": "traj_9u91zzp2fl2d",
+  "version": 1,
+  "task": {
+    "title": "Compare recent sage updates for agent-assistant feature parity"
+  },
+  "status": "completed",
+  "startedAt": "2026-05-05T07:52:34.252Z",
+  "completedAt": "2026-05-05T08:03:36.450Z",
+  "agents": [
+    {
+      "name": "default",
+      "role": "lead",
+      "joinedAt": "2026-05-05T07:54:30.181Z"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "chap_brql8c8j8z0p",
+      "title": "Work",
+      "agentName": "default",
+      "startedAt": "2026-05-05T07:54:30.181Z",
+      "endedAt": "2026-05-05T08:03:36.450Z",
+      "events": [
+        {
+          "ts": 1777967670182,
+          "type": "decision",
+          "content": "Promote Sage public agent capabilities as SDK primitives: Promote Sage public agent capabilities as SDK primitives",
+          "raw": {
+            "question": "Promote Sage public agent capabilities as SDK primitives",
+            "chosen": "Promote Sage public agent capabilities as SDK primitives",
+            "alternatives": [],
+            "reasoning": "Recent Sage changes split into product wiring and generic capability gaps; agent-assistant should own reusable A2A route/card helpers and richer public GitHub source-inspection tools so future agents do not reimplement Sage-specific copies."
+          },
+          "significance": "high"
+        },
+        {
+          "ts": 1777968198289,
+          "type": "reflection",
+          "content": "Ported the generic parts of Sage's recent agent-facing updates: reusable A2A discovery/RPC route helpers and bounded public GitHub source-inspection tools now live in SDK packages with tests and docs. Left Sage-specific Slack runner orchestration and product skill names in Sage.",
+          "raw": {
+            "confidence": 0.88
+          },
+          "significance": "high",
+          "tags": [
+            "confidence:0.88"
+          ]
+        }
+      ]
+    }
+  ],
+  "retrospective": {
+    "summary": "Compared recent Sage updates and promoted reusable agent-facing primitives into agent-assistant: expanded public GitHub fetcher/source-navigation APIs, added a bounded public GitHub harness tool registry, added webhook-runtime A2A card/RPC route helpers, exports, docs, dependency wiring, and regression tests. Verified harness and webhook-runtime full test suites and builds.",
+    "approach": "Standard approach",
+    "confidence": 0.92
+  },
+  "commits": [],
+  "filesChanged": [],
+  "projectId": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant",
+  "tags": [],
+  "_trace": {
+    "startRef": "1f20a8891bc80c081ff4c79eb130b7933f3eeef6",
+    "endRef": "1f20a8891bc80c081ff4c79eb130b7933f3eeef6"
+  }
+}

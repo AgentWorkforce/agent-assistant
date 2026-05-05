@@ -10,7 +10,64 @@ export interface GitHubPublicReview {
   readme?: string;
   packageJson?: unknown;
   topLevel?: Array<{ path: string; type: 'file' | 'dir' }>;
-  recentCommits?: Array<{ sha: string; message: string; authorDate: string }>;
+  recentCommits?: GitHubPublicRecentCommit[];
+}
+
+export interface GitHubPublicMetadata {
+  owner: string;
+  repo: string;
+  description?: string;
+  license?: string;
+  stargazersCount?: number;
+  openIssuesCount?: number;
+  defaultBranch?: string;
+  htmlUrl?: string;
+  readmeExcerpt?: string;
+  packageJson?: unknown;
+}
+
+export type GitHubPublicTreeEntry =
+  | {
+      path: string;
+      type: 'file' | 'dir';
+      size?: number;
+      sha?: string;
+    }
+  | {
+      path: '...';
+      type: 'truncated';
+      omittedCount: number;
+    };
+
+export interface GitHubPublicReadFileOptions {
+  ref?: string;
+  lineRange?: {
+    start: number;
+    end: number;
+  };
+}
+
+export interface GitHubPublicReadFileResult {
+  path: string;
+  content: string;
+  sha?: string;
+  size?: number;
+  truncated: boolean;
+}
+
+export interface GitHubPublicRecentCommit {
+  sha: string;
+  message: string;
+  authorName?: string;
+  authorDate?: string;
+}
+
+export interface GitHubPublicSearchCodeResult {
+  path: string;
+  lineMatches: Array<{
+    lineNumber: number;
+    text: string;
+  }>;
 }
 
 export type GitHubPublicFetchErrorCode =
@@ -46,15 +103,25 @@ export interface GitHubPublicFetcherOptions {
   userAgent?: string;
   readmeMaxChars?: number;
   commitsCount?: number;
+  timeoutMs?: number;
+  publicToken?: string;
+  githubToken?: string | null;
 }
 
 const DEFAULT_USER_AGENT = 'agent-assistant-harness';
+const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_README_MAX_CHARS = 16_384;
+const README_EXCERPT_CHARS = 4 * 1024;
 const DEFAULT_COMMITS_COUNT = 5;
 const MAX_COMMITS_COUNT = 20;
+const MAX_TREE_ENTRIES = 100;
+const MAX_FILE_BYTES = 100 * 1024;
+const MAX_SEARCH_RESULTS = 30;
 const README_TRUNCATION_MARKER = '\n[truncated]';
 const GITHUB_JSON_ACCEPT = 'application/vnd.github+json';
 const GITHUB_RAW_ACCEPT = 'application/vnd.github.raw';
+const GITHUB_TEXT_MATCH_ACCEPT = 'application/vnd.github.text-match+json';
+const GITHUB_API_BASE_URL = 'https://api.github.com';
 const REPO_SEGMENT_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const NON_OK_BODY_EXCERPT_CHARS = 500;
 
@@ -76,6 +143,8 @@ interface GitHubContentResponse {
 interface GitHubTopLevelEntryResponse {
   path?: unknown;
   type?: unknown;
+  size?: unknown;
+  sha?: unknown;
 }
 
 interface GitHubCommitResponse {
@@ -83,6 +152,7 @@ interface GitHubCommitResponse {
   commit?: {
     message?: unknown;
     author?: {
+      name?: unknown;
       date?: unknown;
     } | null;
   } | null;
@@ -107,6 +177,50 @@ function optionalNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+function decodeBase64Utf8(value: string): string {
+  const normalized = value.replace(/\s+/g, '');
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(normalized, 'base64').toString('utf8');
+  }
+
+  const binary = atob(normalized);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function encodePathSegments(path: string): string {
+  return path
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+function sliceLineRange(
+  content: string,
+  lineRange: GitHubPublicReadFileOptions['lineRange'],
+): string {
+  if (!lineRange) {
+    return content;
+  }
+
+  const start = Math.max(1, Math.trunc(lineRange.start));
+  const end = Math.max(start, Math.trunc(lineRange.end));
+  return content.split(/\r?\n/).slice(start - 1, end).join('\n');
+}
+
+function truncateContent(content: string): { content: string; truncated: boolean } {
+  const bytes = new TextEncoder().encode(content);
+  if (bytes.byteLength <= MAX_FILE_BYTES) {
+    return { content, truncated: false };
+  }
+
+  return {
+    content: new TextDecoder().decode(bytes.slice(0, MAX_FILE_BYTES)),
+    truncated: true,
+  };
+}
+
 function truncateReadme(readme: string, maxChars: number): string {
   if (readme.length <= maxChars) {
     return readme;
@@ -118,11 +232,37 @@ function toTransportMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error);
 }
 
+function buildContentsUrl(
+  owner: string,
+  repo: string,
+  path: string,
+  ref?: string,
+): string {
+  const normalizedPath = encodePathSegments(path.trim());
+  const suffix = normalizedPath ? `/${normalizedPath}` : '';
+  const url = new URL(
+    `${GITHUB_API_BASE_URL}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents${suffix}`,
+  );
+  if (ref?.trim()) {
+    url.searchParams.set('ref', ref.trim());
+  }
+  return url.toString();
+}
+
+function normalizeLimit(limit: number | undefined, fallback: number): number {
+  if (limit === undefined || !Number.isFinite(limit)) {
+    return fallback;
+  }
+  return Math.min(Math.max(Math.trunc(limit), 1), MAX_COMMITS_COUNT);
+}
+
 export class GitHubPublicFetcher {
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly userAgent: string;
   private readonly readmeMaxChars: number;
   private readonly commitsCount: number;
+  private readonly timeoutMs: number;
+  private readonly publicToken?: string;
 
   constructor(options: GitHubPublicFetcherOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
@@ -138,13 +278,227 @@ export class GitHubPublicFetcher {
       MAX_COMMITS_COUNT,
       normalizePositiveInteger(options.commitsCount, DEFAULT_COMMITS_COUNT),
     );
+    this.timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS);
+    this.publicToken =
+      options.publicToken?.trim() || options.githubToken?.trim() || undefined;
+  }
+
+  canSearchCode(): boolean {
+    return this.publicToken !== undefined;
+  }
+
+  async fetchMetadata(owner: string, repo: string): Promise<GitHubPublicMetadata> {
+    this.validateRepoSegment(owner, 'owner');
+    this.validateRepoSegment(repo, 'repo');
+
+    const baseUrl = `${GITHUB_API_BASE_URL}/repos/${owner}/${repo}`;
+    const repoMetadata = await this.fetchRequiredJson<GitHubRepoResponse>(baseUrl);
+    const readme = await this.fetchOptionalReadme(`${baseUrl}/readme`);
+    const packageJson = await this.fetchOptionalPackageJson(`${baseUrl}/contents/package.json`);
+
+    return {
+      owner,
+      repo,
+      ...(optionalString(repoMetadata.description)
+        ? { description: optionalString(repoMetadata.description) }
+        : {}),
+      ...(optionalNumber(repoMetadata.stargazers_count) !== undefined
+        ? { stargazersCount: optionalNumber(repoMetadata.stargazers_count) }
+        : {}),
+      ...(optionalNumber(repoMetadata.open_issues_count) !== undefined
+        ? { openIssuesCount: optionalNumber(repoMetadata.open_issues_count) }
+        : {}),
+      ...(optionalString(repoMetadata.default_branch)
+        ? { defaultBranch: optionalString(repoMetadata.default_branch) }
+        : {}),
+      ...(optionalString(repoMetadata.html_url)
+        ? { htmlUrl: optionalString(repoMetadata.html_url) }
+        : {}),
+      ...(optionalString(repoMetadata.license?.spdx_id)
+        ? { license: optionalString(repoMetadata.license?.spdx_id) }
+        : {}),
+      ...(readme ? { readmeExcerpt: readme.slice(0, README_EXCERPT_CHARS) } : {}),
+      ...(packageJson !== undefined ? { packageJson } : {}),
+    };
+  }
+
+  async listTree(
+    owner: string,
+    repo: string,
+    options: { path?: string; ref?: string } = {},
+  ): Promise<GitHubPublicTreeEntry[]> {
+    this.validateRepoSegment(owner, 'owner');
+    this.validateRepoSegment(repo, 'repo');
+
+    const payload = await this.fetchRequiredJson<unknown>(
+      buildContentsUrl(owner, repo, options.path ?? '', options.ref),
+    );
+    if (!Array.isArray(payload)) {
+      throw new GitHubPublicFetchError(
+        `GitHub path is not a directory: ${owner}/${repo}/${options.path ?? ''}`,
+        { code: 'invalid_request' },
+      );
+    }
+
+    const entries: GitHubPublicTreeEntry[] = [];
+    for (const entry of payload) {
+      if (!isRecord(entry)) {
+        continue;
+      }
+
+      const path = optionalString((entry as GitHubTopLevelEntryResponse).path);
+      const type = (entry as GitHubTopLevelEntryResponse).type;
+      if (!path || (type !== 'file' && type !== 'dir')) {
+        continue;
+      }
+
+      entries.push({
+        path,
+        type,
+        ...(optionalNumber((entry as GitHubTopLevelEntryResponse).size) !== undefined
+          ? { size: optionalNumber((entry as GitHubTopLevelEntryResponse).size) }
+          : {}),
+        ...(optionalString((entry as GitHubTopLevelEntryResponse).sha)
+          ? { sha: optionalString((entry as GitHubTopLevelEntryResponse).sha) }
+          : {}),
+      });
+    }
+
+    if (entries.length <= MAX_TREE_ENTRIES) {
+      return entries;
+    }
+
+    return [
+      ...entries.slice(0, MAX_TREE_ENTRIES - 1),
+      {
+        path: '...',
+        type: 'truncated',
+        omittedCount: entries.length - (MAX_TREE_ENTRIES - 1),
+      },
+    ];
+  }
+
+  async readFile(
+    owner: string,
+    repo: string,
+    path: string,
+    options: GitHubPublicReadFileOptions = {},
+  ): Promise<GitHubPublicReadFileResult> {
+    this.validateRepoSegment(owner, 'owner');
+    this.validateRepoSegment(repo, 'repo');
+    if (!path.trim()) {
+      throw new GitHubPublicFetchError('GitHub public readFile requires path', {
+        code: 'invalid_request',
+      });
+    }
+
+    const payload = await this.fetchRequiredJson<unknown>(
+      buildContentsUrl(owner, repo, path, options.ref),
+    );
+    if (!isRecord(payload) || payload.type !== 'file' || typeof payload.content !== 'string') {
+      throw new GitHubPublicFetchError(
+        `GitHub path is not a readable file: ${owner}/${repo}/${path}`,
+        { code: 'invalid_request' },
+      );
+    }
+
+    const decoded = decodeBase64Utf8(payload.content);
+    const ranged = sliceLineRange(decoded, options.lineRange);
+    const truncated = options.lineRange ? { content: ranged, truncated: false } : truncateContent(ranged);
+
+    return {
+      path: optionalString(payload.path) ?? path,
+      content: truncated.content,
+      ...(optionalString(payload.sha) ? { sha: optionalString(payload.sha) } : {}),
+      ...(optionalNumber(payload.size) !== undefined ? { size: optionalNumber(payload.size) } : {}),
+      truncated: truncated.truncated,
+    };
+  }
+
+  async recentCommits(
+    owner: string,
+    repo: string,
+    options: { path?: string; limit?: number } = {},
+  ): Promise<GitHubPublicRecentCommit[]> {
+    this.validateRepoSegment(owner, 'owner');
+    this.validateRepoSegment(repo, 'repo');
+
+    const url = new URL(`${GITHUB_API_BASE_URL}/repos/${owner}/${repo}/commits`);
+    url.searchParams.set('per_page', String(normalizeLimit(options.limit, this.commitsCount)));
+    if (options.path?.trim()) {
+      url.searchParams.set('path', options.path.trim());
+    }
+
+    return (await this.fetchOptionalRecentCommits(url.toString())) ?? [];
+  }
+
+  async searchCode(
+    owner: string,
+    repo: string,
+    query: string,
+    options: { path?: string } = {},
+  ): Promise<GitHubPublicSearchCodeResult[]> {
+    this.validateRepoSegment(owner, 'owner');
+    this.validateRepoSegment(repo, 'repo');
+    if (!this.publicToken) {
+      throw new GitHubPublicFetchError(
+        'GitHub public code search requires publicToken or githubToken',
+        { code: 'invalid_request' },
+      );
+    }
+    if (!query.trim()) {
+      throw new GitHubPublicFetchError('GitHub public searchCode requires query', {
+        code: 'invalid_request',
+      });
+    }
+
+    const qualifiedQuery = [
+      query.trim(),
+      `repo:${owner}/${repo}`,
+      options.path?.trim() ? `path:${options.path.trim()}` : '',
+    ].filter(Boolean).join(' ');
+    const url = new URL(`${GITHUB_API_BASE_URL}/search/code`);
+    url.searchParams.set('q', qualifiedQuery);
+    url.searchParams.set('per_page', String(MAX_SEARCH_RESULTS));
+
+    const payload = await this.fetchRequiredJson<unknown>(url.toString(), GITHUB_TEXT_MATCH_ACCEPT);
+    if (!isRecord(payload) || !Array.isArray(payload.items)) {
+      return [];
+    }
+
+    return payload.items.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const path = optionalString(item.path);
+      if (!path) {
+        return [];
+      }
+
+      const lineMatches: GitHubPublicSearchCodeResult['lineMatches'] = [];
+      const textMatches = Array.isArray(item.text_matches) ? item.text_matches : [];
+      for (const textMatch of textMatches) {
+        if (!isRecord(textMatch) || typeof textMatch.fragment !== 'string') {
+          continue;
+        }
+        const lines = textMatch.fragment.split(/\r?\n/);
+        for (const [index, line] of lines.entries()) {
+          if (line.trim()) {
+            lineMatches.push({ lineNumber: index + 1, text: line });
+          }
+        }
+      }
+
+      return [{ path, lineMatches }];
+    });
   }
 
   async fetchReview(owner: string, repo: string): Promise<GitHubPublicReview> {
     this.validateRepoSegment(owner, 'owner');
     this.validateRepoSegment(repo, 'repo');
 
-    const baseUrl = `https://api.github.com/repos/${owner}/${repo}`;
+    const baseUrl = `${GITHUB_API_BASE_URL}/repos/${owner}/${repo}`;
     const repoMetadata = await this.fetchRequiredJson<GitHubRepoResponse>(baseUrl);
 
     const review: GitHubPublicReview = {
@@ -185,9 +539,7 @@ export class GitHubPublicFetcher {
       review.topLevel = topLevel;
     }
 
-    const recentCommits = await this.fetchOptionalRecentCommits(
-      `${baseUrl}/commits?per_page=${this.commitsCount}`,
-    );
+    const recentCommits = await this.recentCommits(owner, repo);
     if (recentCommits !== undefined) {
       review.recentCommits = recentCommits;
     }
@@ -206,8 +558,8 @@ export class GitHubPublicFetcher {
     }
   }
 
-  private async fetchRequiredJson<T>(url: string): Promise<T> {
-    const response = await this.fetchResponse(url, GITHUB_JSON_ACCEPT);
+  private async fetchRequiredJson<T>(url: string, accept = GITHUB_JSON_ACCEPT): Promise<T> {
+    const response = await this.fetchResponse(url, accept);
     if (!response.ok) {
       throw await this.createFetchError(response, url);
     }
@@ -237,7 +589,7 @@ export class GitHubPublicFetcher {
     }
 
     try {
-      return JSON.parse(Buffer.from(payload.content, 'base64').toString('utf8')) as unknown;
+      return JSON.parse(decodeBase64Utf8(payload.content)) as unknown;
     } catch {
       return undefined;
     }
@@ -266,9 +618,7 @@ export class GitHubPublicFetcher {
     });
   }
 
-  private async fetchOptionalRecentCommits(
-    url: string,
-  ): Promise<Array<{ sha: string; message: string; authorDate: string }> | undefined> {
+  private async fetchOptionalRecentCommits(url: string): Promise<GitHubPublicRecentCommit[] | undefined> {
     const payload = await this.fetchOptionalJson<unknown>(url);
     if (!Array.isArray(payload)) {
       return undefined;
@@ -282,12 +632,20 @@ export class GitHubPublicFetcher {
       const commitEntry = entry as GitHubCommitResponse;
       const sha = optionalString(commitEntry.sha);
       const message = optionalString(commitEntry.commit?.message);
+      const authorName = optionalString(commitEntry.commit?.author?.name);
       const authorDate = optionalString(commitEntry.commit?.author?.date);
-      if (!sha || !message || !authorDate) {
+      if (!sha || !message) {
         return [];
       }
 
-      return [{ sha, message, authorDate }];
+      return [
+        {
+          sha,
+          message,
+          ...(authorName ? { authorName } : {}),
+          ...(authorDate ? { authorDate } : {}),
+        },
+      ];
     });
   }
 
@@ -334,12 +692,16 @@ export class GitHubPublicFetcher {
   }
 
   private async fetchResponse(url: string, accept: string): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       return await this.fetchImpl(url, {
         headers: {
           Accept: accept,
           'User-Agent': this.userAgent,
+          ...(this.publicToken ? { Authorization: `Bearer ${this.publicToken}` } : {}),
         },
+        signal: controller.signal,
       });
     } catch (error) {
       throw new GitHubPublicFetchError(
@@ -348,6 +710,8 @@ export class GitHubPublicFetcher {
           code: 'transport',
         },
       );
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

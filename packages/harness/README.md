@@ -34,6 +34,12 @@ npm install @agent-assistant/harness
 
 `createWorkspaceToolRegistry` exposes provider-neutral `workspace_search`, `workspace_list`, `workspace_read`, and `workspace_read_json` tools for assistants that have a `VfsProvider` from `@agent-assistant/vfs`. The tools emit VFS paths, including `sourcePath`-style structured outputs for JSON reads, so callers can cite file paths in user-visible replies instead of answering workspace questions from memory.
 
+## Public GitHub Tools
+
+`GitHubPublicFetcher` supports bounded read-only inspection of a public GitHub repo: metadata, README/package excerpts, directory listing, focused file reads, recent commits, and authenticated code search. The default fetch fallback reads `globalThis.fetch` at call time so Cloudflare Workers consumers can safely stub or rely on the platform fetch binding.
+
+Use `createPublicGitHubToolRegistry({ owner, repo })` when an assistant has already resolved one explicitly named public repo and needs deeper source navigation through `public_repo_metadata`, `public_repo_list_tree`, `public_repo_read_file`, `public_repo_recent_commits`, and optionally `public_repo_search_code`.
+
 ## Quick Example
 
 ```ts

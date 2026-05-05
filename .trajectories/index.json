@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-04-30T07:22:36.630Z",
+  "lastUpdated": "2026-05-05T08:09:18.212Z",
   "trajectories": {
     "traj_34202idd4b5w": {
       "title": "aa-proactive-signals-03-slack-presence-workflow",
@@ -411,6 +411,20 @@
       "startedAt": "2026-04-30T07:20:36.109Z",
       "completedAt": "2026-04-30T07:22:36.620Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-04/traj_0vsse0xh4jr6.json"
+    },
+    "traj_9u91zzp2fl2d": {
+      "title": "Compare recent sage updates for agent-assistant feature parity",
+      "status": "completed",
+      "startedAt": "2026-05-05T07:52:34.252Z",
+      "completedAt": "2026-05-05T08:03:36.450Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_9u91zzp2fl2d.json"
+    },
+    "traj_7ja5dll9qouq": {
+      "title": "Open PR for Sage feature promotion into agent-assistant",
+      "status": "completed",
+      "startedAt": "2026-05-05T08:08:43.897Z",
+      "completedAt": "2026-05-05T08:09:18.106Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_7ja5dll9qouq.json"
     }
   }
 }

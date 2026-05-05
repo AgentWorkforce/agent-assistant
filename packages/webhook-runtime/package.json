@@ -13,6 +13,10 @@
       "import": "./dist/http-runtime.js",
       "types": "./dist/http-runtime.d.ts"
     },
+    "./a2a-runtime": {
+      "import": "./dist/a2a-runtime.js",
+      "types": "./dist/a2a-runtime.d.ts"
+    },
     "./slack-parser": {
       "import": "./dist/slack-parser.js",
       "types": "./dist/slack-parser.d.ts"
@@ -38,6 +42,7 @@
     "@agent-assistant/specialists": "^0.3.5",
     "@agent-assistant/surfaces": "^0.3.0",
     "@hono/node-server": "^2.0.0",
+    "@relaycast/a2a": "^1.1.5",
     "hono": "^4"
   },
   "peerDependencies": {
