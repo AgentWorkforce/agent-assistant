@@ -7,7 +7,10 @@
  *   3. unconfirmed pref in the pref store (with silent-fallback auto-confirm
  *      after {@link AUTO_CONFIRM_AFTER_UNCONFIRMED_POSTS} posts)
  *   4. discovery: list the channels the bot is a member of and pick one
- *      via {@link ChatFn}
+ *      via {@link ChatFn} — when the LLM declines or errors, `pickChannel`
+ *      itself falls back to `#general` (case-insensitive) if the bot is
+ *      a member, otherwise the first channel in the joined list (see
+ *      `channel-picker.ts:fallbackChannel`)
  *
  * Dependencies are injected so this module stays provider-agnostic: the
  * pref store, the LLM, and the channel lister are all supplied by the

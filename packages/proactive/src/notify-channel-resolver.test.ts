@@ -177,4 +177,112 @@ describe('resolveNotifyChannel', () => {
     });
     expect(result).toBeNull();
   });
+
+  // When the LLM declines / errors, pickChannel's internal fallback
+  // selects a channel deterministically. Before this PR that fallback
+  // always picked the first joined channel — usually random. Now it
+  // prefers `#general` (case-insensitive), then first joined.
+  describe('pickChannel fallback prefers #general', () => {
+    const llmDeclines: ChatFn = async () => ({ content: 'I have no idea' });
+
+    it('lands on #general when the bot is a member', async () => {
+      const store = createInMemoryStore();
+      const list: BotChannel[] = [
+        { id: 'C_random', name: 'random' },
+        { id: 'C_general', name: 'general' },
+        { id: 'C_eng', name: 'engineering' },
+      ];
+      const result = await resolveNotifyChannel({
+        store,
+        chat: llmDeclines,
+        listChannels: async () => list,
+        workspaceId: 'W1',
+        payload,
+      });
+      expect(result?.channel).toBe('C_general');
+      expect(result?.source).toBe('discovery');
+      const pref = await getNotifyChannelPref(store, 'W1');
+      expect(pref).toMatchObject({ channel: 'C_general', confirmed: false, unconfirmedPosts: 1 });
+    });
+
+    it('matches #general case-insensitively', async () => {
+      const store = createInMemoryStore();
+      const list: BotChannel[] = [
+        { id: 'C_eng', name: 'engineering' },
+        { id: 'C_general', name: 'General' },
+      ];
+      const result = await resolveNotifyChannel({
+        store,
+        chat: llmDeclines,
+        listChannels: async () => list,
+        workspaceId: 'W1',
+        payload,
+      });
+      expect(result?.channel).toBe('C_general');
+    });
+
+    it('picks the first joined channel when #general is not present', async () => {
+      const store = createInMemoryStore();
+      const list: BotChannel[] = [
+        { id: 'C_eng', name: 'engineering' },
+        { id: 'C_design', name: 'design' },
+      ];
+      const result = await resolveNotifyChannel({
+        store,
+        chat: llmDeclines,
+        listChannels: async () => list,
+        workspaceId: 'W1',
+        payload,
+      });
+      expect(result?.channel).toBe('C_eng');
+    });
+
+    it('persists the fallback choice so the next run uses the stored pref-unconfirmed path', async () => {
+      const store = createInMemoryStore();
+      const list: BotChannel[] = [{ id: 'C_general', name: 'general' }, { id: 'C_eng', name: 'engineering' }];
+
+      const first = await resolveNotifyChannel({
+        store,
+        chat: llmDeclines,
+        listChannels: async () => list,
+        workspaceId: 'W1',
+        payload,
+      });
+      expect(first?.channel).toBe('C_general');
+
+      // Second call: the stored unconfirmed pref short-circuits the
+      // discovery + fallback paths entirely.
+      const listChannels = vi.fn(async () => list);
+      const second = await resolveNotifyChannel({
+        store,
+        chat: llmDeclines,
+        listChannels,
+        workspaceId: 'W1',
+        payload,
+      });
+      expect(second?.channel).toBe('C_general');
+      expect(second?.source).toBe('pref-unconfirmed');
+      expect(listChannels).not.toHaveBeenCalled();
+    });
+
+    it('uses the LLM pick when the chat returns a valid choice (fallback is the safety net, not a default override)', async () => {
+      const store = createInMemoryStore();
+      const result = await resolveNotifyChannel({
+        store,
+        chat: deterministicChat,
+        listChannels: async () => channels,
+        workspaceId: 'W1',
+        payload,
+      });
+      expect(result?.channel).toBe('C2');
+      expect(result?.source).toBe('discovery');
+    });
+  });
+
+  // Reference the constant so it's used in the test file (existing import
+  // is preserved).
+  it('AUTO_CONFIRM_AFTER_UNCONFIRMED_POSTS constant is exported', () => {
+    expect(typeof AUTO_CONFIRM_AFTER_UNCONFIRMED_POSTS).toBe('number');
+    expect(AUTO_CONFIRM_AFTER_UNCONFIRMED_POSTS).toBeGreaterThan(0);
+  });
 });
