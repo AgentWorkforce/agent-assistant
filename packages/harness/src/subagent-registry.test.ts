@@ -151,6 +151,12 @@ describe('createSubagentToolRegistry', () => {
         iteration: 0,
         toolCallIndex: 0,
       },
+      taskInput: {
+        description: 'draft',
+        subagent_type: 'doc-drafter',
+      },
+      signal: undefined,
+      parentTraceId: undefined,
     });
     expect(parseTaskResult(result)).toEqual({
       ok: true,

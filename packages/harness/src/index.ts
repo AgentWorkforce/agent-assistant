@@ -1,4 +1,5 @@
 export { createHarness } from './harness.js';
+export { createRuntimePolicy } from './runtime-policy/index.js';
 export { USING_RELAYFILE_VFS_SKILL } from './skills/using-relayfile-vfs.js';
 export { HarnessConfigError } from './types.js';
 export { exceedsEvidenceBudget } from './claim-density.js';
@@ -7,6 +8,17 @@ export { stopReasonToUserMessage } from './stop-reason-message.js';
 export { truthfulFailureReply } from './stop-reason-message.js';
 export type { StopReasonMessageOptions } from './stop-reason-message.js';
 export type { TruthfulFailureReplyOptions } from './stop-reason-message.js';
+export type {
+  HarnessRuntimePolicy,
+  HarnessRuntimePolicyConfig,
+  HarnessRuntimePolicyDecision,
+  HarnessRuntimePolicyEvent,
+  HarnessRuntimePolicyEventKind,
+  HarnessRuntimePolicyGuard,
+  HarnessRuntimePolicyGuardDecision,
+  HarnessRuntimePolicyGuardInput,
+  HarnessRuntimePolicySanitizeResult,
+} from './types.js';
 export * from './adapter/index.js';
 export { EXECUTION_CONTRACT_SCHEMA_VERSION } from './adapter/types.js';
 export type { ExecutionContractSchemaVersion } from './adapter/types.js';
@@ -22,6 +34,7 @@ import { createGitHubPublicReviewToolRegistry as createGitHubPublicReviewToolReg
 import { createWorkspaceToolRegistry as createWorkspaceToolRegistryFromSubpath } from './tools/workspace-tool-registry.js';
 import { createMemoryToolRegistry as createMemoryToolRegistryFromSubpath } from './tools/memory-tool-registry.js';
 import { createSubagentToolRegistry as createSubagentToolRegistryFromSubpath } from './subagent-registry.js';
+import { createNestedSubagentRunner as createNestedSubagentRunnerFromSubpath } from './nested-subagent-runner.js';
 import {
   createDefaultPlanStateAccessor as createDefaultPlanStateAccessorFromSubpath,
   createPlanningToolRegistry as createPlanningToolRegistryFromSubpath,
@@ -83,6 +96,13 @@ export function createSubagentToolRegistry(
 ): ReturnType<typeof createSubagentToolRegistryFromSubpath> {
   warnDeprecatedRootImport('createSubagentToolRegistry', 'registries');
   return createSubagentToolRegistryFromSubpath(...args);
+}
+
+export function createNestedSubagentRunner(
+  ...args: Parameters<typeof createNestedSubagentRunnerFromSubpath>
+): ReturnType<typeof createNestedSubagentRunnerFromSubpath> {
+  warnDeprecatedRootImport('createNestedSubagentRunner', 'registries');
+  return createNestedSubagentRunnerFromSubpath(...args);
 }
 
 export function createPlanningToolRegistry(
@@ -221,6 +241,11 @@ export type {
   TaskToolInput,
   TaskToolResult,
 } from './subagent-registry.js';
+export type {
+  ComposeNestedSubagentInstructionsInput,
+  CreateNestedHarnessInput,
+  CreateNestedSubagentRunnerOptions,
+} from './nested-subagent-runner.js';
 export {
   PLANNING_DEFAULT_MAX_TODOS,
   PLANNING_SCRATCH_KEY,

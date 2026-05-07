@@ -31,6 +31,10 @@
       "import": "./dist/prompt/index.js",
       "types": "./dist/prompt/index.d.ts"
     },
+    "./runtime-policy": {
+      "import": "./dist/runtime-policy/index.js",
+      "types": "./dist/runtime-policy/index.d.ts"
+    },
     "./worker-bridge": {
       "import": "./dist/worker-bridge/index.js",
       "types": "./dist/worker-bridge/index.d.ts"

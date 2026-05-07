@@ -8,6 +8,7 @@ import {
   createBashToolRegistry,
   createWorkspaceToolRegistry,
 } from './index.js';
+import { createNestedSubagentRunner } from './registries/index.js';
 
 describe('package subpath export hygiene', () => {
   it('declares additive public subpaths for split harness surfaces', () => {
@@ -27,10 +28,18 @@ describe('package subpath export hygiene', () => {
       import: './dist/prompt/index.js',
       types: './dist/prompt/index.d.ts',
     });
+    expect(pkg.exports['./runtime-policy']).toEqual({
+      import: './dist/runtime-policy/index.js',
+      types: './dist/runtime-policy/index.d.ts',
+    });
     expect(pkg.exports['./mcp']).toEqual({
       import: './dist/mcp/index.js',
       types: './dist/mcp/index.d.ts',
     });
+  });
+
+  it('exports the nested runner from the registries subpath', () => {
+    expect(createNestedSubagentRunner).toEqual(expect.any(Function));
   });
 
   it('keeps deprecated root imports compatible with one warning per symbol', () => {

@@ -33,6 +33,7 @@ export {
   SUBAGENT_DEFAULT_MAX_ITERATIONS,
   SUBAGENT_EXCLUDED_PARENT_KEYS,
 } from '../subagent-registry.js';
+export { createNestedSubagentRunner } from '../nested-subagent-runner.js';
 export type {
   CreateSubagentToolRegistryOptions,
   HarnessSubagent,
@@ -40,6 +41,11 @@ export type {
   TaskToolInput,
   TaskToolResult,
 } from '../subagent-registry.js';
+export type {
+  ComposeNestedSubagentInstructionsInput,
+  CreateNestedHarnessInput,
+  CreateNestedSubagentRunnerOptions,
+} from '../nested-subagent-runner.js';
 export {
   createPlanningToolRegistry,
   createDefaultPlanStateAccessor,

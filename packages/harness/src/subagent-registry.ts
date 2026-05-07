@@ -62,6 +62,22 @@ export interface TaskToolResult {
   subagent: string;
 }
 
+export interface RunSubagentInput {
+  subagent: HarnessSubagent;
+  description: string;
+  parentContext: HarnessTurnContext;
+  taskInput: TaskToolInput;
+  signal?: AbortSignal;
+  parentTraceId?: string;
+}
+
+export type RunSubagentResult =
+  | TaskToolResult
+  | {
+      output: string;
+      iterations: number;
+    };
+
 /**
  * The current harness tool seam only passes a tool execution context into
  * registry.execute(). Keep this type structural so callers can pass richer
@@ -73,13 +89,9 @@ export interface CreateSubagentToolRegistryOptions {
   subagents: readonly HarnessSubagent[];
   /**
    * Caller-provided runner: executes an isolated subagent turn and returns
-   * the synthesized text plus telemetry about tool iterations consumed.
+   * either a synthesized text result or a fully-normalized TaskToolResult.
    */
-  runSubagent: (input: {
-    subagent: HarnessSubagent;
-    description: string;
-    parentContext: HarnessTurnContext;
-  }) => Promise<{ output: string; iterations: number }>;
+  runSubagent: (input: RunSubagentInput) => Promise<RunSubagentResult>;
   /** Default max iterations across the registry. Defaults to 8. */
   defaultMaxIterations?: number;
 }
@@ -219,6 +231,7 @@ function buildTaskToolDefinition(subagents: readonly HarnessSubagent[]): Harness
   return {
     name: TASK_TOOL_NAME,
     description: buildTaskToolDescription(subagents),
+    executionMode: 'parallel',
     inputSchema: {
       type: 'object',
       required: ['description', 'subagent_type'],
@@ -299,6 +312,57 @@ function classifySubagentError(error: unknown): {
   return {
     code: 'subagent_error',
     message,
+  };
+}
+
+function isTaskToolResult(value: RunSubagentResult): value is TaskToolResult {
+  return 'ok' in value;
+}
+
+function readTraceIdCandidate(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function getParentTraceId(parentContext: HarnessTurnContext): string | undefined {
+  const directTraceId =
+    readTraceIdCandidate(parentContext.traceId) ??
+    readTraceIdCandidate(parentContext.parentTraceId) ??
+    readTraceIdCandidate(parentContext.childTraceId);
+  if (directTraceId) {
+    return directTraceId;
+  }
+
+  const metadata =
+    typeof parentContext.metadata === 'object' && parentContext.metadata !== null
+      ? (parentContext.metadata as Record<string, unknown>)
+      : undefined;
+
+  return (
+    readTraceIdCandidate(metadata?.traceId) ??
+    readTraceIdCandidate(metadata?.parentTraceId) ??
+    readTraceIdCandidate(metadata?.childTraceId)
+  );
+}
+
+function normalizeRunSubagentResult(
+  subagent: HarnessSubagent,
+  result: RunSubagentResult,
+): TaskToolResult {
+  if (isTaskToolResult(result)) {
+    return {
+      ok: result.ok,
+      ...(result.output !== undefined ? { output: result.output } : {}),
+      ...(result.error !== undefined ? { error: result.error } : {}),
+      iterations: readIterations(result.iterations) ?? 0,
+      subagent: result.subagent || subagent.name,
+    };
+  }
+
+  return {
+    ok: true,
+    output: result.output,
+    iterations: readIterations(result.iterations) ?? 0,
+    subagent: subagent.name,
   };
 }
 
@@ -384,14 +448,12 @@ export function createSubagentToolRegistry(
           subagent,
           description: input.description,
           parentContext,
+          taskInput: input,
+          signal: context.signal,
+          parentTraceId: getParentTraceId(parentContext),
         });
 
-        return successResult(call, {
-          ok: true,
-          output: result.output,
-          iterations: readIterations(result.iterations) ?? 0,
-          subagent: subagent.name,
-        });
+        return successResult(call, normalizeRunSubagentResult(subagent, result));
       } catch (error) {
         const classified = classifySubagentError(error);
         const iterations =
