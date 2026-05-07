@@ -22,6 +22,7 @@ import { createGitHubPublicReviewToolRegistry as createGitHubPublicReviewToolReg
 import { createWorkspaceToolRegistry as createWorkspaceToolRegistryFromSubpath } from './tools/workspace-tool-registry.js';
 import { createMemoryToolRegistry as createMemoryToolRegistryFromSubpath } from './tools/memory-tool-registry.js';
 import { createSubagentToolRegistry as createSubagentToolRegistryFromSubpath } from './subagent-registry.js';
+import { createNestedSubagentRunner as createNestedSubagentRunnerFromSubpath } from './nested-subagent-runner.js';
 import {
   createDefaultPlanStateAccessor as createDefaultPlanStateAccessorFromSubpath,
   createPlanningToolRegistry as createPlanningToolRegistryFromSubpath,
@@ -83,6 +84,13 @@ export function createSubagentToolRegistry(
 ): ReturnType<typeof createSubagentToolRegistryFromSubpath> {
   warnDeprecatedRootImport('createSubagentToolRegistry', 'registries');
   return createSubagentToolRegistryFromSubpath(...args);
+}
+
+export function createNestedSubagentRunner(
+  ...args: Parameters<typeof createNestedSubagentRunnerFromSubpath>
+): ReturnType<typeof createNestedSubagentRunnerFromSubpath> {
+  warnDeprecatedRootImport('createNestedSubagentRunner', 'registries');
+  return createNestedSubagentRunnerFromSubpath(...args);
 }
 
 export function createPlanningToolRegistry(
@@ -221,6 +229,11 @@ export type {
   TaskToolInput,
   TaskToolResult,
 } from './subagent-registry.js';
+export type {
+  ComposeNestedSubagentInstructionsInput,
+  CreateNestedHarnessInput,
+  CreateNestedSubagentRunnerOptions,
+} from './nested-subagent-runner.js';
 export {
   PLANNING_DEFAULT_MAX_TODOS,
   PLANNING_SCRATCH_KEY,
