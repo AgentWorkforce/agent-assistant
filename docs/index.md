@@ -58,6 +58,7 @@ Primary architecture anchors:
 - [Runtime primitives vs. product intelligence](architecture/runtime-primitives-vs-product-intelligence.md)
 - [Turn-context enrichment boundary](architecture/v1-turn-context-enrichment-boundary.md)
 - [Package boundary map](architecture/package-boundary-map.md)
+- [Sage v2 substrate extraction map](architecture/sage-v2-substrate-extraction-map.md)
 
 ## Fastest paths depending on what you need
 
@@ -74,6 +75,7 @@ Primary architecture anchors:
 - [Runtime primitive map](architecture/agent-assistant-runtime-primitive-map.md)
 - [Runtime primitives vs. product intelligence](architecture/runtime-primitives-vs-product-intelligence.md)
 - [Package boundary map](architecture/package-boundary-map.md)
+- [Sage v2 substrate extraction map](architecture/sage-v2-substrate-extraction-map.md)
 - [Top-level SDK facade spec](architecture/top-level-sdk-facade-spec.md)
 - [Assistant cloud interface](architecture/assistant-cloud-interface.md)
 
