@@ -38,8 +38,45 @@ export interface CreateNestedSubagentRunnerOptions {
   now?(): string;
 }
 
+// Bound per-parent turn counters so long-lived runners do not retain every
+// historical parent turn while preserving IDs across parallel calls in flight.
+const MAX_CHILD_COUNTER_KEYS = 1024;
+
+interface ChildCounterEntry {
+  count: number;
+  lastUsed: number;
+}
+
 function childCounterKey(input: RunSubagentInput, parentTraceId: string): string {
   return `${parentTraceId}::${input.parentContext.turnId}`;
+}
+
+function nextChildIndex(
+  childCounters: Map<string, ChildCounterEntry>,
+  counterKey: string,
+  sequence: number,
+): number {
+  const nextIndex = (childCounters.get(counterKey)?.count ?? 0) + 1;
+  childCounters.set(counterKey, {
+    count: nextIndex,
+    lastUsed: sequence,
+  });
+
+  if (childCounters.size > MAX_CHILD_COUNTER_KEYS) {
+    let oldestKey: string | undefined;
+    let oldestSequence = Number.POSITIVE_INFINITY;
+    for (const [key, entry] of childCounters) {
+      if (entry.lastUsed < oldestSequence) {
+        oldestKey = key;
+        oldestSequence = entry.lastUsed;
+      }
+    }
+    if (oldestKey !== undefined) {
+      childCounters.delete(oldestKey);
+    }
+  }
+
+  return nextIndex;
 }
 
 function readTraceIdCandidate(value: unknown): string | undefined {
@@ -58,8 +95,8 @@ function resolveParentTraceId(input: RunSubagentInput): string {
 
   return (
     readTraceIdCandidate(input.parentContext.traceId) ??
-    readTraceIdCandidate(input.parentContext.parentTraceId) ??
     readTraceIdCandidate(input.parentContext.childTraceId) ??
+    readTraceIdCandidate(input.parentContext.parentTraceId) ??
     readTraceIdCandidate(metadata?.traceId) ??
     readTraceIdCandidate(metadata?.childTraceId) ??
     readTraceIdCandidate(metadata?.parentTraceId) ??
@@ -172,15 +209,16 @@ function buildChildMetadata(
 export function createNestedSubagentRunner(
   options: CreateNestedSubagentRunnerOptions,
 ): CreateSubagentToolRegistryOptions['runSubagent'] {
-  const childCounters = new Map<string, number>();
+  const childCounters = new Map<string, ChildCounterEntry>();
+  let childCounterSequence = 0;
   const now = options.now ?? (() => new Date().toISOString());
 
   return async (input) => {
     const filteredParentContext = filterParentContextForSubagent(input.parentContext);
     const parentTraceId = resolveParentTraceId(input);
     const counterKey = childCounterKey(input, parentTraceId);
-    const nextIndex = (childCounters.get(counterKey) ?? 0) + 1;
-    childCounters.set(counterKey, nextIndex);
+    childCounterSequence += 1;
+    const nextIndex = nextChildIndex(childCounters, counterKey, childCounterSequence);
     const childTraceId = `${parentTraceId}.sa-${nextIndex}`;
     const childTurnId = `${input.parentContext.turnId}.sa-${nextIndex}`;
     const toolAllowlist = new Set(input.subagent.toolAllowlist);

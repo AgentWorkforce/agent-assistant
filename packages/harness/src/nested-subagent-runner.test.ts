@@ -607,6 +607,43 @@ describe('createNestedSubagentRunner', () => {
     });
   });
 
+  it('direct_child_trace_id_precedes_direct_parent_trace_id', async () => {
+    const seenTurnInputs: HarnessTurnInput[] = [];
+    const runner = createNestedSubagentRunner({
+      composeInstructions: ({ subagent }) => ({ systemPrompt: subagent.systemPrompt }),
+      createHarness: () => ({
+        runTurn: async (turnInput) => {
+          seenTurnInputs.push(turnInput);
+          return createHarnessResult();
+        },
+      }),
+    });
+
+    await runner({
+      subagent: makeSubagent(),
+      description: 'Draft once.',
+      parentContext: {
+        ...EXECUTION_CONTEXT,
+        traceId: undefined,
+        parentTraceId: 'direct-parent',
+        childTraceId: 'direct-child',
+        metadata: {
+          parentTraceId: 'metadata-parent',
+          childTraceId: 'metadata-child',
+        },
+      },
+      taskInput: {
+        description: 'Draft once.',
+        subagent_type: 'example-drafter',
+      },
+    });
+
+    expect(seenTurnInputs[0]?.metadata).toMatchObject({
+      parentTraceId: 'direct-child',
+      childTraceId: 'direct-child.sa-1',
+    });
+  });
+
   it('workers_fetch_compatibility', async () => {
     vi.resetModules();
     const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
@@ -697,6 +734,50 @@ describe('createNestedSubagentRunner', () => {
       'parent-turn-a.sa-2',
       'parent-turn-b.sa-1',
     ]);
+  });
+
+  it('parallel_children_receive_distinct_ids_for_same_parent_turn', async () => {
+    const seenTurnIds: string[] = [];
+    const runner = createNestedSubagentRunner({
+      composeInstructions: ({ subagent }) => ({ systemPrompt: subagent.systemPrompt }),
+      createHarness: () => ({
+        runTurn: async (turnInput) => {
+          seenTurnIds.push(turnInput.turnId);
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return createHarnessResult();
+        },
+      }),
+    });
+    const parentContext: HarnessTurnContext = {
+      ...EXECUTION_CONTEXT,
+      turnId: 'parent-turn-parallel',
+      traceId: 'trace-parallel',
+    };
+
+    await Promise.all([
+      runner({
+        subagent: makeSubagent(),
+        description: 'Draft first.',
+        parentContext,
+        taskInput: {
+          description: 'Draft first.',
+          subagent_type: 'example-drafter',
+        },
+      }),
+      runner({
+        subagent: makeSubagent(),
+        description: 'Draft second.',
+        parentContext,
+        taskInput: {
+          description: 'Draft second.',
+          subagent_type: 'example-drafter',
+        },
+      }),
+    ]);
+
+    expect(new Set(seenTurnIds)).toEqual(
+      new Set(['parent-turn-parallel.sa-1', 'parent-turn-parallel.sa-2']),
+    );
   });
 
   it('parallel_task_batch', async () => {
