@@ -326,8 +326,8 @@ function readTraceIdCandidate(value: unknown): string | undefined {
 function getParentTraceId(parentContext: HarnessTurnContext): string | undefined {
   const directTraceId =
     readTraceIdCandidate(parentContext.traceId) ??
-    readTraceIdCandidate(parentContext.parentTraceId) ??
-    readTraceIdCandidate(parentContext.childTraceId);
+    readTraceIdCandidate(parentContext.childTraceId) ??
+    readTraceIdCandidate(parentContext.parentTraceId);
   if (directTraceId) {
     return directTraceId;
   }
@@ -339,8 +339,8 @@ function getParentTraceId(parentContext: HarnessTurnContext): string | undefined
 
   return (
     readTraceIdCandidate(metadata?.traceId) ??
-    readTraceIdCandidate(metadata?.parentTraceId) ??
-    readTraceIdCandidate(metadata?.childTraceId)
+    readTraceIdCandidate(metadata?.childTraceId) ??
+    readTraceIdCandidate(metadata?.parentTraceId)
   );
 }
 

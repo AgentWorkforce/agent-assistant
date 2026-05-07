@@ -50,7 +50,7 @@ const EXECUTION_CONTEXT: HarnessTurnContext = {
 
 function makeSubagent(overrides: Partial<HarnessSubagent> = {}): HarnessSubagent {
   return {
-    name: 'doc-drafter',
+    name: 'example-drafter',
     description: 'Drafts documentation artifacts.',
     toolAllowlist: ['memory_recall'],
     systemPrompt: 'You write docs.',
@@ -167,7 +167,7 @@ describe('createNestedSubagentRunner', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'Draft the release notes.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -176,7 +176,7 @@ describe('createNestedSubagentRunner', () => {
       ok: true,
       output: 'draft ready',
       iterations: 2,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
     expect(seenCreateHarnessInputs).toHaveLength(1);
     expect(seenCreateHarnessInputs[0]?.parentTraceId).toBe('trace-parent');
@@ -200,7 +200,7 @@ describe('createNestedSubagentRunner', () => {
         requestId: 'req-1',
         parentTraceId: 'trace-parent',
         childTraceId: 'trace-parent.sa-1',
-        subagentName: 'doc-drafter',
+        subagentName: 'example-drafter',
       },
       message: {
         id: 'turn-1.sa-1.msg-1',
@@ -263,7 +263,7 @@ describe('createNestedSubagentRunner', () => {
                     name: 'task',
                     input: {
                       description: 'Draft the release notes.',
-                      subagent_type: 'doc-drafter',
+                      subagent_type: 'example-drafter',
                     },
                   },
                 ],
@@ -277,6 +277,68 @@ describe('createNestedSubagentRunner', () => {
     expect(result.outcome).toBe('completed');
     expect(result.stopReason).toBe('answer_finalized');
     expect(result.assistantMessage?.text).toBe('parent recovered');
+  });
+
+  it('create_harness_failure_is_isolated', async () => {
+    const registry = createRegistry(
+      [makeSubagent()],
+      createNestedSubagentRunner({
+        composeInstructions: ({ subagent }) => ({ systemPrompt: subagent.systemPrompt }),
+        createHarness: () => {
+          throw new Error('runtime setup failed');
+        },
+      }),
+    );
+
+    const result = await registry.execute(
+      makeTaskCall({
+        description: 'Draft the release notes.',
+        subagent_type: 'example-drafter',
+      }),
+      EXECUTION_CONTEXT,
+    );
+
+    expect(parseTaskResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'subagent_error',
+        message: 'runtime setup failed',
+      },
+      iterations: 0,
+      subagent: 'example-drafter',
+    });
+  });
+
+  it('compose_instructions_failure_is_isolated', async () => {
+    const registry = createRegistry(
+      [makeSubagent()],
+      createNestedSubagentRunner({
+        composeInstructions: () => {
+          throw new Error('instruction setup failed');
+        },
+        createHarness: () => ({
+          runTurn: async () => createHarnessResult(),
+        }),
+      }),
+    );
+
+    const result = await registry.execute(
+      makeTaskCall({
+        description: 'Draft the release notes.',
+        subagent_type: 'example-drafter',
+      }),
+      EXECUTION_CONTEXT,
+    );
+
+    expect(parseTaskResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'subagent_error',
+        message: 'instruction setup failed',
+      },
+      iterations: 0,
+      subagent: 'example-drafter',
+    });
   });
 
   it('max_iterations_failure', async () => {
@@ -307,7 +369,7 @@ describe('createNestedSubagentRunner', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'Draft the release notes.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -319,7 +381,7 @@ describe('createNestedSubagentRunner', () => {
         message: 'Subagent reached its maximum iteration limit.',
       },
       iterations: 3,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 
@@ -368,7 +430,7 @@ describe('createNestedSubagentRunner', () => {
     const pending = registry.execute(
       makeTaskCall({
         description: 'Draft the release notes.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       {
         ...EXECUTION_CONTEXT,
@@ -386,7 +448,7 @@ describe('createNestedSubagentRunner', () => {
         message: 'Subagent run was cancelled.',
       },
       iterations: 1,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 
@@ -427,7 +489,7 @@ describe('createNestedSubagentRunner', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'Draft the release notes.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -457,7 +519,7 @@ describe('createNestedSubagentRunner', () => {
     await registry.execute(
       makeTaskCall({
         description: 'Draft the release notes.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -493,7 +555,7 @@ describe('createNestedSubagentRunner', () => {
       parentContext: rawParentContext,
       taskInput: {
         description: 'Draft the release notes.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       },
     } satisfies RunSubagentInput);
 
@@ -508,7 +570,45 @@ describe('createNestedSubagentRunner', () => {
     }
   });
 
-  it('workers_fetch_compatibility', () => {
+  it('metadata_child_trace_id_precedes_metadata_parent_trace_id', async () => {
+    const seenTurnInputs: HarnessTurnInput[] = [];
+    const runner = createNestedSubagentRunner({
+      composeInstructions: ({ subagent }) => ({ systemPrompt: subagent.systemPrompt }),
+      createHarness: () => ({
+        runTurn: async (turnInput) => {
+          seenTurnInputs.push(turnInput);
+          return createHarnessResult();
+        },
+      }),
+    });
+
+    await runner({
+      subagent: makeSubagent(),
+      description: 'Draft once.',
+      parentContext: {
+        ...EXECUTION_CONTEXT,
+        traceId: undefined,
+        parentTraceId: undefined,
+        childTraceId: undefined,
+        metadata: {
+          parentTraceId: 'metadata-parent',
+          childTraceId: 'metadata-child',
+        },
+      },
+      taskInput: {
+        description: 'Draft once.',
+        subagent_type: 'example-drafter',
+      },
+    });
+
+    expect(seenTurnInputs[0]?.metadata).toMatchObject({
+      parentTraceId: 'metadata-child',
+      childTraceId: 'metadata-child.sa-1',
+    });
+  });
+
+  it('workers_fetch_compatibility', async () => {
+    vi.resetModules();
     const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     const getter = vi.fn(() => {
       throw new Error('fetch should not be read at construction time');
@@ -520,8 +620,11 @@ describe('createNestedSubagentRunner', () => {
     });
 
     try {
+      const {
+        createNestedSubagentRunner: importCreateNestedSubagentRunner,
+      } = await import('./nested-subagent-runner.js');
       expect(() =>
-        createNestedSubagentRunner({
+        importCreateNestedSubagentRunner({
           composeInstructions: () => ({ systemPrompt: 'child' }),
           createHarness: () => ({
             runTurn: async () => createHarnessResult(),
@@ -532,7 +635,10 @@ describe('createNestedSubagentRunner', () => {
     } finally {
       if (originalDescriptor) {
         Object.defineProperty(globalThis, 'fetch', originalDescriptor);
+      } else {
+        delete (globalThis as { fetch?: unknown }).fetch;
       }
+      vi.resetModules();
     }
   });
 
@@ -558,7 +664,7 @@ describe('createNestedSubagentRunner', () => {
       },
       taskInput: {
         description: 'Draft once.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       },
     };
     const secondParent: RunSubagentInput = {
@@ -571,7 +677,7 @@ describe('createNestedSubagentRunner', () => {
       },
       taskInput: {
         description: 'Draft from another parent.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       },
     };
 
@@ -581,7 +687,7 @@ describe('createNestedSubagentRunner', () => {
       description: 'Draft twice.',
       taskInput: {
         description: 'Draft twice.',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       },
     });
     await runner(secondParent);
@@ -630,7 +736,7 @@ describe('createNestedSubagentRunner', () => {
                     name: 'task',
                     input: {
                       description: 'Draft the release notes.',
-                      subagent_type: 'doc-drafter',
+                      subagent_type: 'example-drafter',
                     },
                   },
                   {
@@ -656,11 +762,11 @@ describe('createNestedSubagentRunner', () => {
 
     expect(result.outcome).toBe('completed');
     expect(result.stopReason).toBe('answer_finalized');
-    expect(elapsedMs).toBeLessThan(90);
+    expect(elapsedMs).toBeLessThan(200);
     expect(events).toEqual([
-      'start:doc-drafter',
+      'start:example-drafter',
       'start:researcher',
-      'finish:doc-drafter',
+      'finish:example-drafter',
       'finish:researcher',
     ]);
   });

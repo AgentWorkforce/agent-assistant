@@ -61,8 +61,8 @@ function resolveParentTraceId(input: RunSubagentInput): string {
     readTraceIdCandidate(input.parentContext.parentTraceId) ??
     readTraceIdCandidate(input.parentContext.childTraceId) ??
     readTraceIdCandidate(metadata?.traceId) ??
-    readTraceIdCandidate(metadata?.parentTraceId) ??
     readTraceIdCandidate(metadata?.childTraceId) ??
+    readTraceIdCandidate(metadata?.parentTraceId) ??
     input.parentContext.turnId
   );
 }
@@ -184,43 +184,42 @@ export function createNestedSubagentRunner(
     const childTraceId = `${parentTraceId}.sa-${nextIndex}`;
     const childTurnId = `${input.parentContext.turnId}.sa-${nextIndex}`;
     const toolAllowlist = new Set(input.subagent.toolAllowlist);
-    const runtime = options.createHarness({
-      subagent: input.subagent,
-      parentContext: input.parentContext,
-      parentTraceId,
-      filteredParentContext,
-      toolAllowlist,
-      signal: input.signal,
-    });
-    const instructions = options.composeInstructions({
-      subagent: input.subagent,
-      taskInput: input.taskInput,
-      parentContext: input.parentContext,
-    });
-    const turnInput: HarnessTurnInput = {
-      assistantId: input.parentContext.assistantId,
-      turnId: childTurnId,
-      workspaceId: input.parentContext.workspaceId,
-      sessionId: input.parentContext.sessionId,
-      userId: input.parentContext.userId,
-      threadId: input.parentContext.threadId,
-      message: {
-        id: `${childTurnId}.msg-1`,
-        text: input.description,
-        receivedAt: now(),
-      },
-      instructions,
-      allowedToolNames: [...toolAllowlist],
-      signal: input.signal,
-      metadata: buildChildMetadata(
-        input.parentContext,
-        parentTraceId,
-        childTraceId,
-        input.subagent.name,
-      ),
-    };
-
     try {
+      const runtime = options.createHarness({
+        subagent: input.subagent,
+        parentContext: input.parentContext,
+        parentTraceId,
+        filteredParentContext,
+        toolAllowlist,
+        signal: input.signal,
+      });
+      const instructions = options.composeInstructions({
+        subagent: input.subagent,
+        taskInput: input.taskInput,
+        parentContext: input.parentContext,
+      });
+      const turnInput: HarnessTurnInput = {
+        assistantId: input.parentContext.assistantId,
+        turnId: childTurnId,
+        workspaceId: input.parentContext.workspaceId,
+        sessionId: input.parentContext.sessionId,
+        userId: input.parentContext.userId,
+        threadId: input.parentContext.threadId,
+        message: {
+          id: `${childTurnId}.msg-1`,
+          text: input.description,
+          receivedAt: now(),
+        },
+        instructions,
+        allowedToolNames: [...toolAllowlist],
+        signal: input.signal,
+        metadata: buildChildMetadata(
+          input.parentContext,
+          parentTraceId,
+          childTraceId,
+          input.subagent.name,
+        ),
+      };
       const result = await runtime.runTurn(turnInput);
       return result.outcome === 'completed' && result.stopReason === 'answer_finalized'
         ? toSuccessResult(input.subagent, result)

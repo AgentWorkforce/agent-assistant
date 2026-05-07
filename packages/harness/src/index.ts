@@ -1,5 +1,4 @@
 export { createHarness } from './harness.js';
-export { createRuntimePolicy } from './runtime-policy/index.js';
 export { USING_RELAYFILE_VFS_SKILL } from './skills/using-relayfile-vfs.js';
 export { HarnessConfigError } from './types.js';
 export { exceedsEvidenceBudget } from './claim-density.js';
@@ -8,17 +7,6 @@ export { stopReasonToUserMessage } from './stop-reason-message.js';
 export { truthfulFailureReply } from './stop-reason-message.js';
 export type { StopReasonMessageOptions } from './stop-reason-message.js';
 export type { TruthfulFailureReplyOptions } from './stop-reason-message.js';
-export type {
-  HarnessRuntimePolicy,
-  HarnessRuntimePolicyConfig,
-  HarnessRuntimePolicyDecision,
-  HarnessRuntimePolicyEvent,
-  HarnessRuntimePolicyEventKind,
-  HarnessRuntimePolicyGuard,
-  HarnessRuntimePolicyGuardDecision,
-  HarnessRuntimePolicyGuardInput,
-  HarnessRuntimePolicySanitizeResult,
-} from './types.js';
 export * from './adapter/index.js';
 export { EXECUTION_CONTRACT_SCHEMA_VERSION } from './adapter/types.js';
 export type { ExecutionContractSchemaVersion } from './adapter/types.js';

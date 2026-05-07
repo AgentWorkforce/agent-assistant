@@ -28,10 +28,6 @@ describe('package subpath export hygiene', () => {
       import: './dist/prompt/index.js',
       types: './dist/prompt/index.d.ts',
     });
-    expect(pkg.exports['./runtime-policy']).toEqual({
-      import: './dist/runtime-policy/index.js',
-      types: './dist/runtime-policy/index.d.ts',
-    });
     expect(pkg.exports['./mcp']).toEqual({
       import: './dist/mcp/index.js',
       types: './dist/mcp/index.d.ts',

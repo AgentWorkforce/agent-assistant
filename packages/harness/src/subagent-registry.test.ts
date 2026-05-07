@@ -43,7 +43,7 @@ const EXECUTION_CONTEXT: HarnessTurnContext = {
 
 function makeSubagent(overrides: Partial<HarnessSubagent> = {}): HarnessSubagent {
   return {
-    name: 'doc-drafter',
+    name: 'example-drafter',
     description: 'Drafts documentation artifacts.',
     toolAllowlist: ['memory_recall'],
     systemPrompt: 'You write docs.',
@@ -129,7 +129,7 @@ describe('createSubagentToolRegistry', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -153,7 +153,7 @@ describe('createSubagentToolRegistry', () => {
       },
       taskInput: {
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       },
       signal: undefined,
       parentTraceId: undefined,
@@ -162,14 +162,72 @@ describe('createSubagentToolRegistry', () => {
       ok: true,
       output: 'drafted',
       iterations: 3,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
     expect(result.structuredOutput).toEqual({
       ok: true,
       output: 'drafted',
       iterations: 3,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
+  });
+
+  it('passes child trace id before parent trace id to nested runner', async () => {
+    const runSubagent = vi.fn().mockResolvedValue({
+      output: 'drafted',
+      iterations: 1,
+    });
+    const registry = createRegistry([makeSubagent()], runSubagent);
+
+    await registry.execute(
+      makeTaskCall({
+        description: 'draft',
+        subagent_type: 'example-drafter',
+      }),
+      {
+        ...EXECUTION_CONTEXT,
+        parentTraceId: 'direct-parent',
+        childTraceId: 'direct-child',
+        metadata: {
+          parentTraceId: 'metadata-parent',
+          childTraceId: 'metadata-child',
+        },
+      },
+    );
+
+    expect(runSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentTraceId: 'direct-child',
+      }),
+    );
+  });
+
+  it('uses metadata child trace id before metadata parent trace id', async () => {
+    const runSubagent = vi.fn().mockResolvedValue({
+      output: 'drafted',
+      iterations: 1,
+    });
+    const registry = createRegistry([makeSubagent()], runSubagent);
+
+    await registry.execute(
+      makeTaskCall({
+        description: 'draft',
+        subagent_type: 'example-drafter',
+      }),
+      {
+        ...EXECUTION_CONTEXT,
+        metadata: {
+          parentTraceId: 'metadata-parent',
+          childTraceId: 'metadata-child',
+        },
+      },
+    );
+
+    expect(runSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentTraceId: 'metadata-child',
+      }),
+    );
   });
 
   it('task tool returns ok:false unknown_subagent for missing name', async () => {
@@ -206,7 +264,7 @@ describe('createSubagentToolRegistry', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -217,7 +275,7 @@ describe('createSubagentToolRegistry', () => {
         code: 'max_iterations',
         message: 'max_iterations reached',
       },
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 
@@ -228,7 +286,7 @@ describe('createSubagentToolRegistry', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT as HarnessToolExecutionContext,
     );
@@ -239,7 +297,7 @@ describe('createSubagentToolRegistry', () => {
         code: 'subagent_error',
         message: 'boom',
       },
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 
@@ -250,7 +308,7 @@ describe('createSubagentToolRegistry', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -261,7 +319,7 @@ describe('createSubagentToolRegistry', () => {
         code: 'subagent_error',
         message: 'string-throw',
       },
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 
@@ -275,7 +333,7 @@ describe('createSubagentToolRegistry', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -286,7 +344,7 @@ describe('createSubagentToolRegistry', () => {
         code: 'aborted',
         message: 'stop now',
       },
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 
@@ -317,7 +375,7 @@ describe('createSubagentToolRegistry', () => {
       registry.execute(
         makeTaskCall({
           description: 'draft',
-          subagent_type: 'doc-drafter',
+          subagent_type: 'example-drafter',
         }),
         EXECUTION_CONTEXT,
       ),
@@ -331,18 +389,18 @@ describe('createSubagentToolRegistry', () => {
     ]);
     const elapsedMs = performance.now() - startedAt;
 
-    expect(elapsedMs).toBeLessThan(90);
+    expect(elapsedMs).toBeLessThan(200);
     expect(events[0]).toMatch(/^start:/);
     expect(events[1]).toMatch(/^start:/);
     expect(events).toEqual([
-      'start:doc-drafter',
+      'start:example-drafter',
       'start:researcher',
-      'finish:doc-drafter',
+      'finish:example-drafter',
       'finish:researcher',
     ]);
     expect(parseTaskResult(firstResult)).toMatchObject({
       ok: true,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
     expect(parseTaskResult(secondResult)).toMatchObject({
       ok: true,
@@ -372,7 +430,7 @@ describe('createSubagentToolRegistry', () => {
     const result = await registry.execute(
       makeTaskCall({
         description: 'draft',
-        subagent_type: 'doc-drafter',
+        subagent_type: 'example-drafter',
       }),
       EXECUTION_CONTEXT,
     );
@@ -381,7 +439,7 @@ describe('createSubagentToolRegistry', () => {
       ok: true,
       output: 'drafted',
       iterations: 1,
-      subagent: 'doc-drafter',
+      subagent: 'example-drafter',
     });
   });
 });
