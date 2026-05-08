@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { createRuntimePolicy, type HarnessToolResult } from './index.js';
+import { createRuntimePolicy, type HarnessToolResult } from './runtime-policy/index.js';
 
 function makeCall(
   name: string,
