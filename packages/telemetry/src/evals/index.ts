@@ -4,4 +4,5 @@ export * from './human-ci-summary.js';
 export * from './human-markdown.js';
 export * from './human-runner-cli.js';
 export * from './human-suite.js';
+export * from './provider-executors.js';
 export * from './pr-comment-format.js';

@@ -44,6 +44,7 @@ interface ParsedArgs {
   list?: boolean;
   suite?: string;
   caseId?: string;
+  executor?: string;
   tags: Set<string>;
   trials?: number;
 }
@@ -99,7 +100,7 @@ export async function runHumanEvalCli(options: RunHumanEvalCliOptions): Promise<
     const trials = readPositiveInt(args.trials ?? testCase.trials, 1);
     for (let trialIndex = 0; trialIndex < trials; trialIndex += 1) {
       const startedAt = Date.now();
-      const executorName = testCase.executor ?? defaultExecutor;
+      const executorName = args.executor ?? testCase.executor ?? defaultExecutor;
       const trial = {
         id: testCase.id,
         suite: testCase.suite,
@@ -272,6 +273,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     else if (arg === '--list') parsed.list = true;
     else if (arg === '--suite') parsed.suite = argv[++index];
     else if (arg === '--case') parsed.caseId = argv[++index];
+    else if (arg === '--executor') parsed.executor = argv[++index];
     else if (arg === '--tag') parsed.tags.add(argv[++index] ?? '');
     else if (arg === '--trials') parsed.trials = Number(argv[++index]);
     else if (arg === '--help' || arg === '-h') {
@@ -290,6 +292,7 @@ Options:
   --list             List selected cases without running them.
   --suite NAME       Run one suite.
   --case ID          Run one case id.
+  --executor NAME    Override selected cases to run with this executor.
   --tag TAG          Require a tag. Can be repeated.
   --trials N         Override trial count for every case.
   --provider         Allow provider-backed product cases.
