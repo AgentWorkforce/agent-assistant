@@ -86,6 +86,7 @@ describe('human eval suite helpers', () => {
           toolCallsInclude: ['workspace_list'],
           toolCallsExclude: ['github_create_issue'],
           maxToolCalls: 2,
+          maxQuestionMarks: 0,
           must: ['human criterion'],
         },
       },
@@ -99,6 +100,48 @@ describe('human eval suite helpers', () => {
 
     expect(checks.every((check) => check.passed)).toBe(true);
     expect(checks.map((check) => check.name)).toContain('human:must');
+  });
+
+  it('flags outputs that ask too many questions', () => {
+    const checks = assertHumanEvalExpected(
+      {
+        id: 'planning.question-count',
+        suite: 'planning',
+        input: { message: 'Plan a feature' },
+        expected: {
+          maxQuestionMarks: 1,
+        },
+      },
+      {
+        content: 'What app is this? What user problem matters most?',
+        toolCalls: [],
+      },
+    );
+
+    expect(checks).toContainEqual({
+      name: 'maxQuestionMarks',
+      passed: false,
+      message: 'expected <= 1 question marks, got 2',
+    });
+  });
+
+  it('ignores malformed maxQuestionMarks values', () => {
+    const checks = assertHumanEvalExpected(
+      {
+        id: 'planning.invalid-question-count',
+        suite: 'planning',
+        input: { message: 'Plan a feature' },
+        expected: {
+          maxQuestionMarks: '1' as unknown as number,
+        },
+      },
+      {
+        content: 'What app is this? What user problem matters most?',
+        toolCalls: [],
+      },
+    );
+
+    expect(checks.map((check) => check.name)).not.toContain('maxQuestionMarks');
   });
 
   it('flags human review when requested by expected or grading metadata', () => {
@@ -136,6 +179,11 @@ describe('human eval suite helpers', () => {
       status: 'needs-human',
       duration_ms: 12,
       checks: [{ name: 'status', passed: true, message: 'case executed' }],
+      input: { message: 'Plan the feature' },
+      expected: {
+        must: ['Ask one useful question'],
+        mustNot: ['Pretend work is complete'],
+      },
       actual: { content: 'A plan requiring review.' },
     };
     run.tests.push(trial);
@@ -144,7 +192,58 @@ describe('human eval suite helpers', () => {
 
     expect(summary.needs_human).toBe(1);
     expect(renderHumanEvalSummary(summary)).toContain('NEEDS-HUMAN planning.case');
-    expect(renderHumanEvalReview(summary)).toContain('Human verdict: TODO');
+    const review = renderHumanEvalReview(summary);
+    expect(review).toContain('Human verdict: TODO');
+    expect(review).toContain('### Must');
+    expect(review).toContain('Ask one useful question');
+    expect(review).toContain('### Must Not');
+    expect(review).toContain('Pretend work is complete');
     expect(readFileSync(path.join(root, 'run-1', 'result.json'), 'utf8')).toContain('"needs_human": 1');
   });
+
+  it('ignores malformed human rubric fields while rendering review artifacts', () => {
+    const run = createHumanEvalRunRecord({
+      branch: 'main',
+      gitSha: 'abc123',
+      mode: 'offline',
+      runDir: path.join(makeTempRoot(), 'run-1'),
+      selectedCaseCount: 1,
+      timestamp: '2026-05-08T00:00:00.000Z',
+    });
+    run.tests.push({
+      id: 'planning.malformed-rubric',
+      suite: 'planning',
+      kind: 'capability',
+      executor: 'manual',
+      trial: 1,
+      tags: [],
+      status: 'needs-human',
+      duration_ms: 12,
+      checks: [],
+      expected: {
+        must: { length: 1 } as unknown as string[],
+        mustNot: { length: 1 } as unknown as string[],
+      },
+      actual: { content: 'Candidate output.' },
+    });
+
+    const review = renderHumanEvalReview(summarizeForTest(run));
+
+    expect(review).toContain('## planning.malformed-rubric');
+    expect(review).not.toContain('### Must');
+    expect(review).not.toContain('### Must Not');
+  });
 });
+
+function summarizeForTest(run: ReturnType<typeof createHumanEvalRunRecord>) {
+  return {
+    ...run,
+    total_trials: run.tests.length,
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    needs_human: run.tests.length,
+    total_duration_ms: run.tests.reduce((sum, test) => sum + test.duration_ms, 0),
+    final: true,
+  };
+}
