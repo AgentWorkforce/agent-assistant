@@ -72,6 +72,39 @@ describe('runHumanEvalCli', () => {
     expect(result).toContain('"checks": []');
   });
 
+  it('can override selected cases to a provider executor', async () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), 'aa-human-evals-executor-'));
+    const suiteDir = path.join(rootDir, 'evals', 'suites', 'smoke');
+    mkdirSync(suiteDir, { recursive: true });
+    writeFileSync(path.join(suiteDir, 'cases.jsonl'), `${JSON.stringify({
+      id: 'smoke.manual-provider',
+      suite: 'smoke',
+      executor: 'manual',
+      input: { message: 'hello' },
+      expected: {
+        contentIncludes: ['provider answer'],
+        humanReviewRequired: true,
+      },
+    })}\n`);
+
+    const exitCode = await runHumanEvalCli({
+      argv: ['--provider', '--executor', 'provider'],
+      rootDir,
+      runsDir: path.join(rootDir, '.evals', 'runs'),
+      executors: {
+        provider() {
+          return { content: 'provider answer', toolCalls: [] };
+        },
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    const runsDir = path.join(rootDir, '.evals', 'runs');
+    const result = readFileSync(path.join(runsDir, readdirSingle(runsDir), 'result.json'), 'utf8');
+    expect(result).toContain('"executor": "provider"');
+    expect(result).toContain('provider answer');
+  });
+
   it('rejects manual candidate output paths outside the eval root', () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), 'aa-human-evals-path-'));
     const executors = createDefaultHumanEvalExecutors(rootDir);
