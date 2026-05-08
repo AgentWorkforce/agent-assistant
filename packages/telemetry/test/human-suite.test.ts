@@ -136,6 +136,11 @@ describe('human eval suite helpers', () => {
       status: 'needs-human',
       duration_ms: 12,
       checks: [{ name: 'status', passed: true, message: 'case executed' }],
+      input: { message: 'Plan the feature' },
+      expected: {
+        must: ['Ask one useful question'],
+        mustNot: ['Pretend work is complete'],
+      },
       actual: { content: 'A plan requiring review.' },
     };
     run.tests.push(trial);
@@ -144,7 +149,12 @@ describe('human eval suite helpers', () => {
 
     expect(summary.needs_human).toBe(1);
     expect(renderHumanEvalSummary(summary)).toContain('NEEDS-HUMAN planning.case');
-    expect(renderHumanEvalReview(summary)).toContain('Human verdict: TODO');
+    const review = renderHumanEvalReview(summary);
+    expect(review).toContain('Human verdict: TODO');
+    expect(review).toContain('### Must');
+    expect(review).toContain('Ask one useful question');
+    expect(review).toContain('### Must Not');
+    expect(review).toContain('Pretend work is complete');
     expect(readFileSync(path.join(root, 'run-1', 'result.json'), 'utf8')).toContain('"needs_human": 1');
   });
 });

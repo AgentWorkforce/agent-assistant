@@ -65,6 +65,8 @@ export interface HumanEvalTrial {
   status: HumanEvalStatus;
   duration_ms: number;
   checks: HumanEvalCheck[];
+  input?: Record<string, unknown>;
+  expected?: HumanEvalExpected;
   actual?: Partial<HumanEvalActual>;
   error?: string;
 }
@@ -385,13 +387,48 @@ export function renderHumanEvalReview(result: HumanEvalRunSummary): string {
     lines.push(`- Status: ${test.status}`);
     lines.push(`- Suite: ${test.suite}`);
     lines.push(`- Executor: ${test.executor}`);
+    if (test.input?.message !== undefined) {
+      lines.push(`- Message: ${String(test.input.message)}`);
+    }
+    if (test.input?.actualPath !== undefined) {
+      lines.push(`- Actual path: ${String(test.input.actualPath)}`);
+    }
     lines.push('');
+    if ((test.expected?.must?.length ?? 0) > 0) {
+      lines.push('### Must');
+      lines.push('');
+      for (const item of test.expected?.must ?? []) {
+        lines.push(`- ${item}`);
+      }
+      lines.push('');
+    }
+    if ((test.expected?.mustNot?.length ?? 0) > 0) {
+      lines.push('### Must Not');
+      lines.push('');
+      for (const item of test.expected?.mustNot ?? []) {
+        lines.push(`- ${item}`);
+      }
+      lines.push('');
+    }
+    const deterministicChecks = test.checks.filter((check) => !check.name.startsWith('human:'));
+    if (deterministicChecks.length > 0) {
+      lines.push('### Deterministic Checks');
+      lines.push('');
+      for (const check of deterministicChecks) {
+        lines.push(`- ${check.passed ? 'PASS' : 'FAIL'} ${check.name}: ${check.message}`);
+      }
+      lines.push('');
+    }
     lines.push('Human verdict: TODO pass / fail / case-bug / grader-bug');
     lines.push('');
     lines.push('Notes:');
     lines.push('');
+    if ((test.actual?.content ?? '').length > 0) {
+      lines.push('### Output');
+      lines.push('');
+    }
     lines.push('```');
-    lines.push((test.actual?.content ?? '').slice(0, 4000));
+    lines.push(((test.actual?.content ?? '') || 'No assistant output captured for this executor.').slice(0, 4000));
     lines.push('```');
     lines.push('');
   }
