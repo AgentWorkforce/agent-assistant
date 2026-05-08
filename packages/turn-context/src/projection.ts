@@ -176,9 +176,13 @@ function mapContextBlock(
     label: block.label,
     text: block.content,
     ...(mappedCategory !== undefined ? { category: mappedCategory } : {}),
-    ...(block.source !== undefined || block.importance !== undefined || block.category === 'session'
+    ...(block.source !== undefined ||
+    block.importance !== undefined ||
+    block.category === 'session' ||
+    block.metadata !== undefined
       ? {
           metadata: {
+            ...(block.metadata ?? {}),
             ...(block.source !== undefined ? { source: block.source } : {}),
             ...(block.importance !== undefined ? { importance: block.importance } : {}),
             ...(block.category === 'session' ? { turnContextCategory: 'session' } : {}),

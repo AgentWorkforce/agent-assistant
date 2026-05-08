@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-05-05T08:18:45.222Z",
+  "lastUpdated": "2026-05-07T12:49:17.219Z",
   "trajectories": {
     "traj_1775887868833_95cb9380": {
       "title": "relay-agent-assistant-connectivity-spike-workflow",
@@ -381,6 +381,50 @@
       "startedAt": "2026-05-05T08:15:38.732Z",
       "completedAt": "2026-05-05T08:18:45.059Z",
       "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_60oxhp8avjun.json"
+    },
+    "traj_vpj3qy73dw45": {
+      "title": "sage-v2-substrate-extraction-pr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-07T08:56:54.493Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_vpj3qy73dw45.json"
+    },
+    "traj_fnw9bwg7gn4b": {
+      "title": "sage-v2-substrate-extraction-pr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-07T08:58:53.669Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_fnw9bwg7gn4b.json"
+    },
+    "traj_bl065l0xwwoa": {
+      "title": "sage-v2-substrate-extraction-pr-workflow",
+      "status": "completed",
+      "startedAt": "2026-05-07T10:09:14.212Z",
+      "completedAt": "2026-05-07T11:56:49.669Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_bl065l0xwwoa.json"
+    },
+    "traj_u8upajzok6vd": {
+      "title": "sage-v2-nested-subagent-runner-pr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-07T11:09:32.508Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_u8upajzok6vd.json"
+    },
+    "traj_ovjvqb1p5dbj": {
+      "title": "sage-v2-nested-subagent-runner-pr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-07T11:20:32.676Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_ovjvqb1p5dbj.json"
+    },
+    "traj_bpncz0f6thfq": {
+      "title": "sage-v2-nested-subagent-runner-pr-workflow",
+      "status": "active",
+      "startedAt": "2026-05-07T11:30:22.555Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/active/traj_bpncz0f6thfq.json"
+    },
+    "traj_pxqrlbn2o8yj": {
+      "title": "sage-v2-nested-subagent-runner-pr-workflow",
+      "status": "completed",
+      "startedAt": "2026-05-07T11:47:30.556Z",
+      "completedAt": "2026-05-07T12:09:54.488Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/.trajectories/completed/2026-05/traj_pxqrlbn2o8yj.json"
     }
   }
 }

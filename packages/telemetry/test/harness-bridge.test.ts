@@ -2,13 +2,25 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   HarnessExecutionState,
   HarnessHooks,
+  HarnessRuntimePolicyBlockedTraceEvent,
   HarnessResult,
   HarnessModelCallRecord,
+  HarnessTraceSink,
+  HarnessTurnFinishedEvent,
+  HarnessTurnStartedEvent,
 } from '@agent-assistant/harness';
 
-import { createTelemetryHook } from '../src/harness-bridge.js';
+import {
+  createTelemetryHook,
+  createTelemetryTraceBridge,
+  telemetryEventsFromTraceEvent,
+} from '../src/harness-bridge.js';
 import { FROZEN_PRICING_TABLE } from '../src/pricing.js';
-import type { TelemetryEvent, TelemetrySink } from '../src/sinks/types.js';
+import type {
+  TelemetryEvent,
+  TelemetrySink,
+  TelemetryTurnFinishedEvent,
+} from '../src/sinks/types.js';
 
 function createResult(): HarnessResult {
   return {
@@ -90,7 +102,7 @@ describe('createTelemetryHook', () => {
     await hook(createResult(), createState());
 
     expect(emit).toHaveBeenCalledOnce();
-    const [event] = emit.mock.calls[0] as [TelemetryEvent];
+    const [event] = emit.mock.calls[0] as [TelemetryTurnFinishedEvent];
     expect(event).toMatchObject({
       eventId: 'event-1',
       eventKind: 'turn.finished',
@@ -159,7 +171,7 @@ describe('createTelemetryHook', () => {
 
     await hook(createResult(), createState());
 
-    const [event] = emit.mock.calls[0] as [TelemetryEvent];
+    const [event] = emit.mock.calls[0] as [TelemetryTurnFinishedEvent];
     expect(event.eventId).toBe('custom-event-id');
   });
 
@@ -182,7 +194,7 @@ describe('createTelemetryHook', () => {
 
       await hook(result, createState());
 
-      const [event] = emit.mock.calls[0] as [TelemetryEvent];
+      const [event] = emit.mock.calls[0] as [TelemetryTurnFinishedEvent];
       expect(event.output.kind).toBe(expectedKind);
       expect(event.metadata?.outcome).toBe(outcome);
     },
@@ -201,7 +213,7 @@ describe('createTelemetryHook', () => {
 
     await hook(result, createState());
 
-    const [event] = emit.mock.calls[0] as [TelemetryEvent];
+    const [event] = emit.mock.calls[0] as [TelemetryTurnFinishedEvent];
     expect(event.output).toEqual({
       kind: 'refused',
       text: 'cannot help',
@@ -226,7 +238,7 @@ describe('createTelemetryHook', () => {
 
     await hook(createResult(), state);
 
-    const [event] = emit.mock.calls[0] as [TelemetryEvent];
+    const [event] = emit.mock.calls[0] as [TelemetryTurnFinishedEvent];
     expect(event.cost).toEqual({
       usd: 0,
       missingPricing: true,
@@ -239,6 +251,181 @@ describe('createTelemetryHook', () => {
           missingPricing: true,
         },
       ],
+    });
+  });
+});
+
+describe('telemetry trace bridge', () => {
+  function createSubagentStartedTrace(): HarnessTurnStartedEvent {
+    return {
+      type: 'turn_started',
+      timestamp: '2026-05-07T10:00:00.000Z',
+      assistantId: 'assistant-1',
+      turnId: 'turn-1.sa-1',
+      iteration: 0,
+      toolCallCount: 0,
+      metadata: {
+        parentTraceId: 'trace-parent',
+        childTraceId: 'trace-parent.sa-1',
+        subagentName: 'research-worker',
+      },
+    };
+  }
+
+  function createSubagentFinishedTrace(
+    overrides: Partial<HarnessTurnFinishedEvent> = {},
+  ): HarnessTurnFinishedEvent {
+    return {
+      type: 'turn_finished',
+      timestamp: '2026-05-07T10:00:05.000Z',
+      assistantId: 'assistant-1',
+      turnId: 'turn-1.sa-1',
+      iteration: 2,
+      toolCallCount: 3,
+      elapsedMs: 5000,
+      outcome: 'completed',
+      stopReason: 'answer_finalized',
+      metadata: {
+        parentTraceId: 'trace-parent',
+        childTraceId: 'trace-parent.sa-1',
+        subagentName: 'research-worker',
+      },
+      ...overrides,
+    };
+  }
+
+  it('maps subagent turn trace metadata into lifecycle telemetry events', () => {
+    expect(
+      telemetryEventsFromTraceEvent(createSubagentStartedTrace(), {
+        generateEventId: () => 'event-start',
+      }),
+    ).toEqual([
+      {
+        eventId: 'event-start',
+        eventKind: 'subagent.started',
+        timestamp: '2026-05-07T10:00:00.000Z',
+        assistantId: 'assistant-1',
+        turnId: 'turn-1.sa-1',
+        parentTraceId: 'trace-parent',
+        durationMs: undefined,
+        subagentName: 'research-worker',
+        childTraceId: 'trace-parent.sa-1',
+        toolCallCount: 0,
+      },
+    ]);
+
+    expect(
+      telemetryEventsFromTraceEvent(createSubagentFinishedTrace(), {
+        generateEventId: () => 'event-finish',
+      }),
+    ).toEqual([
+      {
+        eventId: 'event-finish',
+        eventKind: 'subagent.finished',
+        timestamp: '2026-05-07T10:00:05.000Z',
+        assistantId: 'assistant-1',
+        turnId: 'turn-1.sa-1',
+        parentTraceId: 'trace-parent',
+        durationMs: 5000,
+        subagentName: 'research-worker',
+        childTraceId: 'trace-parent.sa-1',
+        iterations: 2,
+        stopReason: 'answer_finalized',
+        toolCallCount: 3,
+      },
+    ]);
+  });
+
+  it('maps non-finalized subagent turns to subagent.failed', () => {
+    expect(
+      telemetryEventsFromTraceEvent(
+        createSubagentFinishedTrace({
+          outcome: 'failed',
+          stopReason: 'runtime_error',
+        }),
+        {
+          generateEventId: () => 'event-failed',
+        },
+      ),
+    ).toEqual([
+      {
+        eventId: 'event-failed',
+        eventKind: 'subagent.failed',
+        timestamp: '2026-05-07T10:00:05.000Z',
+        assistantId: 'assistant-1',
+        turnId: 'turn-1.sa-1',
+        parentTraceId: 'trace-parent',
+        durationMs: 5000,
+        subagentName: 'research-worker',
+        childTraceId: 'trace-parent.sa-1',
+        iterations: 2,
+        stopReason: 'runtime_error',
+        toolCallCount: 3,
+      },
+    ]);
+  });
+
+  it('maps runtime policy trace metadata into privacy-safe telemetry events', () => {
+    const event: HarnessRuntimePolicyBlockedTraceEvent = {
+      type: 'runtime_policy.blocked',
+      timestamp: '2026-05-07T11:00:00.000Z',
+      assistantId: 'assistant-1',
+      turnId: 'turn-1',
+      elapsedMs: 20,
+      reason: 'reserve_floor_reached',
+      toolName: 'search',
+      metadata: {
+        parentTraceId: 'trace-parent',
+        floor: 2,
+        categories: ['broad'],
+        output: 'private tool output that must not survive',
+      },
+    };
+
+    expect(
+      telemetryEventsFromTraceEvent(event, {
+        generateEventId: () => 'event-policy',
+      }),
+    ).toEqual([
+      {
+        eventId: 'event-policy',
+        eventKind: 'runtime_policy.blocked',
+        timestamp: '2026-05-07T11:00:00.000Z',
+        assistantId: 'assistant-1',
+        turnId: 'turn-1',
+        parentTraceId: 'trace-parent',
+        durationMs: 20,
+        toolName: 'search',
+        reason: 'reserve_floor_reached',
+        metadata: {
+          floor: 2,
+          categories: ['broad'],
+        },
+      },
+    ]);
+  });
+
+  it('emits mapped trace events through the bridge sink', async () => {
+    const emit = vi.fn();
+    const sink: TelemetrySink = { emit };
+    const bridge: HarnessTraceSink = createTelemetryTraceBridge({
+      sink,
+      generateEventId: () => 'event-bridge',
+    });
+
+    await bridge.emit(createSubagentStartedTrace());
+
+    expect(emit).toHaveBeenCalledWith({
+      eventId: 'event-bridge',
+      eventKind: 'subagent.started',
+      timestamp: '2026-05-07T10:00:00.000Z',
+      assistantId: 'assistant-1',
+      turnId: 'turn-1.sa-1',
+      parentTraceId: 'trace-parent',
+      durationMs: undefined,
+      subagentName: 'research-worker',
+      childTraceId: 'trace-parent.sa-1',
+      toolCallCount: 0,
     });
   });
 });

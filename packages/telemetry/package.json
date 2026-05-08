@@ -25,6 +25,10 @@
     "./bridge": {
       "import": "./dist/harness-bridge.js",
       "types": "./dist/harness-bridge.d.ts"
+    },
+    "./evals": {
+      "import": "./dist/evals/index.js",
+      "types": "./dist/evals/index.d.ts"
     }
   },
   "files": [

@@ -2,6 +2,8 @@ export { createTurnContextAssembler } from './assembler.js';
 export type { CreateTurnContextAssemblerOptions } from './assembler.js';
 export { createMemoryTurnRetriever } from './memory-retriever.js';
 export type { CreateMemoryTurnRetrieverOptions } from './memory-retriever.js';
+export { projectInsightAsContextBlock } from './insight-projection.js';
+export type { InsightProjectionInput } from './insight-projection.js';
 export { projectToHarness, toExecutionRequest } from './projection.js';
 export type {
   ExecutionRequestMessageInput,

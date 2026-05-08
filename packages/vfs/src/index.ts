@@ -1,4 +1,5 @@
 export { runVfsCli } from './cli.js';
+export { readInsightEnvelope } from './insight/index.js';
 export {
   basename,
   dirname,
@@ -23,6 +24,12 @@ export type {
   VfsSearchOptions,
   VfsSearchResult,
 } from './types.js';
+export type {
+  InsightEnvelope,
+  InsightFreshness,
+  InsightReadResult,
+  VirtualFileSystem,
+} from './insight/index.js';
 export type { TruncatedReadResult } from './output.js';
 // Clone primitives — see './clone' subpath for the focused submodule.
 export type {

@@ -78,6 +78,85 @@
           "raw": {
             "agent": "implementer"
           }
+        },
+        {
+          "ts": 1778142714760,
+          "type": "decision",
+          "content": "Trace Sage v2 PR #208 into Agent Assistant as a substrate extraction spec: Trace Sage v2 PR #208 into Agent Assistant as a substrate extraction spec",
+          "raw": {
+            "question": "Trace Sage v2 PR #208 into Agent Assistant as a substrate extraction spec",
+            "chosen": "Trace Sage v2 PR #208 into Agent Assistant as a substrate extraction spec",
+            "alternatives": [],
+            "reasoning": "Sage proved reusable needs around nested subagent execution, runtime budget policy, telemetry/evals, and insights context, but Sage-specific prompts and Slack-to-Notion workflow should remain product-owned."
+          },
+          "significance": "high"
+        },
+        {
+          "ts": 1778142851471,
+          "type": "reflection",
+          "content": "Opened agent-assistant PR #85 from latest main with a Sage v2 substrate extraction map. The PR keeps product behavior in Sage and identifies reusable Agent Assistant follow-up tracks for nested subagent runner, runtime budget policy, telemetry/evals, and insights context.",
+          "raw": {
+            "focalPoints": [
+              "sage-v2",
+              "agent-assistant",
+              "substrate-extraction",
+              "pr-85"
+            ],
+            "confidence": 0.86
+          },
+          "significance": "high",
+          "tags": [
+            "focal:sage-v2",
+            "focal:agent-assistant",
+            "focal:substrate-extraction",
+            "focal:pr-85",
+            "confidence:0.86"
+          ]
+        },
+        {
+          "ts": 1778143827319,
+          "type": "decision",
+          "content": "Author Sage v2 substrate extraction as a dedicated Agent Relay workflow: Author Sage v2 substrate extraction as a dedicated Agent Relay workflow",
+          "raw": {
+            "question": "Author Sage v2 substrate extraction as a dedicated Agent Relay workflow",
+            "chosen": "Author Sage v2 substrate extraction as a dedicated Agent Relay workflow",
+            "alternatives": [],
+            "reasoning": "The requested output is orchestration work: Claude lead plus Codex execution, explicit self-reflection, peer review, 80-to-100 validation, and PR publication. A workflow file is the right artifact because it preserves these constraints as executable gates instead of a prose plan."
+          },
+          "significance": "high"
+        },
+        {
+          "ts": 1778144064161,
+          "type": "reflection",
+          "content": "Sage v2 workflow artifact drafted and locally type-checked. Remaining work is narrow: stage only the new workflow, commit it on the existing substrate branch, push, and open or update the PR without absorbing active trajectory/tmp drift.",
+          "raw": {
+            "focalPoints": [
+              "workflow-artifact",
+              "scope-control",
+              "pr-publication"
+            ],
+            "adjustments": "Stage a single path explicitly and leave unrelated dirty files untouched.",
+            "confidence": 0.82
+          },
+          "significance": "high",
+          "tags": [
+            "focal:workflow-artifact",
+            "focal:scope-control",
+            "focal:pr-publication",
+            "confidence:0.82"
+          ]
+        },
+        {
+          "ts": 1778144202576,
+          "type": "decision",
+          "content": "Fix Ricky ESM import resolution in Sage v2 workflow: Fix Ricky ESM import resolution in Sage v2 workflow",
+          "raw": {
+            "question": "Fix Ricky ESM import resolution in Sage v2 workflow",
+            "chosen": "Fix Ricky ESM import resolution in Sage v2 workflow",
+            "alternatives": [],
+            "reasoning": "Ricky runs workflow files through Node ESM, which does not resolve extensionless relative TypeScript imports. The workflow should import the local setup helper with an explicit .ts extension so the runtime loader can find it."
+          },
+          "significance": "high"
         }
       ]
     }

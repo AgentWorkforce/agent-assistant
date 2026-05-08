@@ -226,6 +226,7 @@ export interface TurnPreparedContextBlock {
   importance?: 'low' | 'medium' | 'high';
   source?: string;
   category?: 'memory' | 'session' | 'enrichment' | 'workspace' | 'guardrail' | 'other';
+  metadata?: Record<string, unknown>;
 }
 
 export interface TurnContextProvenance {
