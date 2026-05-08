@@ -40,6 +40,7 @@ export interface RunHumanEvalCliOptions {
 interface ParsedArgs {
   provider?: boolean;
   reviewOnly?: boolean;
+  help?: boolean;
   list?: boolean;
   suite?: string;
   caseId?: string;
@@ -51,7 +52,12 @@ const DEFAULT_PRODUCT_NAME = 'Human Eval';
 
 export async function runHumanEvalCli(options: RunHumanEvalCliOptions): Promise<number> {
   loadDotenv(options.envFile ?? path.join(options.rootDir, '.env'));
-  const args = parseArgs(options.argv, options.productName ?? DEFAULT_PRODUCT_NAME);
+  const args = parseArgs(options.argv);
+  if (args.help) {
+    printHelp(options.productName ?? DEFAULT_PRODUCT_NAME);
+    return 0;
+  }
+
   const providerMode = args.provider || process.env.SAGE_EVAL_PROVIDER === '1' || process.env.HUMAN_EVAL_PROVIDER === '1';
   const suitesDir = options.suitesDir ?? path.join(options.rootDir, 'evals', 'suites');
   const runsDir = options.runsDir ?? path.join(options.rootDir, '.evals', 'runs');
@@ -119,8 +125,8 @@ export async function runHumanEvalCli(options: RunHumanEvalCliOptions): Promise<
         const actual = args.reviewOnly
           ? { status: 'manual_review_required', content: '', toolCalls: [] }
           : await executor?.(testCase, { providerMode, rootDir: options.rootDir });
-        const checks = assertHumanEvalExpected(testCase, actual);
-        const deterministicPassed = checks.every((check) => check.passed);
+        const checks = args.reviewOnly ? [] : assertHumanEvalExpected(testCase, actual);
+        const deterministicPassed = args.reviewOnly || checks.every((check) => check.passed);
         const needsHuman = humanEvalNeedsReview(testCase);
 
         run.tests.push({
@@ -160,7 +166,7 @@ export function createDefaultHumanEvalExecutors(rootDir: string): Record<string,
         };
       }
       if (typeof testCase.input.candidateOutputPath === 'string') {
-        const fullPath = path.resolve(rootDir, testCase.input.candidateOutputPath);
+        const fullPath = resolvePathWithinRoot(rootDir, testCase.input.candidateOutputPath);
         return {
           status: 'manual_review_required',
           content: readFileSync(fullPath, 'utf8'),
@@ -180,10 +186,20 @@ export function createDefaultHumanEvalExecutors(rootDir: string): Record<string,
       if (typeof actualPath !== 'string') {
         throw new Error('transcript executor requires input.actualPath');
       }
-      const fullPath = path.resolve(rootDir, actualPath);
+      const fullPath = resolvePathWithinRoot(rootDir, actualPath);
       return normalizeHumanEvalActual(JSON.parse(readFileSync(fullPath, 'utf8')));
     },
   };
+}
+
+export function resolvePathWithinRoot(rootDir: string, filePath: string): string {
+  const root = path.resolve(rootDir);
+  const resolved = path.resolve(root, filePath);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Eval path must stay within rootDir: ${filePath}`);
+  }
+  return resolved;
 }
 
 export function createSkippedEvalError(message: string): Error {
@@ -247,7 +263,7 @@ export function printHumanEvalRunSummary(
   }
 }
 
-function parseArgs(argv: string[], productName: string): ParsedArgs {
+function parseArgs(argv: string[]): ParsedArgs {
   const parsed: ParsedArgs = { tags: new Set() };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -259,8 +275,7 @@ function parseArgs(argv: string[], productName: string): ParsedArgs {
     else if (arg === '--tag') parsed.tags.add(argv[++index] ?? '');
     else if (arg === '--trials') parsed.trials = Number(argv[++index]);
     else if (arg === '--help' || arg === '-h') {
-      printHelp(productName);
-      process.exit(0);
+      parsed.help = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }

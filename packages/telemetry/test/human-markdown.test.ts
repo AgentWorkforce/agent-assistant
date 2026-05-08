@@ -65,4 +65,45 @@ forbidPhrases:
       },
     });
   });
+
+  it('requires human review when Must or Must Not rubrics are present', () => {
+    const cases = parseHumanEvalCasesMarkdown(`
+## planning.rubric-review
+Executor: manual
+
+### Message
+Draft a plan.
+
+### Must
+- Ask one useful question.
+`, { suite: 'planning' });
+
+    expect(cases[0]?.expected).toMatchObject({
+      humanReviewRequired: true,
+      must: ['Ask one useful question.'],
+    });
+  });
+
+  it('does not split sections on fenced markdown headings', () => {
+    const cases = parseHumanEvalCasesMarkdown(`
+## planning.fenced-output
+Executor: manual
+
+### Message
+Review this answer.
+
+### Candidate Output
+\`\`\`markdown
+### Not A Section
+Keep this heading in the candidate output.
+\`\`\`
+
+### Deterministic Checks
+contentIncludes:
+- Not A Section
+`, { suite: 'planning' });
+
+    expect(cases[0]?.input.candidateOutput).toContain('### Not A Section');
+    expect(cases[0]?.expected.contentIncludes).toEqual(['Not A Section']);
+  });
 });

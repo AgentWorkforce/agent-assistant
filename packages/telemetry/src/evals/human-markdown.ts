@@ -122,6 +122,7 @@ function parseCaseBlock(block: CaseBlock, options: ParseHumanEvalMarkdownOptions
 
   if (humanMust.length > 0) expected.must = humanMust;
   if (humanMustNot.length > 0) expected.mustNot = humanMustNot;
+  if (humanMust.length > 0 || humanMustNot.length > 0) expected.humanReviewRequired = true;
   if (meta.humanReview !== undefined) expected.humanReviewRequired = meta.humanReview;
   if (deterministic.humanReviewRequired !== undefined) {
     expected.humanReviewRequired = deterministic.humanReviewRequired;
@@ -165,8 +166,19 @@ function parseCaseBlock(block: CaseBlock, options: ParseHumanEvalMarkdownOptions
 function splitSections(lines: string[]): MarkdownSections {
   const sections: MarkdownSections = { meta: [] };
   let current = 'meta';
+  let inFence = false;
 
   for (const line of lines) {
+    if (/^```/.test(line.trim())) {
+      inFence = !inFence;
+      sections[current]?.push(line);
+      continue;
+    }
+    if (inFence) {
+      sections[current]?.push(line);
+      continue;
+    }
+
     const match = /^###\s+(.+?)\s*$/.exec(line.trim());
     if (match) {
       current = match[1] ?? '';
