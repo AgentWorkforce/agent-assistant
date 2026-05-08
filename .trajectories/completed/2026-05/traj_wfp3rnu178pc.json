@@ -9,8 +9,9 @@
       "id": "128b747fcfc5b7fa97dda841"
     }
   },
-  "status": "active",
+  "status": "completed",
   "startedAt": "2026-05-04T11:01:41.211Z",
+  "completedAt": "2026-05-08T07:45:54.075Z",
   "agents": [
     {
       "name": "orchestrator",
@@ -70,6 +71,7 @@
       "title": "Execution: implement-v0-5-slice",
       "agentName": "implementer",
       "startedAt": "2026-05-04T11:01:45.067Z",
+      "endedAt": "2026-05-08T07:45:54.075Z",
       "events": [
         {
           "ts": 1777892505068,
@@ -161,6 +163,11 @@
       ]
     }
   ],
+  "retrospective": {
+    "summary": "merged",
+    "approach": "Standard approach",
+    "confidence": 0.8
+  },
   "commits": [],
   "filesChanged": [],
   "projectId": "/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant",

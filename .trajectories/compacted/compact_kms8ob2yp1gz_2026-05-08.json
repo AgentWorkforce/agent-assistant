@@ -1,0 +1,430 @@
+{
+  "id": "compact_kms8ob2yp1gz",
+  "version": 1,
+  "type": "compacted",
+  "compactedAt": "2026-05-08T07:46:04.694Z",
+  "sourceTrajectories": [
+    "traj_pxqrlbn2o8yj",
+    "traj_bl065l0xwwoa",
+    "traj_fnw9bwg7gn4b",
+    "traj_60oxhp8avjun",
+    "traj_7ja5dll9qouq",
+    "traj_9u91zzp2fl2d",
+    "traj_vv6iamch038o",
+    "traj_wfp3rnu178pc",
+    "traj_nmxaazsrfu3c",
+    "traj_nhoot50i38bn",
+    "traj_8senjkr25v60",
+    "traj_34202idd4b5w",
+    "traj_mm17idagk2py",
+    "traj_0sh4kstep7a9",
+    "traj_roa2c5cr79dx",
+    "traj_r2i6w7lgt8tv",
+    "traj_z976eyovjwme",
+    "traj_5vovw7tpi074",
+    "traj_1776027407513_37387d30",
+    "traj_1776026211599_140e2b55",
+    "traj_1776021172849_dde21b60",
+    "traj_1775936268472_e3b1f603",
+    "traj_1775934267253_654d804d",
+    "traj_1775932923283_87d1c13d",
+    "traj_1775932215797_95d9ba52",
+    "traj_1775929539127_5ec70446",
+    "traj_1775928840731_599ab69e",
+    "traj_1775926361867_a8ce05fb",
+    "traj_1775924045856_ffb1d5db",
+    "traj_1775922708899_2fed0c74",
+    "traj_1775920802333_b442e929",
+    "traj_1775919588789_8923b104",
+    "traj_1775916250659_564c77aa",
+    "traj_1775914685903_8a215365",
+    "traj_1775913327056_1fe960c8",
+    "traj_1775910945742_2ff3fe6e",
+    "traj_1775907905098_8ba7612e",
+    "traj_1775905712064_b9bf6c9a",
+    "traj_1775903795360_cd0b8f10",
+    "traj_1775902178125_2b37c66d",
+    "traj_1775900904377_715dd67d",
+    "traj_1775899152711_44973df5",
+    "traj_1775898163412_2c0cf3b1",
+    "traj_1775895992843_78c775f3",
+    "traj_1775893668447_1f61f282",
+    "traj_1775891472430_23763a1b",
+    "traj_1775890480125_a333bfe3"
+  ],
+  "dateRange": {
+    "start": "2026-04-11T06:54:40.125Z",
+    "end": "2026-05-08T07:45:57.343Z"
+  },
+  "summary": {
+    "totalDecisions": 11,
+    "totalEvents": 543,
+    "uniqueAgents": [
+      "orchestrator",
+      "executor-codex",
+      "fresh-eyes-codex",
+      "peer-review-claude",
+      "validation-claude",
+      "lead-claude",
+      "default",
+      "implementer",
+      "reviewer",
+      "lead",
+      "impl",
+      "author-claude",
+      "review-codex",
+      "implement-codex",
+      "review-claude",
+      "examples-claude",
+      "spec-claude",
+      "program-claude"
+    ]
+  },
+  "decisionGroups": [
+    {
+      "category": "testing",
+      "decisions": [
+        {
+          "question": "Address PR #86 review comments with a narrow follow-up commit",
+          "chosen": "Address PR #86 review comments with a narrow follow-up commit",
+          "reasoning": "CI failure is from premature runtime-policy exports, while review comments target nested subagent runner error boundaries, trace propagation, tests, and doc links; keep unrelated workflow-generated dirty files out of the PR.",
+          "fromTrajectory": "traj_fnw9bwg7gn4b"
+        },
+        {
+          "question": "Promote Sage public agent capabilities as SDK primitives",
+          "chosen": "Promote Sage public agent capabilities as SDK primitives",
+          "reasoning": "Recent Sage changes split into product wiring and generic capability gaps; agent-assistant should own reusable A2A route/card helpers and richer public GitHub source-inspection tools so future agents do not reimplement Sage-specific copies.",
+          "fromTrajectory": "traj_9u91zzp2fl2d"
+        },
+        {
+          "question": "Trace Sage v2 PR #208 into Agent Assistant as a substrate extraction spec",
+          "chosen": "Trace Sage v2 PR #208 into Agent Assistant as a substrate extraction spec",
+          "reasoning": "Sage proved reusable needs around nested subagent execution, runtime budget policy, telemetry/evals, and insights context, but Sage-specific prompts and Slack-to-Notion workflow should remain product-owned.",
+          "fromTrajectory": "traj_wfp3rnu178pc"
+        },
+        {
+          "question": "Added raw memory helpers in @agent-assistant/memory",
+          "chosen": "Added raw memory helpers in @agent-assistant/memory",
+          "reasoning": "Sage needs reusable scoped retrieval, relay-backed store construction, and latest-session promotion while keeping Slack-specific promotion policy and prompt formatting product-local.",
+          "fromTrajectory": "traj_nhoot50i38bn"
+        }
+      ]
+    },
+    {
+      "category": "api",
+      "decisions": [
+        {
+          "question": "Use a new @agent-assistant/evals workspace package and extend turn-context blocks with optional metadata for insight provenance",
+          "chosen": "Use a new @agent-assistant/evals workspace package and extend turn-context blocks with optional metadata for insight provenance",
+          "reasoning": "The eval substrate has a distinct public contract and tests, while insight provenance needs to survive projection without coupling VFS parsing to execution-request formatting.",
+          "fromTrajectory": "traj_fnw9bwg7gn4b"
+        },
+        {
+          "question": "Author Sage v2 substrate extraction as a dedicated Agent Relay workflow",
+          "chosen": "Author Sage v2 substrate extraction as a dedicated Agent Relay workflow",
+          "reasoning": "The requested output is orchestration work: Claude lead plus Codex execution, explicit self-reflection, peer review, 80-to-100 validation, and PR publication. A workflow file is the right artifact because it preserves these constraints as executable gates instead of a prose plan.",
+          "fromTrajectory": "traj_wfp3rnu178pc"
+        },
+        {
+          "question": "Use apiFallback source for post-filter-empty retry without VFS errors",
+          "chosen": "Use apiFallback source for post-filter-empty retry without VFS errors",
+          "reasoning": "Required tests specify apiFallback when fallback replaces non-matching VFS entries; mixed is reserved for fallback after captured VFS errors.",
+          "fromTrajectory": "traj_8senjkr25v60"
+        }
+      ]
+    },
+    {
+      "category": "other",
+      "decisions": [
+        {
+          "question": "Address second PR #86 review pass with child-trace direct fallback and GC-friendly counters",
+          "chosen": "Address second PR #86 review pass with child-trace direct fallback and GC-friendly counters",
+          "reasoning": "CodeRabbit found the direct parentContext fallback still preferred parentTraceId before childTraceId and noted the string-keyed child counter map can retain parent turn entries forever in long-lived harnesses.",
+          "fromTrajectory": "traj_fnw9bwg7gn4b"
+        },
+        {
+          "question": "Added VFS as a provider-neutral agent-assistant primitive",
+          "chosen": "Added VFS as a provider-neutral agent-assistant primitive",
+          "reasoning": "The CLI/parser/output logic is reusable across products; Sage should only adapt RelayFile data into the shared VfsProvider contract.",
+          "fromTrajectory": "traj_5vovw7tpi074"
+        }
+      ]
+    },
+    {
+      "category": "tooling",
+      "decisions": [
+        {
+          "question": "Fix Ricky ESM import resolution in Sage v2 workflow",
+          "chosen": "Fix Ricky ESM import resolution in Sage v2 workflow",
+          "reasoning": "Ricky runs workflow files through Node ESM, which does not resolve extensionless relative TypeScript imports. The workflow should import the local setup helper with an explicit .ts extension so the runtime loader can find it.",
+          "fromTrajectory": "traj_wfp3rnu178pc"
+        },
+        {
+          "question": "Build VFS in publish workflow",
+          "chosen": "Build VFS in publish workflow",
+          "reasoning": "The runtime-core publish matrix included vfs, but the dependency-aware build order omitted it, so artifact upload tried to copy packages/vfs/dist before it existed.",
+          "fromTrajectory": "traj_z976eyovjwme"
+        }
+      ]
+    }
+  ],
+  "keyLearnings": [],
+  "keyFindings": [
+    "\"fix-targeted-tests\" completed → Result\n\nNo action taken. The provided evidence showed `TEST_EXIT=0` and `BUILD_EXIT=0`, so the nested-runner slice was l",
+    "\"executor-self-reflection\" completed → EXECUTOR_SELF_REFLECTION_COMPLETE",
+    "\"fresh-eyes-review\" completed → FRESH_EYES_REVIEW_COMPLETE",
+    "\"fresh-eyes-self-reflection\" completed → Wrote [docs/architecture/sage-v2-nested-subagent-runner-fresh-eyes-reflection.md](/Users/khaliqgant/Projects/AgentWorkfo",
+    "\"claude-peer-review\" completed → The peer review document has been written to `docs/architecture/sage-v2-nested-subagent-runner-claude-peer-review.md`.\n\n",
+    "\"claude-peer-review-self-reflection\" completed → CLAUDE_PEER_REVIEW_SELF_REFLECTION_COMPLETE",
+    "\"claude-80-to-100-validation\" completed → CLAUDE_80_TO_100_VALIDATION_COMPLETE",
+    "\"validation-self-reflection\" completed → VALIDATION_SELF_REFLECTION_COMPLETE",
+    "\"implement-telemetry-events\" completed → - `packages/telemetry/test/private_content_never_leaks.test.ts`",
+    "\"implement-eval-substrate\" completed → **Implemented**\nAdded the eval substrate as a scoped `@agent-assistant/telemetry/evals` module, matching the plan’s “sma",
+    "\"implement-insight-contracts\" completed → Implemented the insight-envelope and reader-helper slice only.\n\nArtifacts produced:\n- `packages/vfs/src/insight/envelope",
+    "\"fix-targeted-package-tests\" completed → Artifacts produced: none.",
+    "\"fix-build-and-regressions\" completed → **Outcome**\n\nFixed the workspace build regression. The failure was caused by `@agent-assistant/turn-context` emitting a ",
+    "\"codex-fresh-eyes-review\" completed → FRESH_EYES_REVIEW_COMPLETE",
+    "\"lead-architecture-contract\" completed → ✻ Cogitated for 3m 24s                                           \r❯",
+    "\"lead-self-reflection\" completed → ✻ Brewed for 1m 47s                                            \r❯",
+    "\"implement-nested-subagent-runner\" completed → - `packages/harness/src/nested-subagent-runner.test.ts`",
+    "\"fix-harness-after-nested-runner\" completed → Result\n\n`EXIT: 0` was already achieved for the nested runner slice.\n\nActions taken\n\nNo code changes were made.\nNo tests ",
+    "\"implement-runtime-budget-policy\" completed → - Exported harness runtime-policy public surface and subpath export",
+    "\"fix-harness-after-runtime-policy\" completed → **Result**\n\nNo action was required.\n\nThe supplied `@agent-assistant/harness` test run already ended with `EXIT: 0`, with",
+    "\"repair-v0-5-from-evidence\" completed → v0.5 required no repair because build and tests already passed.",
+    "\"implement-v0-6-v0-7-slices\" completed → V0_6_V0_7_SLICES_IMPLEMENTED",
+    "\"repair-v0-6-v0-7-from-evidence\" completed → - No source code changes made during this repair pass",
+    "\"review-and-final-signoff\" completed → Wrote [ricky-harness-v0.5-v0.7-signoff.md](/Users/khaliqgant/Projects/AgentWorkforce/agent-assistant/docs/architecture/r",
+    "\"emit-minimal-plan-and-mapping\" completed → ✻ Cogitated fo  2m 47s                                         \r❯",
+    "\"implement-v0-5-slice\" completed → (node:95057) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:\r\n--imp",
+    "\"repair-v0-5-from-evidence\" completed → (node:23680) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:\r\n--imp",
+    "\"plan\" completed → Creating…",
+    "\"impl-pkg-dep\" completed → Agent Relay collects anonymous usage data to improve the product.Run `agent-relay telemetry disable` to opt out.>7u\r\n╭──",
+    "\"impl-classifier\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"impl-index-export\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"impl-classifier-test\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"plan\" completed → ✻ Brewed for 59s                                           \r❯",
+    "\"impl-classifier\" completed → Agent Relay collects anonymous usage data to improve the product.Run `agent-relay telemetry disable` to opt out.>7u\r\n╭──",
+    "\"plan\" completed → 42",
+    "\"impl-quiet-hours\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"impl-quiet-hours-test\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"plan\" completed → ✽ Cooking…",
+    "\"impl-signal-inbox\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"impl-signal-inbox-test\" completed → >7u\r\n╭──────────────────────────────────────────────────╮\r\n│ >_ OpenAI Codex (v0.121.0)                       │\r\n│      ",
+    "\"define-remediation-boundary\" completed → ·",
+    "\"apply-remediation\" completed → - Report ends with `AGENT_ASSISTANT_RENAME_REMEDIATION_REPORT_READY`",
+    "\"review-remediation\" completed → AGENT_ASSISTANT_RENAME_REMEDIATION_REVIEW_COMPLETE",
+    "\"define-remediation-boundary\" completed → ──────────────────────────────────────────────────────�",
+    "\"apply-remediation\" completed → ---\n\n## Summary\n\nAll remediation actions from `agent-assistant-sdk-rename-remediation-boundary.md` have been applied:\n\n*",
+    "\"define-rename-boundary\" completed → >0q>4m<u╭─── Claude Code v2.1.86 ──────────────────────────────────────────────────────╮\r\r\n│                            ",
+    "\"apply-rename-and-public-readme-pass\" completed → All six automatable validation criteria pass. Here is a summary of what was accomplished:\n\n---\n\n## Summary\n\n### What was",
+    "\"review-rename-and-public-positioning\" completed → AGENT_ASSISTANT_RENAME_REVIEW_COMPLETE",
+    "\"lead-traits-implementation-plan\" completed → 1",
+    "\"implement-traits-package\" completed → **Implemented**\n\nCreated the v1 `@relay-assistant/traits` package under `packages/traits/` with the required isolated pa",
+    "\"review-traits-package\" completed → V1_TRAITS_PACKAGE_REVIEW_COMPLETE",
+    "\"lead-traits-scope\" completed → ✳ Schlepping…     20",
+    "\"author-v1-traits-spec\" completed → All four files have been written:\n\n- **`docs/specs/v1-traits-spec.md`** — Full implementation-facing spec covering trait",
+    "\"review-v1-traits-spec\" completed → V1_TRAITS_REVIEW_COMPLETE",
+    "\"lead-memory-implementation-plan\" completed → 6",
+    "\"implement-memory-package\" completed → Implemented the v1 `@relay-assistant/memory` package under `packages/memory/` as a TypeScript-first assistant-memory com",
+    "\"review-memory-package\" completed → V1_MEMORY_PACKAGE_REVIEW_COMPLETE",
+    "\"lead-memory-reconciliation-plan\" completed → 8",
+    "\"apply-memory-reconciliation\" completed → All changes are confirmed. Here is a summary of what was accomplished:\n\n---\n\n## Summary\n\nApplied the v1 memory reconcili",
+    "\"review-memory-reconciliation\" completed → V1_MEMORY_RECONCILIATION_REVIEW_COMPLETE",
+    "\"lead-memory-scope\" completed → · Pontificating…",
+    "\"author-v1-memory-spec\" completed → All four files have been written to disk:\n\n---\n\n**Artifacts produced:**\n\n| File | Status | Terminal sentinel |\n|---|---|",
+    "\"review-v1-memory-spec\" completed → V1_MEMORY_REVIEW_COMPLETE",
+    "\"lead-cleanup-plan\" completed → ✳",
+    "\"apply-cleanup-sweep\" completed → - required marker appended: `POST_AUDIT_CLEANUP_APPLIED`",
+    "\"review-cleanup-sweep\" completed → POST_AUDIT_CLEANUP_REVIEW_COMPLETE",
+    "\"apply-audit-alignment\" completed → All files have been written. Here is a summary of what was accomplished:\n\n---\n\n## Summary\n\n### Files updated\n\n| File | W",
+    "\"review-audit-alignment\" completed → SDK_AUDIT_ALIGNMENT_REVIEW_COMPLETE",
+    "\"lead-audit-plan\" completed → >0q>4m<u╭─── Claude Code v2.1.86 ──────────────────────────────────────────────────────╮\r\r\n│                            ",
+    "\"apply-audit-alignment\" completed → - `AGENTS.md` — relay-agent-assistant SDK guidance section with all three durable notes",
+    "\"lead-coord-routing-plan\" completed → ✳",
+    "\"implement-coord-routing-integration\" completed → Implemented the bounded v1 coordination↔routing integration and wrote the changes to disk.\n\n**What changed**\n- Coordinat",
+    "\"review-coord-routing-integration\" completed → V1_COORD_ROUTING_INTEGRATION_REVIEW_COMPLETE",
+    "\"lead-routing-plan\" completed → ✢",
+    "\"implement-routing-package\" completed → - The package is runnable and testable in isolation.",
+    "\"review-routing-package\" completed → V1_ROUTING_REVIEW_COMPLETE",
+    "\"implement-coordination-hardening\" completed → - the coordination package builds and passes the 35-test hardening target",
+    "\"review-coordination-hardening\" completed → V1_COORDINATION_HARDENING_REVIEW_COMPLETE",
+    "\"lead-coordination-hardening-plan\" completed → >0q>4m<u╭─── Claude Code v2.1.86 ──────────────────────────────────────────────────────╮\r\r\n│                            ",
+    "\"implement-coordination-hardening\" completed → - `COORDINATION_HARDENING_IMPLEMENTED` is present in the hardening plan.",
+    "\"lead-coordination-plan\" completed → ⏵⏵ bypass pe",
+    "\"implement-coordination-package\" completed → Implemented the v1 coordination package under `packages/coordination/` and verified it end to end.\n\nArtifacts produced:\n",
+    "\"review-coordination-package\" completed → Verdict written to `docs/architecture/v1-coordination-review-verdict.md`.\n\n**PASS_WITH_FOLLOWUPS**\n\nHere is the summary ",
+    "\"lead-connectivity-hardening-plan\" completed → ·",
+    "\"implement-connectivity-hardening\" completed → - Hardening-plan completion marker appended as requested",
+    "\"review-connectivity-hardening\" completed → V1_CONNECTIVITY_HARDENING_REVIEW_COMPLETE",
+    "\"lead-connectivity-plan\" completed → · Improvising…",
+    "\"implement-connectivity-package\" completed → - No generated `node_modules` or `dist` left in the package directory after verification",
+    "\"review-connectivity-package\" completed → V1_CONNECTIVITY_PACKAGE_REVIEW_COMPLETE",
+    "\"lead-connectivity-scope\" completed → ✻",
+    "\"author-v1-connectivity-spec\" completed → All four files have been written:\n\n**`docs/specs/v1-connectivity-spec.md`** — Complete implementation-facing spec replac",
+    "\"review-v1-connectivity-spec\" completed → V1_CONNECTIVITY_REVIEW_COMPLETE",
+    "\"lead-foundation-plan\" completed → ✻",
+    "\"implement-foundation-integration\" completed → - Foundation plan doc updated with the required marker",
+    "\"review-foundation-integration\" completed → The verdict document has been written to `docs/architecture/v1-foundation-integration-review-verdict.md`.\n\n---\n\n## Revie",
+    "\"lead-surfaces-plan\" completed → ✳",
+    "\"implement-surfaces-package\" completed → Implemented `packages/surfaces` as a TypeScript-first v1 package with a minimal in-memory surface registry, inbound norm",
+    "\"review-surfaces-package\" completed → | F-6 | Document `normalizationHook` null/undefined drop behavior in README | Nice-to-have |",
+    "\"lead-sessions-plan\" completed → ✳ Discombobulating…",
+    "\"implement-sessions-package\" completed → Implemented the v1 `@relay-assistant/sessions` package under [packages/sessions](/Users/khaliqgant/Projects/AgentWorkfor",
+    "\"review-sessions-package\" completed → V1_SESSIONS_REVIEW_COMPLETE",
+    "\"lead-core-plan\" completed → Thundering…                           thinking",
+    "\"implement-core-package\" completed → - built `dist/` output generated by the package build script",
+    "\"review-core-package\" completed → V1_CORE_REVIEW_COMPLETE",
+    "\"lead-spec-fix-plan\" completed → ✳                       4",
+    "\"apply-spec-reconciliation\" completed → - **Edit 3.3** — Replaced \"session resumed\" in WF-7 step 10 with \"session reactivated via touch\"",
+    "\"review-canonical-specs\" completed → CANONICAL_SPEC_REVIEW_COMPLETE",
+    "\"reconcile-examples-and-weekend-plan\" completed → Both files are updated. Here's a summary of what was done:\n\n---\n\n## Summary\n\n### `docs/consumer/how-to-build-an-assistan",
+    "\"reconcile-plan-docs\" completed → - Ends with `V1_WORKFLOW_BACKLOG_READY`",
+    "\"review-reconciliation\" completed → SPEC_RECONCILIATION_REVIEW_COMPLETE",
+    "\"lead-reconciliation-rules\" completed → >0q>4m<u╭─── Claude Code v2.1.86 ──────────────────────────────────────────────────────╮\r\r\n│                            ",
+    "\"reconcile-examples-and-weekend-plan\" completed → Both files are now complete and spec-conformant. Here is a summary of all changes made:\n\n---\n\n## Summary\n\n### `docs/cons",
+    "\"reconcile-plan-docs\" completed → 9. **File ends with** `V1_WORKFLOW_BACKLOG_READY` ✓",
+    "\"lead-plan\" completed → Galloping…",
+    "\"author-v1-program\" completed → Three files created:\n\n- **`docs/architecture/v1-sectioning-and-priorities.md`** — canonical version sectioning reference",
+    "\"author-specs\" completed → Every file ends with `SPEC_READY`.",
+    "\"review-specs-and-program\" completed → SPEC_PROGRAM_REVIEW_COMPLETE",
+    "\"lead-plan\" completed → >0q>4m<u╭─── Claude Code v2.1.86 ──────────────────────────────────────────────────────╮\r\r\n│                            ",
+    "\"author-specs\" completed → All six spec files already exist on disk and are complete. Here's a summary of what's in place:\n\n**All files verified as",
+    "\"author-v1-program\" completed → - After-weekend next steps updated to reflect workflow document authoring as the highest priority",
+    "\"review-specs-and-program\" completed → Wrote [spec-program-review-verdict.md](/Users/khaliqgant/Projects/AgentWorkforce/relay-agent-assistant/docs/architecture"
+  ],
+  "filesAffected": [],
+  "commits": [],
+  "narrative": "This trajectory set documents the multi-month build-out of `agent-assistant` (formerly `relay-agent-assistant`/`@relay-assistant/*`) as a provider-neutral SDK extracted from Sage v2 and the broader Workforce program. Work proceeded through staged Agent Relay supervisor/DAG workflows: initial spec authorship and reconciliation (canonical specs, v1 workflow backlog, sectioning), v1 package implementation (`@agent-assistant/core`, `sessions`, `surfaces`, `connectivity`, `coordination`, `routing`, `memory`, `traits`, `vfs`, `proactive`, `telemetry`, `harness`), hardening passes against review verdicts, and the SDK-wide rename from `relay-assistant` to `agent-assistant`. The most recent arc (May 4–8, 2026) focused on the Sage v2 substrate extraction: a nested subagent runner in `packages/harness`, a runtime budget policy, telemetry vocabulary (`packages/telemetry`), an eval substrate (`@agent-assistant/telemetry/evals` + `@agent-assistant/evals` workspace package), and an insight envelope/reader in `packages/vfs/src/insight/`. The substrate work landed across two main PRs: a large multi-slice extraction (PR #86, merged) and a follow-up first-slice-only PR (#87) that re-introduced the nested subagent runner with full peer review (`fresh-eyes-codex`, `peer-review-claude`) and 80-to-100 validation. CI broke on the larger PR due to premature runtime-policy export surface, then again on review feedback from CodeRabbit around child-trace fallback ordering (parentTraceId vs childTraceId) and a string-keyed child counter map that could leak parent turn entries in long-lived harnesses. Both were addressed via narrow follow-up commits (63fddb0, 1cd3e23) rather than amends. Earlier sessions also added Sage feature-promotion primitives (A2A card/RPC route helpers in webhook-runtime, public GitHub fetcher/source-navigation, bounded GitHub harness tool registry) and reusable memory helpers (`@agent-assistant/memory`). The consistent operational pattern is: Claude lead writes a bounded scope/plan doc under `docs/architecture/`, Codex executor implements one slice at a time against `docs/specs/`, targeted package tests gate each slice, then fresh-eyes review + 80-to-100 validation + self-reflection docs close the loop before commit/PR. The user explicitly authors and dry-runs workflows but does not run them — execution is the user's responsibility per saved memory.",
+  "decisions": [
+    {
+      "question": "How to package the Sage v2 eval substrate and insight provenance",
+      "chosen": "New `@agent-assistant/evals` workspace package + extend turn-context blocks with optional metadata for insight provenance",
+      "reasoning": "Eval substrate has a distinct public contract and tests; insight provenance must survive projection without coupling VFS parsing to execution-request formatting.",
+      "impact": "Created `packages/evals` and `packages/telemetry/src/evals/`; turn-context blocks now carry optional metadata consumed by the insight envelope reader."
+    },
+    {
+      "question": "How to address PR #86 review comments after CI failure",
+      "chosen": "Narrow follow-up commit (63fddb0) targeting nested-runner error boundaries, trace propagation, tests, and doc links — keep workflow-generated dirty files out",
+      "reasoning": "CI failure was from premature runtime-policy exports, distinct from review-comment scope; mixing them would muddy the diff and risk regressions.",
+      "impact": "Allowed the substrate PR to merge cleanly; established pattern of separating CI-fix commits from review-feedback commits."
+    },
+    {
+      "question": "How to fix CodeRabbit's second-pass review concerns",
+      "chosen": "Direct-fallback to childTraceId before parentTraceId; switch child counter map to GC-friendly structure",
+      "reasoning": "Direct parentContext fallback was preferring parentTraceId, breaking child trace continuity; string-keyed child counters retained parent turn entries indefinitely in long-lived harnesses.",
+      "impact": "Prevents memory leaks in long-running harness instances and corrects trace propagation in nested subagent runner."
+    },
+    {
+      "question": "Should Sage v2 PR #208 be promoted into agent-assistant?",
+      "chosen": "Yes, as a substrate extraction spec — but Sage-specific prompts and Slack-to-Notion workflow stay product-owned",
+      "reasoning": "Sage proved reusable need for nested subagent execution, runtime budget policy, telemetry/evals, and insights; product-specific glue should not bleed into the SDK.",
+      "impact": "Drove the substrate workflow series and the `docs/architecture/sage-v2-substrate-implementation-plan.md` plan."
+    },
+    {
+      "question": "How to author the substrate extraction work",
+      "chosen": "Dedicated Agent Relay workflow with Claude lead + Codex executor + explicit reflection/peer-review/validation gates",
+      "reasoning": "The deliverable is orchestration: workflow files preserve gates as executable contracts rather than prose plans that drift.",
+      "impact": "All substrate slices ran through the same DAG: lead-plan → executor → fresh-eyes → peer-review → 80-to-100 validation → self-reflection."
+    },
+    {
+      "question": "How to source the post-filter-empty fallback in librarian VFS enumeration",
+      "chosen": "`apiFallback` source (not `mixed`)",
+      "reasoning": "Tests specify `apiFallback` when fallback replaces non-matching VFS entries; `mixed` is reserved for fallback after captured VFS errors.",
+      "impact": "Distinguishes filter-miss recovery from error-recovery in source diagnostics."
+    },
+    {
+      "question": "Where to put memory helpers shared with Sage",
+      "chosen": "Raw helpers in `@agent-assistant/memory`; Slack-specific promotion policy stays in product",
+      "reasoning": "Relay-backed store construction, scoped retrieval, and latest-session promotion are reusable; Slack prompt formatting is product-local.",
+      "impact": "Sage and other surfaces consume the same memory primitives without duplication."
+    },
+    {
+      "question": "How to expose VFS for Sage consumption",
+      "chosen": "`@agent-assistant/vfs` as a provider-neutral primitive",
+      "reasoning": "CLI/parser/output is reusable across products; Sage only needs to adapt RelayFile data into the shared `VfsProvider` contract.",
+      "impact": "Sage no longer carries its own VFS implementation; broke build once when publish workflow forgot to compile vfs before artifact upload (later fixed)."
+    }
+  ],
+  "conventions": [
+    {
+      "pattern": "Per-slice DAG: lead-plan → executor (codex) → targeted tests → executor-self-reflection → fresh-eyes review (codex) → peer-review (claude) → 80-to-100 validation → validation-self-reflection",
+      "rationale": "Bounded slices with verification-based completion catch regressions early and keep PRs reviewable.",
+      "scope": "All v1 package and substrate workflows under `docs/workflows/`."
+    },
+    {
+      "pattern": "Plans live in `docs/architecture/<topic>-implementation-plan.md` (or `-scope.md`); specs in `docs/specs/v1-<topic>-spec.md`; verdicts in `docs/architecture/<topic>-review-verdict.md`",
+      "rationale": "Stable layout lets workflow steps reference inputs/outputs by predictable paths.",
+      "scope": "Repo-wide doc convention."
+    },
+    {
+      "pattern": "New commits, not amends, after CI/hook failures",
+      "rationale": "Pre-commit hook failure means the commit didn't happen; amending modifies the previous commit and can lose work.",
+      "scope": "All PR-feedback follow-ups (e.g., 63fddb0, 1cd3e23 on PR #87)."
+    },
+    {
+      "pattern": "Verification-based step completion preferred over legacy `STEP_COMPLETE` markers",
+      "rationale": "Newer workflows show `verification-based completion` with signal counts and exit=0; older ones still use marker-based, which is noisier and easier to fake.",
+      "scope": "Agent Relay workflow runners — gradually migrating off marker-based."
+    },
+    {
+      "pattern": "Workspace packages re-export public surface narrowly; runtime-policy and similar substrates are subpath exports",
+      "rationale": "Premature top-level exports broke CI on PR #86 (runtime-policy).",
+      "scope": "`packages/harness`, `packages/telemetry`, `packages/evals`."
+    },
+    {
+      "pattern": "Author + dry-run workflows; do NOT execute them",
+      "rationale": "User explicitly owns execution per saved feedback memory.",
+      "scope": "All Agent Relay workflow work in this repo."
+    },
+    {
+      "pattern": "Self-reflection docs after each agent role (`*-executor-reflection.md`, `*-fresh-eyes-reflection.md`, `*-claude-reflection.md`, `*-validation-reflection.md`)",
+      "rationale": "Captures rationale and follow-ups that would otherwise be lost in PR descriptions.",
+      "scope": "Substrate and v1 workflows."
+    }
+  ],
+  "lessons": [
+    {
+      "lesson": "Don't export new substrate surface from package roots until it's exercised end-to-end",
+      "context": "PR #86 CI failed because runtime-policy was exported from `@agent-assistant/harness` root before the workspace build order accommodated it.",
+      "recommendation": "Add new substrates as subpath exports first; promote to root only after build, tests, and downstream consumers are green."
+    },
+    {
+      "lesson": "String-keyed counter maps leak in long-lived harnesses",
+      "context": "CodeRabbit's second pass on PR #87 caught that the child counter map retained parent turn entries indefinitely.",
+      "recommendation": "Use WeakMap, bounded LRU, or explicit GC hooks for any per-turn/per-trace bookkeeping that lives in a long-running process."
+    },
+    {
+      "lesson": "Direct-context fallback must prefer the child identifier, not the parent",
+      "context": "Trace propagation in nested-subagent-runner was preferring parentTraceId over childTraceId in the direct fallback path, breaking trace continuity.",
+      "recommendation": "In nested-runner code, default to the most-specific identifier first; only fall back up the chain when the child value is genuinely absent."
+    },
+    {
+      "lesson": "Publish workflows must respect dependency-aware build order",
+      "context": "VFS publish broke because the matrix included vfs but the build order omitted it, so artifact upload tried to copy `packages/vfs/dist` before it existed.",
+      "recommendation": "Keep publish-build matrices and dependency-order arrays in lockstep; add CI validation for new packages."
+    },
+    {
+      "lesson": "Workflow-generated dirty files leak into PRs if not excluded",
+      "context": "Substrate workflow runs left `.trajectories/active/*` and `tmp/` files; these had to be kept out of the runtime-policy CI fix commit.",
+      "recommendation": "Stage explicit files (not `git add .`); add `.trajectories/active/` and `tmp/` to gitignore or pre-commit checks."
+    },
+    {
+      "lesson": "Marker-based completion is noisy and unreliable",
+      "context": "Older workflow chapters show `STEP_COMPLETE` markers tangled with terminal control codes (`>7u`, `╭───╮`), making findings hard to parse.",
+      "recommendation": "Migrate remaining workflows to verification-based completion with structured signals."
+    },
+    {
+      "lesson": "Agent self-reflection captures load-bearing context that PR descriptions miss",
+      "context": "Substrate workflow produced four reflection docs per slice; these surfaced follow-up scope (e.g., runtime-policy export split) that wouldn't fit a PR body.",
+      "recommendation": "Keep authoring reflection docs even when they feel redundant — they're the primary record of why a slice was bounded the way it was."
+    }
+  ],
+  "openQuestions": [
+    "Are the runtime-policy export changes still pending a scope-split follow-up after PR #87, or were they fully addressed in 63fddb0?",
+    "Does the GC-friendly child counter (per CodeRabbit pass 2) need a bounded size limit in addition to weak references, given harness lifetime?",
+    "Should the eval substrate live as a subpath of `@agent-assistant/telemetry` (`/evals`) or remain a separate `@agent-assistant/evals` workspace package — current state has both, which is duplicative.",
+    "Are the proactive-signals classifiers (slack-presence, github-signal-source) wired into any consumer yet, or still sitting in `@agent-assistant/surfaces` and `@agent-assistant/proactive` unused?",
+    "Marker-based vs verification-based completion: is there a tracked migration plan, or is it ad-hoc per workflow author?",
+    "Does the rename remediation (April 12) cover all `@relay-assistant/*` references, or are some still present in older specs/docs that haven't been touched since?"
+  ]
+}
