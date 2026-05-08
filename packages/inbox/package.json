@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/inbox",
-  "version": "0.4.30",
+  "version": "0.4.31",
   "description": "Bounded inbox primitives for trusted external inputs",
   "type": "module",
   "main": "dist/index.js",
