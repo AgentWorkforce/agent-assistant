@@ -86,6 +86,7 @@ describe('human eval suite helpers', () => {
           toolCallsInclude: ['workspace_list'],
           toolCallsExclude: ['github_create_issue'],
           maxToolCalls: 2,
+          maxQuestionMarks: 0,
           must: ['human criterion'],
         },
       },
@@ -99,6 +100,29 @@ describe('human eval suite helpers', () => {
 
     expect(checks.every((check) => check.passed)).toBe(true);
     expect(checks.map((check) => check.name)).toContain('human:must');
+  });
+
+  it('flags outputs that ask too many questions', () => {
+    const checks = assertHumanEvalExpected(
+      {
+        id: 'planning.question-count',
+        suite: 'planning',
+        input: { message: 'Plan a feature' },
+        expected: {
+          maxQuestionMarks: 1,
+        },
+      },
+      {
+        content: 'What app is this? What user problem matters most?',
+        toolCalls: [],
+      },
+    );
+
+    expect(checks).toContainEqual({
+      name: 'maxQuestionMarks',
+      passed: false,
+      message: 'expected <= 1 question marks, got 2',
+    });
   });
 
   it('flags human review when requested by expected or grading metadata', () => {

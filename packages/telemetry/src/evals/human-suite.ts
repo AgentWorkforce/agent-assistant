@@ -31,6 +31,7 @@ export interface HumanEvalExpected {
   toolCallsExclude?: string[];
   maxToolCalls?: number;
   minToolCalls?: number;
+  maxQuestionMarks?: number;
   must?: string[];
   mustNot?: string[];
   humanReviewRequired?: boolean;
@@ -286,6 +287,15 @@ export function assertHumanEvalExpected(
       'minToolCalls',
       toolNames.length >= expected.minToolCalls,
       `expected >= ${expected.minToolCalls} tool calls, got ${toolNames.length}`,
+    );
+  }
+  if (expected.maxQuestionMarks !== undefined) {
+    const questionMarkCount = (actual.content.match(/\?/g) ?? []).length;
+    addCheck(
+      checks,
+      'maxQuestionMarks',
+      questionMarkCount <= expected.maxQuestionMarks,
+      `expected <= ${expected.maxQuestionMarks} question marks, got ${questionMarkCount}`,
     );
   }
 
