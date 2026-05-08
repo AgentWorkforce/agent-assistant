@@ -404,18 +404,20 @@ export function renderHumanEvalReview(result: HumanEvalRunSummary): string {
       lines.push(`- Actual path: ${String(test.input.actualPath)}`);
     }
     lines.push('');
-    if ((test.expected?.must?.length ?? 0) > 0) {
+    const mustItems = Array.isArray(test.expected?.must) ? test.expected.must : [];
+    const mustNotItems = Array.isArray(test.expected?.mustNot) ? test.expected.mustNot : [];
+    if (mustItems.length > 0) {
       lines.push('### Must');
       lines.push('');
-      for (const item of test.expected?.must ?? []) {
+      for (const item of mustItems) {
         lines.push(`- ${item}`);
       }
       lines.push('');
     }
-    if ((test.expected?.mustNot?.length ?? 0) > 0) {
+    if (mustNotItems.length > 0) {
       lines.push('### Must Not');
       lines.push('');
-      for (const item of test.expected?.mustNot ?? []) {
+      for (const item of mustNotItems) {
         lines.push(`- ${item}`);
       }
       lines.push('');

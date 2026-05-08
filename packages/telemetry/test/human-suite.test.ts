@@ -181,4 +181,50 @@ describe('human eval suite helpers', () => {
     expect(review).toContain('Pretend work is complete');
     expect(readFileSync(path.join(root, 'run-1', 'result.json'), 'utf8')).toContain('"needs_human": 1');
   });
+
+  it('ignores malformed human rubric fields while rendering review artifacts', () => {
+    const run = createHumanEvalRunRecord({
+      branch: 'main',
+      gitSha: 'abc123',
+      mode: 'offline',
+      runDir: path.join(makeTempRoot(), 'run-1'),
+      selectedCaseCount: 1,
+      timestamp: '2026-05-08T00:00:00.000Z',
+    });
+    run.tests.push({
+      id: 'planning.malformed-rubric',
+      suite: 'planning',
+      kind: 'capability',
+      executor: 'manual',
+      trial: 1,
+      tags: [],
+      status: 'needs-human',
+      duration_ms: 12,
+      checks: [],
+      expected: {
+        must: { length: 1 } as unknown as string[],
+        mustNot: { length: 1 } as unknown as string[],
+      },
+      actual: { content: 'Candidate output.' },
+    });
+
+    const review = renderHumanEvalReview(summarizeForTest(run));
+
+    expect(review).toContain('## planning.malformed-rubric');
+    expect(review).not.toContain('### Must');
+    expect(review).not.toContain('### Must Not');
+  });
 });
+
+function summarizeForTest(run: ReturnType<typeof createHumanEvalRunRecord>) {
+  return {
+    ...run,
+    total_trials: run.tests.length,
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    needs_human: run.tests.length,
+    total_duration_ms: run.tests.reduce((sum, test) => sum + test.duration_ms, 0),
+    final: true,
+  };
+}
