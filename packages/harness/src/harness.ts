@@ -23,6 +23,8 @@ import type {
   HarnessToolRegistry,
   HarnessToolResult,
   HarnessToolRetryConfig,
+  HarnessRuntimePolicy,
+  HarnessRuntimePolicyEvent,
   HarnessTraceEvent,
   HarnessTraceSummary,
   HarnessTranscriptItem,
@@ -31,6 +33,7 @@ import type {
 } from './types.js';
 import { HarnessConfigError } from './types.js';
 import { exceedsEvidenceBudget } from './claim-density.js';
+import { createRuntimePolicy } from './runtime-policy/index.js';
 
 const DEFAULT_LIMITS: Required<Pick<HarnessLimits, 'maxIterations' | 'maxToolCalls' | 'maxElapsedMs' | 'maxConsecutiveInvalidModelOutputs'>> = {
   maxIterations: 6,
@@ -65,11 +68,15 @@ type MutableState = {
   finalEventType: string;
 };
 
-type NormalizedConfig = {
+type NormalizedConfig = Omit<
+  HarnessConfig,
+  'clock' | 'limits' | 'toolRetryConfig' | 'runtimePolicy'
+> & {
   limits: Required<Pick<HarnessLimits, 'maxIterations' | 'maxToolCalls' | 'maxElapsedMs' | 'maxConsecutiveInvalidModelOutputs'>> & Pick<HarnessLimits, 'budgetLimit'>;
   clock: HarnessClock;
   toolRetryConfig: HarnessToolRetryConfig;
-} & HarnessConfig;
+  runtimePolicy?: HarnessRuntimePolicy;
+};
 
 export function createHarness(config: HarnessConfig): HarnessRuntime {
   const normalized = normalizeConfig(config);
@@ -253,13 +260,46 @@ function normalizeConfig(config: HarnessConfig): NormalizedConfig {
   }
 
   const toolRetryConfig = normalizeToolRetryConfig(config.toolRetryConfig);
+  const runtimePolicy = normalizeRuntimePolicy(config.runtimePolicy);
 
   return {
     ...config,
     clock: config.clock ?? defaultClock,
     limits,
     toolRetryConfig,
+    runtimePolicy,
   };
+}
+
+function normalizeRuntimePolicy(
+  runtimePolicy: HarnessConfig['runtimePolicy'],
+): HarnessRuntimePolicy | undefined {
+  if (!runtimePolicy) {
+    return undefined;
+  }
+
+  if (isHarnessRuntimePolicy(runtimePolicy)) {
+    return runtimePolicy;
+  }
+
+  return createRuntimePolicy(runtimePolicy);
+}
+
+function isHarnessRuntimePolicy(value: unknown): value is HarnessRuntimePolicy {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'beforeToolCall' in value &&
+    typeof value.beforeToolCall === 'function' &&
+    'afterToolResult' in value &&
+    typeof value.afterToolResult === 'function' &&
+    'sanitizeFinalOutput' in value &&
+    typeof value.sanitizeFinalOutput === 'function' &&
+    'finalizeTurn' in value &&
+    typeof value.finalizeTurn === 'function' &&
+    'reset' in value &&
+    typeof value.reset === 'function'
+  );
 }
 
 function normalizeToolRetryConfig(
@@ -315,15 +355,18 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
   let finalResult: HarnessResult | null = null;
 
   try {
+    config.runtimePolicy?.reset(input.turnId);
     const availableTools = config.tools
-      ? await config.tools.listAvailable({
-          assistantId: input.assistantId,
-          turnId: input.turnId,
-          workspaceId: input.workspaceId,
-          sessionId: input.sessionId,
-          userId: input.userId,
-          allowedToolNames: input.allowedToolNames,
-        })
+      ? (
+          await config.tools.listAvailable({
+            assistantId: input.assistantId,
+            turnId: input.turnId,
+            workspaceId: input.workspaceId,
+            sessionId: input.sessionId,
+            userId: input.userId,
+            allowedToolNames: input.allowedToolNames,
+          })
+        ).map((tool) => config.runtimePolicy?.wrapTool(tool) ?? tool)
       : [];
 
     await emit(config, input, state, { type: 'turn_started' });
@@ -412,45 +455,62 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
       state.transcript.push(assistantStep);
 
       switch (output.type) {
-        case 'final_answer':
+        case 'final_answer': {
+          const sanitizedText = await applyRuntimePolicyToText(
+            config,
+            input,
+            state,
+            output.text,
+            readModelId(output),
+          );
+          replaceLatestAssistantText(state, sanitizedText);
           if (!streamingHandled) {
             await emitStream(config, {
               type: 'text_delta',
               iteration,
-              text: output.text,
+              text: sanitizedText,
               outputType: 'final_answer',
             });
           }
-          finalResult = buildAnswerResult(input, state, output.text);
+          finalResult = buildAnswerResult(input, state, sanitizedText);
           return finalResult;
+        }
 
         case 'clarification': {
+          const sanitizedQuestion = await applyRuntimePolicyToText(
+            config,
+            input,
+            state,
+            output.question,
+            readModelId(output),
+          );
+          replaceLatestAssistantText(state, sanitizedQuestion);
           const continuation = createContinuation(config, input, 'clarification', {
             stopReason: 'clarification_required',
-            question: output.question,
+            question: sanitizedQuestion,
             transcript: summarizeTranscript(state.transcript),
           });
           state.transcript.push({
             type: 'clarification_request',
             iteration,
-            question: output.question,
+            question: sanitizedQuestion,
           });
           await emit(config, input, state, {
             type: 'clarification_requested',
-            question: output.question,
+            question: sanitizedQuestion,
           });
           if (!streamingHandled) {
             await emitStream(config, {
               type: 'text_delta',
               iteration,
-              text: output.question,
+              text: sanitizedQuestion,
               outputType: 'clarification',
             });
           }
           finalResult = buildResult(input, state, {
             outcome: 'needs_clarification',
             stopReason: 'clarification_required',
-            assistantMessage: { text: output.question },
+            assistantMessage: { text: sanitizedQuestion },
             continuation,
           });
           return finalResult;
@@ -488,11 +548,19 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             type: 'approval_requested',
             request: prepared.request,
           });
+          const sanitizedSummary = await applyRuntimePolicyToText(
+            config,
+            input,
+            state,
+            prepared.request.summary,
+            readModelId(output),
+          );
+          replaceLatestAssistantText(state, sanitizedSummary);
           if (!streamingHandled) {
             await emitStream(config, {
               type: 'text_delta',
               iteration,
-              text: prepared.request.summary,
+              text: sanitizedSummary,
               outputType: 'approval_request',
             });
           }
@@ -556,21 +624,30 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
           continue;
         }
 
-        case 'refusal':
+        case 'refusal': {
+          const sanitizedReason = await applyRuntimePolicyToText(
+            config,
+            input,
+            state,
+            output.reason,
+            readModelId(output),
+          );
+          replaceLatestAssistantText(state, sanitizedReason);
           if (!streamingHandled) {
             await emitStream(config, {
               type: 'text_delta',
               iteration,
-              text: output.reason,
+              text: sanitizedReason,
               outputType: 'refusal',
             });
           }
           finalResult = buildResult(input, state, {
             outcome: 'failed',
             stopReason: 'model_refused',
-            assistantMessage: { text: output.reason },
+            assistantMessage: { text: sanitizedReason },
           });
           return finalResult;
+        }
 
         case 'invalid':
           finalResult = await handleInvalidOutput(config, input, state, startedAt, output);
@@ -596,6 +673,16 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
     return finalResult;
   } finally {
     if (finalResult) {
+      await emitRuntimePolicyEvents(
+        config,
+        input,
+        state,
+        config.runtimePolicy?.finalizeTurn({
+          turnId: input.turnId,
+          outcome: finalResult.outcome,
+          stopReason: finalResult.stopReason,
+        }) ?? [],
+      );
       await emitFinishedSafely(config, input, state, finalResult);
       try {
         await config.hooks?.onTurnFinished?.(
@@ -606,6 +693,7 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
         console.error('Harness onTurnFinished hook failed', error);
       }
     }
+    config.runtimePolicy?.reset(input.turnId);
   }
 }
 
@@ -696,6 +784,7 @@ async function executeToolBatch(
   iteration: number,
 ): Promise<HarnessResult | null> {
   const mode = resolveToolBatchMode(calls, availableTools);
+  const toolDefinitions = new Map(availableTools.map((tool) => [tool.name, tool]));
   await emit(config, input, state, {
     type: 'tool_batch_started',
     mode,
@@ -704,8 +793,8 @@ async function executeToolBatch(
 
   const results =
     mode === 'parallel'
-      ? await executeParallelToolBatch(config, input, state, calls, iteration)
-      : await executeSequentialToolBatch(config, input, state, calls, iteration);
+      ? await executeParallelToolBatch(config, input, state, calls, toolDefinitions, iteration)
+      : await executeSequentialToolBatch(config, input, state, calls, toolDefinitions, iteration);
 
   const cancelled = buildCancelledResult(input, state);
   if (cancelled) {
@@ -723,7 +812,12 @@ async function executeToolBatch(
       recordToolResultSignature(state, result);
     }
 
-    const text = results.map(readTerminatingToolText).join('');
+    const text = await applyRuntimePolicyToText(
+      config,
+      input,
+      state,
+      results.map(readTerminatingToolText).join(''),
+    );
     state.transcript.push({
       type: 'assistant_step',
       iteration,
@@ -765,11 +859,22 @@ async function executeSequentialToolBatch(
   input: HarnessTurnInput,
   state: MutableState,
   calls: HarnessToolCall[],
+  toolDefinitions: Map<string, HarnessToolDefinition>,
   iteration: number,
 ): Promise<HarnessToolResult[]> {
   const results: HarnessToolResult[] = [];
   for (const [index, call] of calls.entries()) {
-    results.push(await executeSingleToolCall(config, input, state, call, iteration, index));
+    results.push(
+      await executeSingleToolCall(
+        config,
+        input,
+        state,
+        call,
+        toolDefinitions.get(call.name),
+        iteration,
+        index,
+      ),
+    );
     if (input.signal?.aborted) {
       break;
     }
@@ -782,11 +887,20 @@ async function executeParallelToolBatch(
   input: HarnessTurnInput,
   state: MutableState,
   calls: HarnessToolCall[],
+  toolDefinitions: Map<string, HarnessToolDefinition>,
   iteration: number,
 ): Promise<HarnessToolResult[]> {
   const completed: HarnessToolResult[] = [];
   const tasks = calls.map(async (call, index) => {
-    const result = await executeSingleToolCall(config, input, state, call, iteration, index);
+    const result = await executeSingleToolCall(
+      config,
+      input,
+      state,
+      call,
+      toolDefinitions.get(call.name),
+      iteration,
+      index,
+    );
     completed.push(result);
   });
 
@@ -799,15 +913,28 @@ async function executeSingleToolCall(
   input: HarnessTurnInput,
   state: MutableState,
   call: HarnessToolCall,
+  tool: HarnessToolDefinition | undefined,
   iteration: number,
   index: number,
 ): Promise<HarnessToolResult> {
+  const decision = config.runtimePolicy?.beforeToolCall({
+    turnId: input.turnId,
+    call,
+    tool,
+    toolCallCount: state.toolCallCount,
+    maxToolCalls: config.limits.maxToolCalls,
+  });
+  if (decision && decision.action !== 'allow') {
+    await emitRuntimePolicyEvents(config, input, state, decision.events);
+    return decision.result;
+  }
+
   const nextToolCallCount = state.toolCallCount + 1;
   state.toolCallCount = nextToolCallCount;
   state.usage.toolCalls = nextToolCallCount;
   await emit(config, input, state, { type: 'tool_started', call });
   await emitStream(config, { type: 'tool_started', iteration, call });
-  return executeToolWithRetry(config, input, state, call, {
+  const result = await executeToolWithRetry(config, input, state, call, {
     assistantId: input.assistantId,
     turnId: input.turnId,
     workspaceId: input.workspaceId,
@@ -818,6 +945,18 @@ async function executeSingleToolCall(
     toolCallIndex: index,
     signal: input.signal,
   });
+  await emitRuntimePolicyEvents(
+    config,
+    input,
+    state,
+    config.runtimePolicy?.afterToolResult({
+      turnId: input.turnId,
+      call,
+      tool,
+      result,
+    }) ?? [],
+  );
+  return result;
 }
 
 async function processToolResult(
@@ -864,6 +1003,16 @@ async function processToolResult(
 }
 
 function recordToolResultSignature(state: MutableState, result: HarnessToolResult): boolean {
+  const runtimePolicyMeta = result.metadata?.runtimePolicy;
+  if (
+    typeof runtimePolicyMeta === 'object' &&
+    runtimePolicyMeta !== null &&
+    'synthetic' in runtimePolicyMeta &&
+    runtimePolicyMeta.synthetic === true
+  ) {
+    return false;
+  }
+
   const signature = computeToolResultSignature(result);
   if (signature === null) {
     return false;
@@ -1108,6 +1257,33 @@ function buildAnswerResult(
     stopReason: 'answer_finalized',
     assistantMessage: { text },
   });
+}
+
+async function applyRuntimePolicyToText(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  text: string,
+  modelId?: string,
+): Promise<string> {
+  if (!config.runtimePolicy) {
+    return text;
+  }
+
+  const sanitized = config.runtimePolicy.sanitizeFinalOutput({
+    turnId: input.turnId,
+    text,
+    modelId,
+  });
+  await emitRuntimePolicyEvents(config, input, state, sanitized.events);
+  return sanitized.text;
+}
+
+function replaceLatestAssistantText(state: MutableState, text: string): void {
+  const latest = state.transcript[state.transcript.length - 1];
+  if (latest?.type === 'assistant_step') {
+    latest.text = text;
+  }
 }
 
 function buildEvidenceDensityViolation(
@@ -1380,6 +1556,22 @@ async function emit(
     await config.trace.emit(event);
   } catch {
     // Observability failures should not change turn execution semantics.
+  }
+}
+
+async function emitRuntimePolicyEvents(
+  config: NormalizedConfig,
+  input: HarnessTurnInput,
+  state: MutableState,
+  events: HarnessRuntimePolicyEvent[],
+): Promise<void> {
+  for (const event of events) {
+    await emit(config, input, state, {
+      type: event.kind,
+      reason: event.reason,
+      ...(event.toolName ? { toolName: event.toolName } : {}),
+      ...(event.metadata ? { metadata: event.metadata } : {}),
+    });
   }
 }
 

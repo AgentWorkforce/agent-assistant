@@ -66,6 +66,7 @@ export interface HarnessConfig {
    * error and the existing tool-error handling kicks in.
    */
   toolRetryConfig?: HarnessToolRetryConfig;
+  runtimePolicy?: HarnessRuntimePolicy | HarnessRuntimePolicyConfig;
 }
 
 export interface HarnessToolRetryConfig {
@@ -521,7 +522,12 @@ export type HarnessTraceEvent =
   | HarnessToolRetriedEvent
   | HarnessClarificationEvent
   | HarnessApprovalEvent
-  | HarnessLimitReachedEvent;
+  | HarnessLimitReachedEvent
+  | HarnessRuntimePolicyBlockedTraceEvent
+  | HarnessRuntimePolicyCacheHitTraceEvent
+  | HarnessRuntimePolicyTodoRewriteBlockedTraceEvent
+  | HarnessRuntimePolicyOutputSanitizedTraceEvent
+  | HarnessRuntimePolicySynthesisSalvagedTraceEvent;
 
 export interface HarnessBaseTraceEvent {
   type: string;
@@ -613,6 +619,158 @@ export interface HarnessLimitReachedEvent extends HarnessBaseTraceEvent {
     | 'redundant_tool_loop'
     | 'timeout_reached'
     | 'budget_reached';
+}
+
+export interface HarnessRuntimePolicyTraceEvent extends HarnessBaseTraceEvent {
+  reason: string;
+  toolName?: string;
+}
+
+export interface HarnessRuntimePolicyBlockedTraceEvent
+  extends HarnessRuntimePolicyTraceEvent {
+  type: 'runtime_policy.blocked';
+}
+
+export interface HarnessRuntimePolicyCacheHitTraceEvent
+  extends HarnessRuntimePolicyTraceEvent {
+  type: 'runtime_policy.cache_hit';
+}
+
+export interface HarnessRuntimePolicyTodoRewriteBlockedTraceEvent
+  extends HarnessRuntimePolicyTraceEvent {
+  type: 'runtime_policy.todo_rewrite_blocked';
+}
+
+export interface HarnessRuntimePolicyOutputSanitizedTraceEvent
+  extends HarnessRuntimePolicyTraceEvent {
+  type: 'runtime_policy.output_sanitized';
+}
+
+export interface HarnessRuntimePolicySynthesisSalvagedTraceEvent
+  extends HarnessRuntimePolicyTraceEvent {
+  type: 'runtime_policy.synthesis_salvaged';
+}
+
+export interface HarnessRuntimePolicyConfig {
+  todoRewriteCap?: {
+    toolNames: string[];
+    max: number;
+  };
+  toolResultCache?: {
+    enabled: boolean;
+    normalize?: (toolName: string, input: unknown) => string;
+  };
+  reserveFloor?: {
+    floor: number;
+    blockedCategories: readonly string[];
+    getCategories?: (
+      tool: HarnessToolDefinition | undefined,
+      call: HarnessToolCall,
+    ) => readonly string[];
+  };
+  drillOrStop?: {
+    candidateProducingTools: readonly string[];
+    broadTools: readonly string[];
+    extractCandidates?: (input: {
+      call: HarnessToolCall;
+      result: HarnessToolResult;
+      tool: HarnessToolDefinition | undefined;
+    }) => readonly string[];
+    isDrilldown?: (input: {
+      call: HarnessToolCall;
+      tool: HarnessToolDefinition | undefined;
+      pendingCandidates: readonly string[];
+    }) => boolean;
+  };
+  customGuards?: readonly HarnessRuntimePolicyGuard[];
+  outputSanitizer?: {
+    enabled: boolean;
+  };
+}
+
+export interface HarnessRuntimePolicyGuard {
+  name: string;
+  evaluate(input: HarnessRuntimePolicyGuardInput): HarnessRuntimePolicyGuardDecision | null;
+}
+
+export interface HarnessRuntimePolicyGuardInput {
+  turnId: string;
+  call: HarnessToolCall;
+  tool: HarnessToolDefinition | undefined;
+  toolCallCount: number;
+  maxToolCalls: number;
+  remainingToolCalls: number;
+}
+
+export interface HarnessRuntimePolicyGuardDecision {
+  advisory: string;
+  reason?: string;
+  metadata?: Record<string, unknown>;
+  structuredOutput?: Record<string, unknown>;
+  countsAgainstBudget?: boolean;
+}
+
+export type HarnessRuntimePolicyEventKind =
+  | 'runtime_policy.blocked'
+  | 'runtime_policy.cache_hit'
+  | 'runtime_policy.todo_rewrite_blocked'
+  | 'runtime_policy.output_sanitized'
+  | 'runtime_policy.synthesis_salvaged';
+
+export interface HarnessRuntimePolicyEvent {
+  kind: HarnessRuntimePolicyEventKind;
+  turnId: string;
+  toolName?: string;
+  reason: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type HarnessRuntimePolicyDecision =
+  | {
+      action: 'allow';
+      consumeToolCall: true;
+      events?: HarnessRuntimePolicyEvent[];
+    }
+  | {
+      action: 'cached' | 'blocked';
+      consumeToolCall: boolean;
+      result: HarnessToolResult;
+      events: HarnessRuntimePolicyEvent[];
+    };
+
+export interface HarnessRuntimePolicySanitizeResult {
+  text: string;
+  sanitized: boolean;
+  strippedTokenClasses: string[];
+  events: HarnessRuntimePolicyEvent[];
+}
+
+export interface HarnessRuntimePolicy {
+  wrapTool(tool: HarnessToolDefinition): HarnessToolDefinition;
+  beforeToolCall(input: {
+    turnId: string;
+    call: HarnessToolCall;
+    tool: HarnessToolDefinition | undefined;
+    toolCallCount: number;
+    maxToolCalls: number;
+  }): HarnessRuntimePolicyDecision;
+  afterToolResult(input: {
+    turnId: string;
+    call: HarnessToolCall;
+    tool: HarnessToolDefinition | undefined;
+    result: HarnessToolResult;
+  }): HarnessRuntimePolicyEvent[];
+  sanitizeFinalOutput(input: {
+    turnId: string;
+    text: string;
+    modelId?: string;
+  }): HarnessRuntimePolicySanitizeResult;
+  finalizeTurn(input: {
+    turnId: string;
+    outcome: HarnessOutcome;
+    stopReason: HarnessStopReason;
+  }): HarnessRuntimePolicyEvent[];
+  reset(turnId: string): void;
 }
 
 export interface HarnessHooks {

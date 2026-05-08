@@ -13,7 +13,9 @@ interface ConsoleTelemetrySinkOptions {
 
 type ConsoleTelemetryEvent =
   | TelemetryEvent
-  | (Omit<TelemetryEvent, 'transcript'> & { transcript: typeof OMITTED_TRANSCRIPT });
+  | (Omit<Extract<TelemetryEvent, { eventKind: 'turn.finished' }>, 'transcript'> & {
+      transcript: typeof OMITTED_TRANSCRIPT;
+    });
 
 export class ConsoleTelemetrySink implements TelemetrySink {
   private readonly level: ConsoleTelemetrySinkLevel;
@@ -30,6 +32,10 @@ export class ConsoleTelemetrySink implements TelemetrySink {
   }
 
   private serializeEvent(event: TelemetryEvent): ConsoleTelemetryEvent {
+    if (event.eventKind !== 'turn.finished') {
+      return event;
+    }
+
     if (this.level === 'summary' || isLargeTranscript(event)) {
       return { ...event, transcript: OMITTED_TRANSCRIPT };
     }
@@ -38,7 +44,7 @@ export class ConsoleTelemetrySink implements TelemetrySink {
   }
 }
 
-function isLargeTranscript(event: TelemetryEvent): boolean {
+function isLargeTranscript(event: Extract<TelemetryEvent, { eventKind: 'turn.finished' }>): boolean {
   return (
     textEncoder.encode(JSON.stringify(event.transcript)).byteLength >
     TRANSCRIPT_OMIT_THRESHOLD_BYTES

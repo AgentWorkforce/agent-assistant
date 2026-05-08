@@ -46,6 +46,8 @@ export interface AgentAssistantRepoSetupOptions {
   committerEmail?: string;
   /** Extra shell commands appended to the setup-branch step (e.g. `prpm install`). */
   extraSetupCommands?: string[];
+  /** Optional upstream gate for setup-branch. Useful for runtime wrapper resume anchors. */
+  dependsOn?: string[];
   /** Skip `npm run build --workspaces --if-present`. Rarely the right call; only set when the workflow produces no TS changes that consume cross-package dist output. */
   skipWorkspaceBuild?: boolean;
 }
@@ -84,6 +86,7 @@ export function applyAgentAssistantRepoSetup<T>(
   chain
     .step('setup-branch', {
       type: 'deterministic',
+      ...(opts.dependsOn ? { dependsOn: opts.dependsOn } : {}),
       command: setupBranchCommand,
       captureOutput: true,
       failOnError: true,
