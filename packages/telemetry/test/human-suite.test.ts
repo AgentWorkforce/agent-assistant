@@ -125,6 +125,25 @@ describe('human eval suite helpers', () => {
     });
   });
 
+  it('ignores malformed maxQuestionMarks values', () => {
+    const checks = assertHumanEvalExpected(
+      {
+        id: 'planning.invalid-question-count',
+        suite: 'planning',
+        input: { message: 'Plan a feature' },
+        expected: {
+          maxQuestionMarks: '1' as unknown as number,
+        },
+      },
+      {
+        content: 'What app is this? What user problem matters most?',
+        toolCalls: [],
+      },
+    );
+
+    expect(checks.map((check) => check.name)).not.toContain('maxQuestionMarks');
+  });
+
   it('flags human review when requested by expected or grading metadata', () => {
     expect(humanEvalNeedsReview({
       id: 'x',

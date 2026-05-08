@@ -289,7 +289,7 @@ export function assertHumanEvalExpected(
       `expected >= ${expected.minToolCalls} tool calls, got ${toolNames.length}`,
     );
   }
-  if (expected.maxQuestionMarks !== undefined) {
+  if (typeof expected.maxQuestionMarks === 'number' && Number.isFinite(expected.maxQuestionMarks)) {
     const questionMarkCount = (actual.content.match(/\?/g) ?? []).length;
     addCheck(
       checks,
