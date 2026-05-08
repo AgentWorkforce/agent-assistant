@@ -517,10 +517,21 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
         }
 
         case 'approval_request': {
+          const sanitizedSummary = await applyRuntimePolicyToText(
+            config,
+            input,
+            state,
+            output.request.summary,
+            readModelId(output),
+          );
+          const sanitizedRequest =
+            sanitizedSummary === output.request.summary
+              ? output.request
+              : { ...output.request, summary: sanitizedSummary };
           state.transcript.push({
             type: 'approval_request',
             iteration,
-            request: output.request,
+            request: sanitizedRequest,
           });
           const prepared = config.approvals
             ? await config.approvals.prepareRequest({
@@ -529,14 +540,14 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
                 workspaceId: input.workspaceId,
                 sessionId: input.sessionId,
                 userId: input.userId,
-                request: output.request,
+                request: sanitizedRequest,
                 signal: input.signal,
               })
             : {
-                request: output.request,
+                request: sanitizedRequest,
                 continuation: createContinuation(config, input, 'approval', {
                   stopReason: 'approval_required',
-                  request: output.request,
+                  request: sanitizedRequest,
                   transcript: summarizeTranscript(state.transcript),
                 }),
               };
@@ -548,19 +559,12 @@ async function runTurn(config: NormalizedConfig, input: HarnessTurnInput): Promi
             type: 'approval_requested',
             request: prepared.request,
           });
-          const sanitizedSummary = await applyRuntimePolicyToText(
-            config,
-            input,
-            state,
-            prepared.request.summary,
-            readModelId(output),
-          );
-          replaceLatestAssistantText(state, sanitizedSummary);
+          replaceLatestAssistantText(state, prepared.request.summary);
           if (!streamingHandled) {
             await emitStream(config, {
               type: 'text_delta',
               iteration,
-              text: sanitizedSummary,
+              text: prepared.request.summary,
               outputType: 'approval_request',
             });
           }
@@ -1570,7 +1574,9 @@ async function emitRuntimePolicyEvents(
       type: event.kind,
       reason: event.reason,
       ...(event.toolName ? { toolName: event.toolName } : {}),
-      ...(event.metadata ? { metadata: event.metadata } : {}),
+      ...(event.metadata
+        ? { metadata: { ...(input.metadata ?? {}), ...event.metadata } }
+        : {}),
     });
   }
 }
