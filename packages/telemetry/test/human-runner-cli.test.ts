@@ -100,9 +100,12 @@ describe('runHumanEvalCli', () => {
 
     expect(exitCode).toBe(0);
     const runsDir = path.join(rootDir, '.evals', 'runs');
-    const result = readFileSync(path.join(runsDir, readdirSingle(runsDir), 'result.json'), 'utf8');
-    expect(result).toContain('"executor": "provider"');
-    expect(result).toContain('provider answer');
+    const resultRaw = readFileSync(path.join(runsDir, readdirSingle(runsDir), 'result.json'), 'utf8');
+    const result = JSON.parse(resultRaw) as {
+      tests?: Array<{ executor?: string; actual?: { content?: string } }>;
+    };
+    expect(result.tests?.[0]?.executor).toBe('provider');
+    expect(result.tests?.[0]?.actual?.content).toContain('provider answer');
   });
 
   it('rejects manual candidate output paths outside the eval root', () => {

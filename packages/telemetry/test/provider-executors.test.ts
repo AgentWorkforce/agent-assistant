@@ -68,6 +68,30 @@ describe('provider eval executors', () => {
     expect(String((actual as { content?: unknown }).content)).toContain('hello');
   });
 
+  it('fails OpenCode provider evals when the backend fails', async () => {
+    const runner: CliRunner = {
+      id: 'opencode',
+      async run() {
+        return {
+          status: 'failed',
+          error: "CLI 'opencode' timed out after 100ms",
+          stderr: 'still thinking',
+        };
+      },
+    };
+    const executor = createOpenCodeHumanEvalExecutor({ runner });
+
+    await expect(executor({
+      id: 'smoke.opencode-failed',
+      suite: 'smoke',
+      input: { message: 'hello' },
+      expected: { humanReviewRequired: true },
+    }, {
+      providerMode: true,
+      rootDir: '/tmp/project',
+    })).rejects.toThrow("CLI 'opencode' timed out");
+  });
+
   it('uses an Agent Relay execution adapter for complex provider evals', async () => {
     const executor = createAgentRelayHumanEvalExecutor({
       productName: 'Ricky',
@@ -111,5 +135,32 @@ describe('provider eval executors', () => {
       toolCalls: [{ name: 'workspace.read' }],
       relay: { channelId: 'evals' },
     });
+  });
+
+  it('fails Agent Relay provider evals when the adapter does not complete', async () => {
+    const executor = createAgentRelayHumanEvalExecutor({
+      adapter: {
+        async execute() {
+          return {
+            backendId: 'agent-relay',
+            status: 'failed',
+            error: {
+              code: 'timeout',
+              message: 'Timed out waiting for Relay execution result.',
+            },
+          };
+        },
+      },
+    });
+
+    await expect(executor({
+      id: 'smoke.relay-failed',
+      suite: 'smoke',
+      input: { message: 'Use the broker.' },
+      expected: { humanReviewRequired: true },
+    }, {
+      providerMode: true,
+      rootDir: '/tmp/project',
+    })).rejects.toThrow(/Agent Relay eval failed: failed.*timeout/s);
   });
 });

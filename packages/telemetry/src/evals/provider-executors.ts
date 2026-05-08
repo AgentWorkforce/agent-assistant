@@ -137,7 +137,7 @@ export function createOpenCodeHumanEvalExecutor(
       throw createSkippedEvalError(result.error);
     }
 
-    return {
+    const actual = {
       ok: false,
       status: 'failed',
       content: [result.error, result.stderr].filter(Boolean).join('\n'),
@@ -145,6 +145,7 @@ export function createOpenCodeHumanEvalExecutor(
       ...(options.model ? { model: options.model } : {}),
       notes: `OpenCode one-shot eval failed in ${durationMs}ms.`,
     } satisfies HumanEvalActual;
+    throw new Error(formatFailedActual('OpenCode one-shot eval failed', actual));
   };
 }
 
@@ -160,7 +161,11 @@ export function createAgentRelayHumanEvalExecutor(
 
     const adapter = await resolveAgentRelayAdapter(options, context.rootDir);
     const result = await adapter.execute(buildAgentRelayEvalRequest(testCase, options));
-    return executionResultToHumanEvalActual(result);
+    const actual = executionResultToHumanEvalActual(result);
+    if (actual.status !== 'completed') {
+      throw new Error(formatFailedActual('Agent Relay eval failed', actual));
+    }
+    return actual;
   };
 }
 
@@ -258,17 +263,34 @@ async function resolveAgentRelayAdapter(
 function executionResultToHumanEvalActual(result: HumanEvalExecutionResult): HumanEvalActual {
   const content = result.output?.text ?? result.error?.message ?? '';
   const structured = result.output?.structured ?? {};
+  const status = result.status ?? 'unknown';
+  const backend = result.backendId ?? 'unknown backend';
   return {
-    ok: result.status === 'completed',
-    status: result.status,
+    ok: status === 'completed',
+    status,
     content,
     toolCalls: readToolCalls(structured),
-    notes: result.error?.message
-      ? `Agent Relay eval returned ${result.error.code ?? 'error'}: ${result.error.message}`
-      : `Agent Relay eval completed via ${result.backendId ?? 'unknown backend'}.`,
+    notes: formatAgentRelayNotes({ ...result, status }, backend),
     relay: result.metadata?.relay,
     trace: result.trace,
   };
+}
+
+function formatAgentRelayNotes(result: HumanEvalExecutionResult, backend: string): string {
+  const status = result.status ?? 'unknown';
+  if (status === 'completed') {
+    return `Agent Relay eval completed via ${backend}.`;
+  }
+  const code = result.error?.code ? `: ${result.error.code}` : '';
+  const message = result.error?.message ? ` - ${result.error.message}` : '';
+  return `Agent Relay eval ${status}${code}${message} via ${backend}.`;
+}
+
+function formatFailedActual(prefix: string, actual: HumanEvalActual): string {
+  const details = [actual.status, actual.notes, actual.content]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' | ');
+  return details ? `${prefix}: ${details}` : prefix;
 }
 
 function readToolCalls(structured: Record<string, unknown>): HumanEvalActual['toolCalls'] {
