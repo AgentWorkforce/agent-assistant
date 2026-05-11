@@ -27,6 +27,11 @@ export {
 } from './types.js';
 
 export { createProactiveEngine, InMemorySchedulerBinding } from './proactive.js';
+export { fromContext } from './runtime-interop.js';
+export type {
+  RuntimeInteropContext,
+  RuntimeInteropSession,
+} from './runtime-interop.js';
 
 // ── Notify-channel resolution ───────────────────────────────────────────────
 // Dynamic channel picking for proactive Slack posts: discover bot-member
