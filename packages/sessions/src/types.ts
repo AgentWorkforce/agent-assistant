@@ -49,6 +49,14 @@ export interface SessionStoreAdapter {
   delete(sessionId: string): Promise<void>;
 }
 
+export interface RuntimeSessionStoreAdapterOptions {
+  read(path: string): Promise<string | null>;
+  write(path: string, body: string): Promise<void>;
+  delete(path: string): Promise<void>;
+  list(prefix: string): Promise<string[]>;
+  prefix?: string;
+}
+
 export interface AffinityResolver {
   resolve(userId: string, surfaceId?: string): Promise<Session | null>;
 }

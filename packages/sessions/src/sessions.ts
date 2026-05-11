@@ -6,6 +6,7 @@ import {
 import type {
   AffinityResolver,
   CreateSessionInput,
+  RuntimeSessionStoreAdapterOptions,
   Session,
   SessionQuery,
   SessionResolvableMessage,
@@ -17,6 +18,7 @@ import type {
 
 const DEFAULT_TTL_MS = 3_600_000;
 const DEFAULT_FIND_LIMIT = 50;
+const DEFAULT_RUNTIME_PREFIX = '/agent-assistant/sessions';
 
 function cloneSession<T>(value: T): T {
   return structuredClone(value);
@@ -258,6 +260,91 @@ export class InMemorySessionStoreAdapter implements SessionStoreAdapter {
   }
 }
 
+export class RuntimeSessionStoreAdapter implements SessionStoreAdapter {
+  private readonly prefix: string;
+
+  constructor(private readonly options: RuntimeSessionStoreAdapterOptions) {
+    this.prefix = normalizePrefix(options.prefix);
+  }
+
+  async insert(session: Session): Promise<void> {
+    const existing = await this.fetchById(session.id);
+    if (existing) {
+      throw new SessionConflictError(session.id);
+    }
+    await this.writeSession(session);
+  }
+
+  async fetchById(sessionId: string): Promise<Session | null> {
+    return this.readSession(this.pathFor(sessionId));
+  }
+
+  async fetchMany(query: SessionQuery): Promise<Session[]> {
+    const states = normalizeStateFilter(query.state);
+    const limit = normalizeLimit(query.limit);
+    const paths = await this.options.list(this.prefix);
+    const sessions = await Promise.all(paths.map((path) => this.readSession(path)));
+    const matches = sessions
+      .filter((session): session is Session => Boolean(session))
+      .filter((session) => {
+        if (query.userId && session.userId !== query.userId) {
+          return false;
+        }
+        if (query.workspaceId && session.workspaceId !== query.workspaceId) {
+          return false;
+        }
+        if (states && !states.includes(session.state)) {
+          return false;
+        }
+        if (query.surfaceId && !session.attachedSurfaces.includes(query.surfaceId)) {
+          return false;
+        }
+        if (query.activeAfter && Date.parse(session.lastActivityAt) <= Date.parse(query.activeAfter)) {
+          return false;
+        }
+        return true;
+      });
+
+    return sortByRecentActivity(matches).slice(0, limit).map((session) => cloneSession(session));
+  }
+
+  async update(sessionId: string, patch: Partial<Session>): Promise<Session> {
+    const existing = await this.fetchById(sessionId);
+    if (!existing) {
+      throw new SessionNotFoundError(sessionId);
+    }
+
+    const next = cloneSession({
+      ...existing,
+      ...patch,
+    });
+    await this.writeSession(next);
+    return cloneSession(next);
+  }
+
+  async delete(sessionId: string): Promise<void> {
+    await this.options.delete(this.pathFor(sessionId));
+  }
+
+  private pathFor(sessionId: string): string {
+    return `${this.prefix}/${encodeURIComponent(sessionId)}.json`;
+  }
+
+  private async readSession(path: string): Promise<Session | null> {
+    const body = await this.options.read(path);
+    if (!body) {
+      return null;
+    }
+
+    const session = JSON.parse(body) as Session;
+    return cloneSession(session);
+  }
+
+  private async writeSession(session: Session): Promise<void> {
+    await this.options.write(this.pathFor(session.id), JSON.stringify(session));
+  }
+}
+
 export async function resolveSession(
   message: SessionResolvableMessage,
   store: SessionStore,
@@ -297,4 +384,12 @@ export function defaultAffinityResolver(store: SessionStore): AffinityResolver {
       return sessions[0] ?? null;
     },
   };
+}
+
+function normalizePrefix(prefix: string | undefined): string {
+  const trimmed = prefix?.trim();
+  if (!trimmed) {
+    return DEFAULT_RUNTIME_PREFIX;
+  }
+  return trimmed.replace(/\/+$/, '');
 }

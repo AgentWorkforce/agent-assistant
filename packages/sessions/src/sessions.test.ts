@@ -4,6 +4,7 @@ import {
   createSessionStore,
   defaultAffinityResolver,
   InMemorySessionStoreAdapter,
+  RuntimeSessionStoreAdapter,
   resolveSession,
 } from './index.js';
 import {
@@ -141,6 +142,43 @@ describe('session retrieval', () => {
     expect(sessions[0]?.userId).toBe('user-1');
     expect(sessions[0]?.state).toBe('active');
     vi.useRealTimers();
+  });
+
+  it('persists sessions through a runtime-backed adapter', async () => {
+    const files = new Map<string, string>();
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter({
+        async read(path) {
+          return files.get(path) ?? null;
+        },
+        async write(path, body) {
+          files.set(path, body);
+        },
+        async delete(path) {
+          files.delete(path);
+        },
+        async list(prefix) {
+          return [...files.keys()].filter((path) => path.startsWith(prefix));
+        },
+      }),
+    });
+
+    await store.create({
+      id: 'session-runtime',
+      userId: 'user-runtime',
+      workspaceId: 'ws-runtime',
+      initialSurfaceId: 'surface-runtime',
+      metadata: { source: 'ctx.files' },
+    });
+
+    const session = await store.get('session-runtime');
+    expect(session).toMatchObject({
+      id: 'session-runtime',
+      userId: 'user-runtime',
+      workspaceId: 'ws-runtime',
+      attachedSurfaces: ['surface-runtime'],
+      metadata: { source: 'ctx.files' },
+    });
   });
 });
 

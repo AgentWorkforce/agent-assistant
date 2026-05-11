@@ -2,6 +2,7 @@ export {
   createSessionStore,
   defaultAffinityResolver,
   InMemorySessionStoreAdapter,
+  RuntimeSessionStoreAdapter,
   resolveSession,
 } from './sessions.js';
 
@@ -21,4 +22,5 @@ export type {
   SessionStore,
   SessionStoreAdapter,
   SessionStoreConfig,
+  RuntimeSessionStoreAdapterOptions,
 } from './types.js';
