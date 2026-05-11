@@ -36,6 +36,11 @@ export interface RuntimeInteropSession {
   };
 }
 
+/**
+ * Construct a stable agent-assistant session descriptor from a hosted runtime
+ * context. The mapping is intentionally structural so cloud runtimes can pass
+ * plain objects without importing any OSS session types.
+ */
 export function fromContext(ctx: RuntimeInteropContext): RuntimeInteropSession {
   const workspaceId = readId(ctx.workspaceId ?? ctx.workspace);
   if (!workspaceId) {
