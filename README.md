@@ -13,7 +13,7 @@ A focused, open-source SDK for building production-grade AI assistants from expl
 - **Sessions** — Cross-surface session continuity, resume rules, and storage abstractions (`@agent-assistant/sessions`)
 - **Surfaces** — Assistant-facing inbound/outbound surface contracts above raw transport (`@agent-assistant/surfaces`)
 - **Policy** — Action classification, approvals, and audit hooks (`@agent-assistant/policy`)
-- **Proactive behavior** — Follow-up engines, watch rules, and scheduler bindings for outbound assistant actions (`@agent-assistant/proactive`). For hosted proactive runtime integration, see [Proactive runtime interop](docs/proactive-runtime-interop.md).
+- **Proactive behavior** — Follow-up engines, watch rules, and scheduler bindings for outbound assistant actions (`@agent-assistant/proactive`). For hosted proactive runtime integration, including the `onEvent` + `fromContext(ctx)` recipe, see [Proactive runtime interop](docs/proactive-runtime-interop.md).
 - **Routing / execution envelope selection** — Model-choice and latency/depth/cost routing policy (`@agent-assistant/routing`)
 - **Connectivity and coordination** — Inter-agent signaling plus coordinator/specialist orchestration (`@agent-assistant/connectivity`, `@agent-assistant/coordination`)
 - **Virtual filesystem navigation** — Provider-neutral contracts and Bash-friendly navigation helpers for assistant-readable VFS surfaces (`@agent-assistant/vfs`)
