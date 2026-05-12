@@ -62,14 +62,21 @@ export class ContextSchedulerBinding implements SchedulerBinding {
       ? await scheduler.requestWakeUp(at, context)
       : await this.#ctx.scheduleWakeUp?.(at, context);
 
-    if (!result) {
+    const bindingId =
+      typeof result === 'string'
+        ? result.trim()
+        : typeof result?.bindingId === 'string'
+          ? result.bindingId.trim()
+          : '';
+
+    if (!bindingId) {
       throw new ProactiveError(
         'Runtime context does not provide scheduleWakeUp support',
         'RUNTIME_SCHEDULER_UNAVAILABLE',
       );
     }
 
-    return typeof result === 'string' ? result : result.bindingId;
+    return bindingId;
   }
 
   async cancelWakeUp(bindingId: string): Promise<void> {

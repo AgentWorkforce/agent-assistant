@@ -147,24 +147,25 @@ describe('session retrieval', () => {
 
   it('persists sessions through a runtime-backed adapter', async () => {
     const files = new Map<string, string>();
-    const store = createSessionStore({
-      adapter: new RuntimeSessionStoreAdapter({
-        async read(path) {
-          return files.get(path) ?? null;
-        },
-        async write(path, body) {
-          files.set(path, body);
-        },
-        async delete(path) {
-          files.delete(path);
-        },
-        async list(prefix) {
-          return [...files.keys()].filter((path) => path.startsWith(prefix));
-        },
-      }),
+    const adapterOptions = {
+      async read(path: string) {
+        return files.get(path) ?? null;
+      },
+      async write(path: string, body: string) {
+        files.set(path, body);
+      },
+      async delete(path: string) {
+        files.delete(path);
+      },
+      async list(prefix: string) {
+        return [...files.keys()].filter((path) => path.startsWith(prefix));
+      },
+    };
+    const writerStore = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter(adapterOptions),
     });
 
-    await store.create({
+    await writerStore.create({
       id: 'session-runtime',
       userId: 'user-runtime',
       workspaceId: 'ws-runtime',
@@ -172,7 +173,10 @@ describe('session retrieval', () => {
       metadata: { source: 'ctx.files' },
     });
 
-    const session = await store.get('session-runtime');
+    const readerStore = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter(adapterOptions),
+    });
+    const session = await readerStore.get('session-runtime');
     expect(session).toMatchObject({
       id: 'session-runtime',
       userId: 'user-runtime',

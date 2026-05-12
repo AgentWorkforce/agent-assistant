@@ -171,6 +171,22 @@ describe('ContextSchedulerBinding', () => {
     });
   });
 
+  it('throws when scheduler returns a blank binding id', async () => {
+    const binding = new ContextSchedulerBinding({
+      scheduleWakeUp: vi.fn().mockResolvedValue('   '),
+    });
+
+    await expect(
+      binding.requestWakeUp(new Date('2026-05-12T14:30:00.000Z'), {
+        sessionId: 'ws-delta:sage',
+        scheduledAt: '2026-05-12T14:30:00.000Z',
+      }),
+    ).rejects.toMatchObject({
+      name: 'ProactiveError',
+      code: 'RUNTIME_SCHEDULER_UNAVAILABLE',
+    });
+  });
+
   it('throws when cancel support is unavailable', async () => {
     const binding = new ContextSchedulerBinding({
       scheduleWakeUp: vi.fn().mockResolvedValue('binding-789'),
