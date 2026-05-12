@@ -1,3 +1,8 @@
-import baseConfig from '../../vitest.package.config';
+import { defineConfig } from "vitest/config";
 
-export default baseConfig;
+export default defineConfig({
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+  },
+});

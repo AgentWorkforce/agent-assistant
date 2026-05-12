@@ -219,9 +219,12 @@ describe('runtime interop chain', () => {
       metadata: runtimeSession.metadata,
     });
     const reloaded = await sessions.get(runtimeSession.id);
+    const scheduledAt = new Date(
+      new Date(created.lastActivityAt).getTime() + 5 * 60 * 1000,
+    ).toISOString();
     const decisions = await engine.evaluateFollowUp({
       sessionId: created.id,
-      scheduledAt: '2026-05-12T12:00:00.000Z',
+      scheduledAt,
       lastActivityAt: created.lastActivityAt,
     });
     expect(reloaded?.id).toBe('support:sage');
@@ -236,11 +239,11 @@ describe('runtime interop chain', () => {
     });
 
     const scheduledBindingId = await new ContextSchedulerBinding(ctx).requestWakeUp(
-      new Date('2026-05-12T12:05:00.000Z'),
+      new Date(scheduledAt),
       {
         sessionId: created.id,
         ruleId: 'idle-follow-up',
-        scheduledAt: '2026-05-12T12:05:00.000Z',
+        scheduledAt,
       },
     );
     expect(scheduledBindingId).toBe('binding-chain-1');
