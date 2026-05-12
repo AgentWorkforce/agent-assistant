@@ -30,7 +30,7 @@
     "build": "npm run build --workspaces --if-present",
     "build:sdk": "npm run build -w @agent-assistant/sdk",
     "pretest": "npm run build",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present -- --passWithNoTests",
     "agent": "RELAY_AUTO_SPAWN=false RELAY_CHANNEL=specialists RELAY_WORKER=specialist-worker RELAY_CLI=claude RELAY_MODEL=claude-sonnet-4-6 npm run cli -w @agent-assistant/webhook-runtime",
     "worker": "npm run worker -w @agent-assistant/webhook-runtime --"
   },

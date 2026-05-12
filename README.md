@@ -13,7 +13,7 @@ A focused, open-source SDK for building production-grade AI assistants from expl
 - **Sessions** — Cross-surface session continuity, resume rules, and storage abstractions (`@agent-assistant/sessions`)
 - **Surfaces** — Assistant-facing inbound/outbound surface contracts above raw transport (`@agent-assistant/surfaces`)
 - **Policy** — Action classification, approvals, and audit hooks (`@agent-assistant/policy`)
-- **Proactive behavior** — Follow-up engines, watch rules, and scheduler bindings for outbound assistant actions (`@agent-assistant/proactive`)
+- **Proactive behavior** — Follow-up engines, watch rules, and scheduler bindings for outbound assistant actions (`@agent-assistant/proactive`). For hosted proactive runtime integration, including the `onEvent` + `fromContext(ctx)` recipe, see [Proactive runtime interop](docs/proactive-runtime-interop.md).
 - **Routing / execution envelope selection** — Model-choice and latency/depth/cost routing policy (`@agent-assistant/routing`)
 - **Connectivity and coordination** — Inter-agent signaling plus coordinator/specialist orchestration (`@agent-assistant/connectivity`, `@agent-assistant/coordination`)
 - **Virtual filesystem navigation** — Provider-neutral contracts and Bash-friendly navigation helpers for assistant-readable VFS surfaces (`@agent-assistant/vfs`)
@@ -142,6 +142,8 @@ The repo is no longer primarily blocked on package implementation. The main rema
 
 The underlying messaging and runtime infrastructure (transport adapters, webhook verification, normalized transport primitives, channel/session substrate, auth/connection wiring, scheduler/wake infrastructure) lives in the Relay foundation repos.
 
+Hosted proactive runtimes sit in that foundation layer. Use [Proactive runtime interop](docs/proactive-runtime-interop.md) when you need the split between durable cross-process triggers and the in-process `@agent-assistant/proactive` logic that runs after a wake-up.
+
 ## Product Logic (product repos)
 
 Product-specific concerns stay in each product's own repository:
@@ -158,6 +160,7 @@ Product-specific concerns stay in each product's own repository:
 
 - [Docs index](docs/index.md)
 - [Current state](docs/current-state.md)
+- [Proactive runtime interop](docs/proactive-runtime-interop.md)
 - [How to build an assistant](docs/consumer/how-to-build-an-assistant.md)
 - [How products should adopt this SDK](docs/consumer/how-products-should-adopt-agent-assistant-sdk.md)
 - [Connectivity adoption guide](docs/consumer/connectivity-adoption-guide.md)

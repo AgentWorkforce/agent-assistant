@@ -49,6 +49,47 @@ export interface SessionStoreAdapter {
   delete(sessionId: string): Promise<void>;
 }
 
+export interface RuntimeSessionStoreAdapterOptions {
+  read(path: string): Promise<string | null>;
+  write(path: string, body: string): Promise<void>;
+  delete(path: string): Promise<void>;
+  list(prefix: string): Promise<string[]>;
+  insert?(path: string, body: string): Promise<void>;
+  onCorruptRecord?(record: { path: string; body: string; error: unknown }): void | Promise<void>;
+  prefix?: string;
+}
+
+export interface RuntimeCtxFileRecord {
+  path: string;
+  body?: string | null;
+  content?: string | null;
+}
+
+export interface RuntimeCtxFiles {
+  read(
+    path: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<string | RuntimeCtxFileRecord | null>;
+  write(
+    path: string,
+    body: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<void>;
+  delete(
+    path: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<void>;
+  list(
+    glob: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<Array<string | { path: string }>>;
+}
+
+export interface CtxFilesToRuntimeSessionStoreAdapterOptions {
+  signal?: AbortSignal;
+  prefix?: string;
+}
+
 export interface AffinityResolver {
   resolve(userId: string, surfaceId?: string): Promise<Session | null>;
 }

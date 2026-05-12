@@ -1,7 +1,9 @@
 export {
   createSessionStore,
+  ctxFilesToRuntimeSessionStoreAdapterOptions,
   defaultAffinityResolver,
   InMemorySessionStoreAdapter,
+  RuntimeSessionStoreAdapter,
   resolveSession,
 } from './sessions.js';
 
@@ -13,7 +15,10 @@ export {
 
 export type {
   AffinityResolver,
+  CtxFilesToRuntimeSessionStoreAdapterOptions,
   CreateSessionInput,
+  RuntimeCtxFileRecord,
+  RuntimeCtxFiles,
   Session,
   SessionQuery,
   SessionResolvableMessage,
@@ -21,4 +26,5 @@ export type {
   SessionStore,
   SessionStoreAdapter,
   SessionStoreConfig,
+  RuntimeSessionStoreAdapterOptions,
 } from './types.js';

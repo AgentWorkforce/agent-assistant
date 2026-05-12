@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createSessionStore,
+  ctxFilesToRuntimeSessionStoreAdapterOptions,
   defaultAffinityResolver,
   InMemorySessionStoreAdapter,
+  RuntimeSessionStoreAdapter,
   resolveSession,
 } from './index.js';
 import {
@@ -141,6 +143,154 @@ describe('session retrieval', () => {
     expect(sessions[0]?.userId).toBe('user-1');
     expect(sessions[0]?.state).toBe('active');
     vi.useRealTimers();
+  });
+
+  it('persists sessions through a runtime-backed adapter', async () => {
+    const files = new Map<string, string>();
+    const adapterOptions = {
+      async read(path: string) {
+        return files.get(path) ?? null;
+      },
+      async write(path: string, body: string) {
+        files.set(path, body);
+      },
+      async delete(path: string) {
+        files.delete(path);
+      },
+      async list(prefix: string) {
+        return [...files.keys()].filter((path) => path.startsWith(prefix));
+      },
+    };
+    const writerStore = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter(adapterOptions),
+    });
+
+    await writerStore.create({
+      id: 'session-runtime',
+      userId: 'user-runtime',
+      workspaceId: 'ws-runtime',
+      initialSurfaceId: 'surface-runtime',
+      metadata: { source: 'ctx.files' },
+    });
+
+    const readerStore = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter(adapterOptions),
+    });
+    const session = await readerStore.get('session-runtime');
+    expect(session).toMatchObject({
+      id: 'session-runtime',
+      userId: 'user-runtime',
+      workspaceId: 'ws-runtime',
+      attachedSurfaces: ['surface-runtime'],
+      metadata: { source: 'ctx.files' },
+    });
+  });
+
+  it('returns null for corrupt runtime-backed session records', async () => {
+    const path = '/agent-assistant/sessions/session-bad.json';
+    const files = new Map<string, string>([[path, '{not json']]);
+    const onCorruptRecord = vi.fn();
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter({
+        async read(readPath) {
+          return files.get(readPath) ?? null;
+        },
+        async write(writePath, body) {
+          files.set(writePath, body);
+        },
+        async delete(deletePath) {
+          files.delete(deletePath);
+        },
+        async list(prefix) {
+          return [...files.keys()].filter((entry) => entry.startsWith(prefix));
+        },
+        onCorruptRecord,
+      }),
+    });
+
+    await expect(store.get('session-bad')).resolves.toBeNull();
+    await expect(store.find({ limit: 10 })).resolves.toEqual([]);
+    expect(onCorruptRecord).toHaveBeenCalled();
+  });
+
+  it('uses insert-only writes when the runtime backend supports them', async () => {
+    const files = new Map<string, string>();
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter({
+        async read(path) {
+          return files.get(path) ?? null;
+        },
+        async write(path, body) {
+          files.set(path, body);
+        },
+        async insert(path, body) {
+          if (files.has(path)) {
+            const error = new Error('already exists');
+            (error as Error & { code?: string }).code = 'EEXIST';
+            throw error;
+          }
+          files.set(path, body);
+        },
+        async delete(path) {
+          files.delete(path);
+        },
+        async list(prefix) {
+          return [...files.keys()].filter((entry) => entry.startsWith(prefix));
+        },
+      }),
+    });
+
+    await store.create({ id: 'session-runtime-insert', userId: 'user-1' });
+    await expect(store.create({ id: 'session-runtime-insert', userId: 'user-2' })).rejects.toThrow(
+      SessionConflictError,
+    );
+  });
+
+  it('bridges ctx.files into runtime adapter options', async () => {
+    const files = new Map<string, string>();
+    const signal = new AbortController().signal;
+    const listCalls: string[] = [];
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter(
+        ctxFilesToRuntimeSessionStoreAdapterOptions(
+          {
+            async read(path) {
+              return files.has(path) ? { path, body: files.get(path) ?? null } : null;
+            },
+            async write(path, body) {
+              files.set(path, body);
+            },
+            async delete(path) {
+              files.delete(path);
+            },
+            async list(glob) {
+              listCalls.push(glob);
+              const prefix = glob.replace(/\/\*\*$/, '');
+              return [...files.keys()]
+                .filter((path) => path.startsWith(prefix))
+                .map((path) => ({ path }));
+            },
+          },
+          { signal },
+        ),
+      ),
+    });
+
+    await store.create({
+      id: 'session-ctx',
+      userId: 'user-ctx',
+      metadata: { source: 'ctx.files' },
+    });
+
+    const session = await store.get('session-ctx');
+    const listed = await store.find({ limit: 10 });
+
+    expect(session).toMatchObject({
+      id: 'session-ctx',
+      metadata: { source: 'ctx.files' },
+    });
+    expect(listed).toHaveLength(1);
+    expect(listCalls).toEqual(['/agent-assistant/sessions/**']);
   });
 });
 
