@@ -182,6 +182,66 @@ describe('session retrieval', () => {
     });
   });
 
+  it('returns null for corrupt runtime-backed session records', async () => {
+    const path = '/agent-assistant/sessions/session-bad.json';
+    const files = new Map<string, string>([[path, '{not json']]);
+    const onCorruptRecord = vi.fn();
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter({
+        async read(readPath) {
+          return files.get(readPath) ?? null;
+        },
+        async write(writePath, body) {
+          files.set(writePath, body);
+        },
+        async delete(deletePath) {
+          files.delete(deletePath);
+        },
+        async list(prefix) {
+          return [...files.keys()].filter((entry) => entry.startsWith(prefix));
+        },
+        onCorruptRecord,
+      }),
+    });
+
+    await expect(store.get('session-bad')).resolves.toBeNull();
+    await expect(store.find({ limit: 10 })).resolves.toEqual([]);
+    expect(onCorruptRecord).toHaveBeenCalled();
+  });
+
+  it('uses insert-only writes when the runtime backend supports them', async () => {
+    const files = new Map<string, string>();
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter({
+        async read(path) {
+          return files.get(path) ?? null;
+        },
+        async write(path, body) {
+          files.set(path, body);
+        },
+        async insert(path, body) {
+          if (files.has(path)) {
+            const error = new Error('already exists');
+            (error as Error & { code?: string }).code = 'EEXIST';
+            throw error;
+          }
+          files.set(path, body);
+        },
+        async delete(path) {
+          files.delete(path);
+        },
+        async list(prefix) {
+          return [...files.keys()].filter((entry) => entry.startsWith(prefix));
+        },
+      }),
+    });
+
+    await store.create({ id: 'session-runtime-insert', userId: 'user-1' });
+    await expect(store.create({ id: 'session-runtime-insert', userId: 'user-2' })).rejects.toThrow(
+      SessionConflictError,
+    );
+  });
+
   it('bridges ctx.files into runtime adapter options', async () => {
     const files = new Map<string, string>();
     const signal = new AbortController().signal;

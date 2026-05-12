@@ -54,6 +54,8 @@ export interface RuntimeSessionStoreAdapterOptions {
   write(path: string, body: string): Promise<void>;
   delete(path: string): Promise<void>;
   list(prefix: string): Promise<string[]>;
+  insert?(path: string, body: string): Promise<void>;
+  onCorruptRecord?(record: { path: string; body: string; error: unknown }): void | Promise<void>;
   prefix?: string;
 }
 

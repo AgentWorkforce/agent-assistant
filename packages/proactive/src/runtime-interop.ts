@@ -99,7 +99,7 @@ export { ContextSchedulerBinding as RuntimeSchedulerBinding };
  * plain objects without importing any OSS session types.
  */
 export function fromContext(ctx: RuntimeInteropContext): RuntimeInteropSession {
-  const workspaceId = readId(ctx.workspaceId ?? ctx.workspace);
+  const workspaceId = readId(ctx.workspaceId) ?? readId(ctx.workspace);
   if (!workspaceId) {
     throw new ProactiveError(
       'fromContext requires ctx.workspaceId or ctx.workspace.id',
@@ -107,7 +107,7 @@ export function fromContext(ctx: RuntimeInteropContext): RuntimeInteropSession {
     );
   }
 
-  const agentId = readId(ctx.agentId ?? ctx.agent);
+  const agentId = readId(ctx.agentId) ?? readId(ctx.agent);
   if (!agentId) {
     throw new ProactiveError(
       'fromContext requires ctx.agentId or ctx.agent.id',

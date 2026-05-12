@@ -288,11 +288,23 @@ export class RuntimeSessionStoreAdapter implements SessionStoreAdapter {
   }
 
   async insert(session: Session): Promise<void> {
-    const existing = await this.fetchById(session.id);
-    if (existing) {
-      throw new SessionConflictError(session.id);
+    try {
+      if (this.options.insert) {
+        await this.options.insert(this.pathFor(session.id), JSON.stringify(session));
+        return;
+      }
+
+      const existing = await this.fetchById(session.id);
+      if (existing) {
+        throw new SessionConflictError(session.id);
+      }
+      await this.writeSession(session);
+    } catch (error) {
+      if (error instanceof SessionConflictError || isAlreadyExistsError(error)) {
+        throw new SessionConflictError(session.id);
+      }
+      throw error;
     }
-    await this.writeSession(session);
   }
 
   async fetchById(sessionId: string): Promise<Session | null> {
@@ -356,8 +368,13 @@ export class RuntimeSessionStoreAdapter implements SessionStoreAdapter {
       return null;
     }
 
-    const session = JSON.parse(body) as Session;
-    return cloneSession(session);
+    try {
+      const session = JSON.parse(body) as Session;
+      return cloneSession(session);
+    } catch (error) {
+      await this.options.onCorruptRecord?.({ path, body, error });
+      return null;
+    }
   }
 
   private async writeSession(session: Session): Promise<void> {
@@ -430,6 +447,23 @@ export function defaultAffinityResolver(store: SessionStore): AffinityResolver {
       return sessions[0] ?? null;
     },
   };
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeCode = 'code' in error ? (error as { code?: unknown }).code : undefined;
+  if (typeof maybeCode === 'string') {
+    const normalized = maybeCode.toLowerCase();
+    if (normalized === 'already_exists' || normalized === 'alreadyexists' || normalized === 'eexist') {
+      return true;
+    }
+  }
+
+  const maybeMessage = 'message' in error ? (error as { message?: unknown }).message : undefined;
+  return typeof maybeMessage === 'string' && /already exists|eexist/i.test(maybeMessage);
 }
 
 function normalizePrefix(prefix: string | undefined): string {

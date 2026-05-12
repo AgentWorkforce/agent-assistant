@@ -58,6 +58,25 @@ describe('fromContext', () => {
     });
   });
 
+  it('falls back to nested ids when flat ids are blank', () => {
+    expect(
+      fromContext({
+        workspaceId: '   ',
+        workspace: { id: 'ws-zeta' },
+        agentId: '',
+        agent: { id: 'sage' },
+      }),
+    ).toMatchObject({
+      id: 'ws-zeta:sage',
+      userId: 'agent:ws-zeta:sage',
+      workspaceId: 'ws-zeta',
+      metadata: {
+        agentId: 'sage',
+        workspaceId: 'ws-zeta',
+      },
+    });
+  });
+
   it('trims ids before deriving the session key', () => {
     expect(
       fromContext({
