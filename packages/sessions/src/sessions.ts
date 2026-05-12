@@ -5,7 +5,9 @@ import {
 } from './types.js';
 import type {
   AffinityResolver,
+  CtxFilesToRuntimeSessionStoreAdapterOptions,
   CreateSessionInput,
+  RuntimeCtxFiles,
   RuntimeSessionStoreAdapterOptions,
   Session,
   SessionQuery,
@@ -30,6 +32,24 @@ function nowIso(): string {
 
 function normalizeLimit(limit?: number): number {
   return limit ?? DEFAULT_FIND_LIMIT;
+}
+
+function normalizeCtxReadResult(
+  value: string | { body?: string | null; content?: string | null } | null,
+): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (!value) {
+    return null;
+  }
+  if (typeof value.body === 'string') {
+    return value.body;
+  }
+  if (typeof value.content === 'string') {
+    return value.content;
+  }
+  return null;
 }
 
 function normalizeStateFilter(
@@ -343,6 +363,32 @@ export class RuntimeSessionStoreAdapter implements SessionStoreAdapter {
   private async writeSession(session: Session): Promise<void> {
     await this.options.write(this.pathFor(session.id), JSON.stringify(session));
   }
+}
+
+export function ctxFilesToRuntimeSessionStoreAdapterOptions(
+  files: RuntimeCtxFiles,
+  options: CtxFilesToRuntimeSessionStoreAdapterOptions = {},
+): RuntimeSessionStoreAdapterOptions {
+  const signal = options.signal;
+  return {
+    prefix: options.prefix,
+    async read(path) {
+      const result = await files.read(path, { signal });
+      return normalizeCtxReadResult(result);
+    },
+    async write(path, body) {
+      await files.write(path, body, { signal });
+    },
+    async delete(path) {
+      await files.delete(path, { signal });
+    },
+    async list(prefix) {
+      const entries = await files.list(`${prefix}/**`, { signal });
+      return entries
+        .map((entry) => (typeof entry === 'string' ? entry : entry.path))
+        .filter((path): path is string => typeof path === 'string' && path.length > 0);
+    },
+  };
 }
 
 export async function resolveSession(

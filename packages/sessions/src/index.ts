@@ -1,5 +1,6 @@
 export {
   createSessionStore,
+  ctxFilesToRuntimeSessionStoreAdapterOptions,
   defaultAffinityResolver,
   InMemorySessionStoreAdapter,
   RuntimeSessionStoreAdapter,
@@ -14,7 +15,10 @@ export {
 
 export type {
   AffinityResolver,
+  CtxFilesToRuntimeSessionStoreAdapterOptions,
   CreateSessionInput,
+  RuntimeCtxFileRecord,
+  RuntimeCtxFiles,
   Session,
   SessionQuery,
   SessionResolvableMessage,

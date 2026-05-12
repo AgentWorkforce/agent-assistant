@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createSessionStore,
+  ctxFilesToRuntimeSessionStoreAdapterOptions,
   defaultAffinityResolver,
   InMemorySessionStoreAdapter,
   RuntimeSessionStoreAdapter,
@@ -179,6 +180,53 @@ describe('session retrieval', () => {
       attachedSurfaces: ['surface-runtime'],
       metadata: { source: 'ctx.files' },
     });
+  });
+
+  it('bridges ctx.files into runtime adapter options', async () => {
+    const files = new Map<string, string>();
+    const signal = new AbortController().signal;
+    const listCalls: string[] = [];
+    const store = createSessionStore({
+      adapter: new RuntimeSessionStoreAdapter(
+        ctxFilesToRuntimeSessionStoreAdapterOptions(
+          {
+            async read(path) {
+              return files.has(path) ? { path, body: files.get(path) ?? null } : null;
+            },
+            async write(path, body) {
+              files.set(path, body);
+            },
+            async delete(path) {
+              files.delete(path);
+            },
+            async list(glob) {
+              listCalls.push(glob);
+              const prefix = glob.replace(/\/\*\*$/, '');
+              return [...files.keys()]
+                .filter((path) => path.startsWith(prefix))
+                .map((path) => ({ path }));
+            },
+          },
+          { signal },
+        ),
+      ),
+    });
+
+    await store.create({
+      id: 'session-ctx',
+      userId: 'user-ctx',
+      metadata: { source: 'ctx.files' },
+    });
+
+    const session = await store.get('session-ctx');
+    const listed = await store.find({ limit: 10 });
+
+    expect(session).toMatchObject({
+      id: 'session-ctx',
+      metadata: { source: 'ctx.files' },
+    });
+    expect(listed).toHaveLength(1);
+    expect(listCalls).toEqual(['/agent-assistant/sessions/**']);
   });
 });
 
