@@ -58,3 +58,23 @@ export type {
 
 export { listBotChannels } from "./slack-bot-channels.js";
 export type { BotChannel } from "./slack-bot-channels.js";
+
+export {
+  appendSlackProgressStream,
+  createSlackTaskUpdate,
+  finishSlackProgressStream,
+  startSlackProgressStream,
+} from "./slack-progress-stream.js";
+export type {
+  SlackProgressAppendInput,
+  SlackProgressChunk,
+  SlackProgressFinishFallback,
+  SlackProgressFinishInput,
+  SlackProgressFinishResult,
+  SlackProgressResult,
+  SlackProgressStartInput,
+  SlackProgressStreamEgress,
+  SlackProgressTaskDisplayMode,
+  SlackProgressTaskStatus,
+  SlackProgressTaskUpdate,
+} from "./slack-progress-stream.js";
