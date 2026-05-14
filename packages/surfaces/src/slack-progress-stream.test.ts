@@ -16,6 +16,13 @@ describe("createSlackTaskUpdate", () => {
         title: "Sync",
         status: "complete",
         details: "2 skills",
+        sources: [
+          {
+            type: "url",
+            text: "Run log",
+            url: "https://example.com/run",
+          },
+        ],
       }),
     ).toEqual({
       type: "task_update",
@@ -23,6 +30,13 @@ describe("createSlackTaskUpdate", () => {
       title: "Sync",
       status: "complete",
       details: "2 skills",
+      sources: [
+        {
+          type: "url",
+          text: "Run log",
+          url: "https://example.com/run",
+        },
+      ],
     });
   });
 
@@ -50,7 +64,10 @@ describe("startSlackProgressStream", () => {
       recipientUserId: "U123",
       recipientTeamId: "T123",
       taskDisplayMode: "timeline",
-      chunks: [createSlackTaskUpdate({ id: "prepare", title: "Prepare", status: "in_progress" })],
+      chunks: [
+        { type: "markdown_text", text: "Preparing the run." },
+        createSlackTaskUpdate({ id: "prepare", title: "Prepare", status: "in_progress" }),
+      ],
     });
 
     expect(result).toEqual({ ok: true, ts: "1710000000.000100" });
@@ -63,6 +80,10 @@ describe("startSlackProgressStream", () => {
       recipientTeamId: "T123",
       taskDisplayMode: "timeline",
       chunks: [
+        {
+          type: "markdown_text",
+          text: "Preparing the run.",
+        },
         {
           type: "task_update",
           id: "prepare",

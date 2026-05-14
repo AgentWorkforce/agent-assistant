@@ -1,5 +1,16 @@
 export type SlackProgressTaskStatus = "pending" | "in_progress" | "complete" | "error";
 
+export type SlackProgressTaskSource =
+  | {
+      type: "url";
+      text: string;
+      url: string;
+    }
+  | {
+      type: string;
+      [key: string]: unknown;
+    };
+
 export type SlackProgressTaskUpdate = {
   type: "task_update";
   id: string;
@@ -7,10 +18,11 @@ export type SlackProgressTaskUpdate = {
   status?: SlackProgressTaskStatus;
   details?: string;
   output?: string;
+  sources?: SlackProgressTaskSource[];
 };
 
 export type SlackProgressChunk =
-  | { type: "markdown_text"; markdown_text: string }
+  | { type: "markdown_text"; text: string }
   | SlackProgressTaskUpdate
   | { type: "plan_update"; [key: string]: unknown }
   | { type: "blocks"; blocks: unknown[] };
@@ -96,6 +108,7 @@ export function createSlackTaskUpdate(input: {
   status?: SlackProgressTaskStatus;
   details?: string;
   output?: string;
+  sources?: SlackProgressTaskSource[];
 }): SlackProgressTaskUpdate {
   return {
     type: "task_update",
@@ -104,6 +117,7 @@ export function createSlackTaskUpdate(input: {
     ...(input.status ? { status: input.status } : {}),
     ...(input.details ? { details: input.details } : {}),
     ...(input.output ? { output: input.output } : {}),
+    ...(input.sources?.length ? { sources: input.sources } : {}),
   };
 }
 
