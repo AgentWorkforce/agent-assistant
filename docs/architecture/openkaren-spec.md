@@ -15,7 +15,13 @@ OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SD
 3. **Multi-surface with session bridging** — Karen is reachable on Telegram and Slack simultaneously; conversations bridge seamlessly across surfaces so context is never lost when the user switches channels
 4. **Durable, consistent state** — all state (Nango OAuth connections, sessions, messages, workflow state, budget, memory) lives in Cloudflare Durable Objects — strongly consistent, survives restarts, accessible from both the Mac mini runtime and any Cloudflare edge worker
 
-**Pricing:** $75/month hosted. Primary compute on a Mac mini. State in Cloudflare Durable Objects. Reachable via Telegram and Slack.
+**Pricing:** $75/month hosted. Reachable via Telegram and Slack.
+
+**Two deployment modes:**
+- **Mac mini mode** — compute on your Mac mini; state in Cloudflare DOs. Local-first for users who want code tooling (rtk, tilth, tokensave) and self-hosted automation (n8n).
+- **Cloud-only mode** — compute in Cloudflare Workers; state in Cloudflare DOs. No Mac mini required. Suitable for productivity-focused use (conversation, integration watches, delegation) without local tooling.
+
+Both modes share the same DO state layer. Graduating from Mac mini to cloud-only requires no data migration.
 
 **Tagline:** *"Your assistant that watches your integrations, surfaces what matters, never burns your budget, and follows you wherever you work."*
 
@@ -821,6 +827,113 @@ Single Slack connection → surfaces for conversation + VFS for data + bridge fo
 | Sage (cloud mode) | Yes | If using hosted Sage |
 | Agent Relay (cloud) | Yes | If using hosted multi-agent fabric |
 
+### Cloud-Only Mode (Cloudflare Workers + DO)
+
+When the Mac mini isn't needed or wanted, OpenKaren runs entirely in Cloudflare. Because all authoritative state was always in Durable Objects, this is purely a compute migration — zero data movement.
+
+**What changes in cloud-only mode:**
+
+| Component | Mac Mini Mode | Cloud-Only Mode |
+|---|---|---|
+| Karen runtime | Mac mini process | Cloudflare Worker |
+| Telegram | Polling (`getUpdates`) | Webhook (Worker has native public URL) |
+| Slack events | Cloudflare Tunnel → localhost | Native webhook URL (no tunnel) |
+| relayfile | Self-hosted docker-compose, port 9090 | Hosted SaaS |
+| relaycast | Local daemon, 127.0.0.1:7528 | Hosted api.relaycast.dev |
+| relaycron | Local Node.js + SQLite, port 4007 | DO Alarms (already the scheduling authority) |
+| n8n | Self-hosted, port 5678 | Hosted n8n Cloud or Pipedream |
+| relaycast-n8n-bridge | Local daemon, port 3721 | Cloudflare Worker or Pipedream step |
+| burn attribution | `~/.agentworkforce/burn/` SQLite | DO `budget` table (already authoritative) |
+| rtk | Local Rust binary (bash hook) | Not applicable — no shell execution in Workers |
+| tilth | Local Rust MCP server | Not applicable — no local filesystem to navigate |
+| tokensave | Local MCP server + index | Not applicable — no local codebase index |
+| workshop dashboard | localhost:5899 | Not applicable — removed or replaced with DO-native observability |
+| Cloudflare Tunnel | Required for external webhooks | Not needed — Worker URL is public |
+
+**What stays identical in cloud-only mode:**
+
+| Component | Notes |
+|---|---|
+| KarenUserDO | Unchanged — was always the authoritative state |
+| DO Alarms | Primary scheduler in cloud-only; was secondary to relaycron in Mac mini mode |
+| R2, KV | Unchanged |
+| Nango OAuth | Unchanged — tokens stored in DO, webhook updates DO |
+| Composio, Pipedream | Unchanged — already hosted |
+| Cross-surface session bridging | Unchanged — `bridge_session_id` in DO |
+| Budget gate enforcement | Unchanged — DO single-writer, no race conditions |
+| Multi-agent coordination | Unchanged — relaycast channels, same delegation model |
+| Karen persona JSON | Unchanged — `karen.persona.json` from workforce repo |
+
+**Token consciousness in cloud-only mode:**
+
+rtk, tilth, and tokensave depend on local bash execution and filesystem access. In Cloudflare Workers neither is available:
+
+- **rtk**: Removed — Workers don't execute shell commands
+- **tilth**: Removed — no local codebase to navigate
+- **tokensave**: Removed — no local index to maintain
+
+This means cloud-only OpenKaren trades the local compression stack for zero-ops hosting. The tradeoff is appropriate for users running Karen as a productivity assistant (conversation, integration watches, delegation to Sage/Ricky) rather than a coding assistant.
+
+Budget gating, routing tier downgrade (opus → sonnet → haiku), and spend reporting via `/spend`/`/forecast` remain fully intact — those are DO-based and don't depend on local tools.
+
+**Karen Worker deployment:**
+
+```typescript
+// workers/karen/src/index.ts
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const router = createKarenRouter(env);
+
+    // Telegram webhook (replaces Mac mini polling)
+    if (request.url.includes('/webhook/telegram')) {
+      return router.handleTelegram(request);
+    }
+
+    // Slack events (no tunnel needed — Worker URL is public)
+    if (request.url.includes('/webhook/slack')) {
+      return router.handleSlack(request);
+    }
+
+    // Nango webhook → upsert DO connection
+    if (request.url.includes('/webhook/nango')) {
+      return router.handleNango(request);
+    }
+
+    // n8n / Pipedream → Karen inbox
+    if (request.url.includes('/inbox')) {
+      return router.handleInbox(request);
+    }
+
+    return new Response('Not Found', { status: 404 });
+  },
+};
+
+function createKarenRouter(env: Env) {
+  // KarenDOClient still the same — Worker calls DO directly, no HTTP proxy needed
+  const doId = env.KAREN_DO.idFromName(env.USER_ID);
+  const doStub = env.KAREN_DO.get(doId);
+
+  return createAssistant({
+    id: 'karen',
+    traits: karenTraits,
+    stateStore: new KarenDOClient({ stub: doStub }),
+    surfaces: [
+      createTelegramSurface({
+        token: env.TELEGRAM_TOKEN,
+        mode: 'webhook',  // cloud-only: webhook, not polling
+      }),
+      createSlackSurface({
+        token: await doStub.getNangoConnection('slack'),
+        signingSecret: env.SLACK_SIGNING_SECRET,
+        replyMode: 'thread',
+      }),
+    ],
+    // Token consciousness tools removed — no shell/filesystem in Workers
+    // Budget gating, routing, spend reporting: unchanged
+  });
+}
+```
+
 ### Relaycast Webhook Decision
 
 The user correctly noted: *"Relaycast? No, not if want webhooks."*
@@ -838,6 +951,37 @@ cloudflared tunnel create openkaren
 cloudflared tunnel route dns openkaren karen.yourdomain.com
 cloudflared tunnel run --url http://localhost:7528 openkaren
 ```
+
+### Graduation Path: Mac Mini → Cloud-Only
+
+Because DO was the authoritative state store from day one, graduating from Mac mini to cloud-only is a compute swap, not a migration:
+
+```
+1. Deploy Karen Worker to Cloudflare
+   wrangler deploy workers/karen
+
+2. Switch Telegram from polling → webhook
+   POST https://api.telegram.org/bot<token>/setWebhook
+     {"url": "https://karen.yourdomain.workers.dev/webhook/telegram"}
+
+3. Update Slack app: change Event Subscriptions URL
+   https://karen.yourdomain.workers.dev/webhook/slack
+   (remove Cloudflare Tunnel from Mac mini)
+
+4. Switch relayfile to hosted SaaS
+   Update RELAYFILE_URL in Worker env
+
+5. Switch relaycast to hosted
+   Update RELAYCAST_URL to api.relaycast.dev
+
+6. Switch n8n to hosted n8n Cloud or Pipedream
+   Update webhook destinations in existing n8n workflows
+
+7. Decommission Mac mini processes
+   (relaycron, relaycast daemon, workshop, rtk hook, n8n local instance)
+```
+
+State after graduation: **unchanged**. KarenUserDO has the complete history — sessions, messages, memory, proactive workflow state, Nango connections, and full budget history. Nothing is lost.
 
 ---
 
@@ -1199,8 +1343,9 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 | **Durable state / crash recovery** | Yes — Cloudflare DO; 30-day PITR | File re-read | suspend_session |
 | **Budget gate consistency** | Yes — DO single-writer; no race conditions | None | None |
 | **Cross-session search** | Yes — FTS5 in DO | None | FTS5 local SQLite |
-| **Fully local option** | Yes (Mac mini) | Yes | Yes |
-| **Self-hosted** | Yes | Yes | Yes |
+| **Fully local option** | Yes (Mac mini mode) | Yes | Yes |
+| **Fully cloud option** | Yes (Workers + DO; no Mac mini required) | No | No |
+| **Self-hosted** | Yes (Mac mini mode) | Yes | Yes |
 | **Telegram** | Yes | Yes | Yes |
 | **Trace dashboard** | Yes — workshop | No | No |
 | **Spend dashboard** | Yes — burn + rtk + tilth | No | No |
@@ -1326,6 +1471,25 @@ Combined with proactive behavior (Karen watches your integrations and surfaces w
 - [ ] Add subscription check to session start policy gate
 - [ ] Build spend summary dashboard (burn + rtk + tilth metrics combined)
 - [ ] Integration test: full monthly budget cycle with spend reporting
+
+### Phase 6: Cloud-Only Mode (Optional Graduation)
+
+*Can be done at any point after Phase 0. No data migration required.*
+
+- [ ] Create `workers/karen` Cloudflare Worker project
+- [ ] Wire Telegram webhook handler (replace Mac mini polling)
+- [ ] Wire Slack events webhook handler (replace Cloudflare Tunnel)
+- [ ] Wire Nango webhook handler (already handled in Phase 0 DO upsert)
+- [ ] Wire Karen inbox handler for Pipedream / hosted n8n
+- [ ] Remove rtk, tilth, tokensave from cloud persona config (not applicable in Workers)
+- [ ] Switch relayfile from docker-compose to hosted SaaS URL
+- [ ] Switch relaycast from local daemon to `api.relaycast.dev`
+- [ ] Configure hosted n8n Cloud or Pipedream to replace local n8n + relaycast-n8n-bridge
+- [ ] Deploy `relaycast-n8n-bridge` as a Cloudflare Worker (if not using Pipedream)
+- [ ] Integration test: full turn from Telegram webhook → Karen Worker → DO → response delivery
+- [ ] Integration test: DO Alarm fires proactive workflow → Telegram delivery (relaycron removed)
+- [ ] Integration test: cross-surface session bridge still intact after Mac mini removed
+- [ ] Verify `/spend` and `/forecast` still accurate (DO budget table only; burn.sqlite gone)
 
 ---
 
