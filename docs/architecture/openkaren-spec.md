@@ -8,13 +8,14 @@
 
 ## 1. What OpenKaren Is
 
-OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SDK, designed around three properties that neither OpenClaw nor Hermes Agent has:
+OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SDK, designed around four properties that neither OpenClaw nor Hermes Agent has:
 
 1. **Token consciousness** — the assistant knows exactly what it costs to run, surfaces that cost to the user, and actively minimizes unnecessary spend through compression, smart routing, and budget-gated policy
-2. **Proactive by default** — the assistant acts ahead of the user via scheduled triggers (relaycron), integration watches (relayfile), and multi-agent delegation — not just in response to messages
+2. **Proactive by default** — the assistant acts ahead of the user via scheduled triggers, integration watches (relayfile), and multi-agent delegation — not just in response to messages
 3. **Multi-surface with session bridging** — Karen is reachable on Telegram and Slack simultaneously; conversations bridge seamlessly across surfaces so context is never lost when the user switches channels
+4. **Durable, consistent state** — all state (Nango OAuth connections, sessions, messages, workflow state, budget, memory) lives in Cloudflare Durable Objects — strongly consistent, survives restarts, accessible from both the Mac mini runtime and any Cloudflare edge worker
 
-**Pricing:** $75/month hosted. Runs on a Mac mini. Reachable via Telegram and Slack.
+**Pricing:** $75/month hosted. Primary compute on a Mac mini. State in Cloudflare Durable Objects. Reachable via Telegram and Slack.
 
 **Tagline:** *"Your assistant that watches your integrations, surfaces what matters, never burns your budget, and follows you wherever you work."*
 
@@ -51,19 +52,36 @@ OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SD
 │  @agent-assistant/inbox         ← Nango/Composio/Pipedream ingress   │
 │  @agent-assistant/continuation  ← resumable unfinished turns         │
 │  @agent-assistant/coordination  ← delegation to Sage, Ricky         │
-└──────────┬─────────────────────────────────┬────────────────────────┘
-           │                                 │
+└──────────┬─────────────────────────────────┴────────────────────────┘
+           │
+┌──────────▼──────────────────────────────────────────────────────────┐
+│          STATE LAYER — Cloudflare Durable Objects                    │
+│                                                                      │
+│  KarenUserDO  (one per user; strongly consistent SQLite per user)   │
+│    nango_connections  ← OAuth tokens, refresh tokens, scopes        │
+│    sessions           ← cross-surface session continuity            │
+│    messages + FTS5    ← full transcript + cross-session recall       │
+│    workflow_state     ← proactive watches, scheduled jobs           │
+│    budget             ← monthly token spend, alert thresholds       │
+│    memory + FTS5      ← persistent facts, preferences, patterns     │
+│                                                                      │
+│  DO Alarms  ← per-user scheduling (hosted; replaces relaycron)     │
+│  R2         ← trajectory files, skill artifacts, large blobs       │
+│  KV         ← routing config, feature flags                        │
+└──────────┬───────────────────────────────────────────────────────────┘
+           │
 ┌──────────▼──────────┐       ┌─────────────▼──────────────────────────┐
 │   RELAY FABRIC       │       │       TOKEN CONSCIOUSNESS LAYER         │
 │                      │       │                                         │
-│  relayfile           │       │  burn    ← spend attribution + budget  │
+│  relayfile           │       │  burn    ← local session attribution   │
 │  (SaaS VFS)          │       │  rtk     ← command output compression  │
 │                      │       │  tilth   ← structural code navigation  │
 │  relaycast           │       │  tokensave ← semantic graph queries    │
 │  (agent messaging)   │       │  workshop  ← trace viewer + evals      │
 │                      │       └─────────────────────────────────────────┘
 │  relaycron           │
-│  (scheduling)        │
+│  (local scheduling;  │
+│   DO Alarms hosted)  │
 └──────────┬───────────┘
            │  ↕ bidirectional bridge
 ┌──────────▼──────────────────────────────────────────────────────────┐
@@ -324,7 +342,337 @@ const delegation = await coordination.delegate({
 
 ---
 
-## 5. Multi-Surface Support and Session Bridging
+## 5. State Layer — Cloudflare Durable Objects
+
+### 5.1 Why Durable Objects
+
+Neither OpenClaw nor Hermes solves the durable state problem correctly for a hosted, multi-surface proactive assistant:
+
+- **OpenClaw**: files on local disk. Survives as long as the Mac mini does. No cross-process consistency. No query capability.
+- **Hermes**: SQLite on local disk. WAL mode for concurrency within one process. Same durability problem — disk failure or restart loses state.
+
+OpenKaren has state concerns that genuinely cannot live on local disk:
+
+| Concern | Why local disk fails |
+|---|---|
+| Nango OAuth tokens | Security risk; lost on disk failure; inaccessible if compute moves |
+| Cross-surface session bridge | Telegram and Slack surface handlers may run in different processes |
+| Proactive workflow state | A scheduled workflow must survive a Mac mini restart |
+| Budget enforcement | Must be authoritative — two concurrent turns must not both pass a gate that should deny one |
+| Memory across sessions | Must be queryable, not just injected wholesale |
+
+Cloudflare Durable Objects solve all of these:
+- **Strongly consistent**: reads always see the latest write — critical for budget gates where two simultaneous turns must not both pass a $75 ceiling
+- **Durable**: state survives compute restarts; the Mac mini is just a compute client
+- **Per-user isolation**: one DO per user means no cross-user contention
+- **SQLite with FTS5**: full-text search across messages and memory, matching Hermes's capability
+- **Alarm API**: per-user scheduling without relaycron in the hosted path
+- **PITR**: 30-day point-in-time recovery — important for debugging workflow failures
+
+### 5.2 KarenUserDO — One Per User
+
+Each user gets one Durable Object. The DO holds the complete per-user SQLite database.
+
+```typescript
+export class KarenUserDO implements DurableObject {
+  private sql: SqlStorage;
+
+  constructor(private ctx: DurableObjectState, private env: Env) {
+    this.sql = ctx.storage.sql;
+    this.ctx.blockConcurrencyWhile(() => this.migrate());
+  }
+
+  private async migrate() {
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS nango_connections (
+        integration_id     TEXT PRIMARY KEY,
+        connection_id      TEXT NOT NULL,
+        provider_config_key TEXT NOT NULL,
+        expires_at         INTEGER,
+        scopes             TEXT,          -- JSON array
+        metadata           TEXT,          -- JSON blob from Nango
+        last_refresh_at    INTEGER,
+        created_at         INTEGER NOT NULL,
+        updated_at         INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        id                 TEXT PRIMARY KEY,
+        surface            TEXT NOT NULL,  -- 'telegram' | 'slack' | 'relaycast'
+        surface_channel_id TEXT,
+        bridge_session_id  TEXT,           -- links sessions across surfaces
+        status             TEXT DEFAULT 'active',
+        model              TEXT,
+        routing_tier       TEXT,           -- 'premium' | 'standard' | 'economy'
+        started_at         INTEGER NOT NULL,
+        last_active_at     INTEGER NOT NULL,
+        ended_at           INTEGER,
+        message_count      INTEGER DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id                 TEXT PRIMARY KEY,
+        session_id         TEXT NOT NULL REFERENCES sessions(id),
+        role               TEXT NOT NULL,  -- 'user' | 'assistant' | 'tool'
+        content            TEXT,
+        tool_calls         TEXT,           -- JSON
+        tool_name          TEXT,
+        input_tokens       INTEGER DEFAULT 0,
+        output_tokens      INTEGER DEFAULT 0,
+        cache_read_tokens  INTEGER DEFAULT 0,
+        timestamp          INTEGER NOT NULL
+      );
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+        content,
+        session_id  UNINDEXED,
+        timestamp   UNINDEXED,
+        tokenize    = 'unicode61'
+      );
+
+      CREATE TABLE IF NOT EXISTS budget (
+        period             TEXT PRIMARY KEY,  -- 'YYYY-MM'
+        input_tokens       INTEGER DEFAULT 0,
+        output_tokens      INTEGER DEFAULT 0,
+        cache_read_tokens  INTEGER DEFAULT 0,
+        estimated_cost_usd REAL DEFAULT 0,
+        budget_usd         REAL DEFAULT 75.0,
+        alert_sent_75_at   INTEGER,
+        alert_sent_90_at   INTEGER,
+        updated_at         INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS workflow_state (
+        id           TEXT PRIMARY KEY,
+        type         TEXT NOT NULL,     -- 'watch' | 'scheduled' | 'delegation' | 'continuation'
+        trigger      TEXT,              -- 'relayfile-event' | 'alarm' | 'user-request'
+        status       TEXT DEFAULT 'pending',
+        payload      TEXT,              -- JSON
+        result       TEXT,              -- JSON
+        scheduled_at INTEGER,
+        started_at   INTEGER,
+        completed_at INTEGER,
+        error        TEXT,
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory (
+        id                TEXT PRIMARY KEY,
+        type              TEXT NOT NULL,  -- 'preference' | 'fact' | 'workflow-pattern'
+        content           TEXT NOT NULL,
+        source_session_id TEXT,
+        confidence        REAL DEFAULT 1.0,
+        access_count      INTEGER DEFAULT 0,
+        created_at        INTEGER NOT NULL,
+        last_accessed_at  INTEGER
+      );
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+        content,
+        type       UNINDEXED,
+        id         UNINDEXED,
+        tokenize   = 'unicode61'
+      );
+    `);
+  }
+```
+
+### 5.3 DO Alarms for Proactive Scheduling
+
+The DO's alarm API replaces relaycron in the hosted deployment. Each user's proactive schedule is stored in `workflow_state` and the alarm fires at the next due time:
+
+```typescript
+  async alarm() {
+    const now = Date.now();
+
+    // Find all scheduled workflows due now
+    const due = this.sql.exec(`
+      SELECT * FROM workflow_state
+      WHERE status = 'pending'
+        AND type = 'scheduled'
+        AND scheduled_at <= ?
+      ORDER BY scheduled_at ASC
+    `, now).toArray();
+
+    for (const workflow of due) {
+      await this.executeWorkflow(workflow);
+    }
+
+    // Reschedule alarm for next pending workflow
+    const next = this.sql.exec(`
+      SELECT MIN(scheduled_at) as next_at FROM workflow_state
+      WHERE status = 'pending' AND type IN ('scheduled', 'watch')
+    `).one();
+
+    if (next?.next_at) {
+      await this.ctx.storage.setAlarm(next.next_at);
+    }
+  }
+```
+
+Daily standup, weekly spend review, workflow health checks — all stored as `workflow_state` rows, alarm-driven. No separate relaycron process needed in the hosted path.
+
+### 5.4 Budget Gate — Strong Consistency Matters
+
+The budget gate in `@agent-assistant/policy` must be strongly consistent. If two Telegram messages arrive simultaneously and both query `estimated_cost_usd` from a local SQLite, they can both see $74.50 and both pass a $75 gate — resulting in overrun.
+
+With DO, all budget reads and writes are serialized within the DO's single-writer model:
+
+```typescript
+  async checkAndRecordSpend(tokens: TokenUsage): Promise<BudgetDecision> {
+    // DO guarantees this read-modify-write is atomic — no race possible
+    const period = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+
+    const row = this.sql.exec(`
+      SELECT estimated_cost_usd, budget_usd FROM budget WHERE period = ?
+    `, period).one();
+
+    const current = row?.estimated_cost_usd ?? 0;
+    const limit = row?.budget_usd ?? 75.0;
+    const cost = estimateCost(tokens);
+    const projected = current + cost;
+
+    if (projected > limit) {
+      return { outcome: 'deny', reason: 'budget-exhausted', current, limit };
+    }
+
+    this.sql.exec(`
+      INSERT INTO budget (period, estimated_cost_usd, input_tokens, output_tokens, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(period) DO UPDATE SET
+        estimated_cost_usd = estimated_cost_usd + excluded.estimated_cost_usd,
+        input_tokens = input_tokens + excluded.input_tokens,
+        output_tokens = output_tokens + excluded.output_tokens,
+        updated_at = excluded.updated_at
+    `, period, cost, tokens.input, tokens.output, Date.now());
+
+    const ratio = projected / limit;
+    if (ratio > 0.90) return { outcome: 'allow', tier: 'economy', projected, limit };
+    if (ratio > 0.75) return { outcome: 'allow', tier: 'standard', projected, limit };
+    return { outcome: 'allow', tier: 'premium', projected, limit };
+  }
+```
+
+### 5.5 Nango Connection Storage
+
+Nango OAuth tokens live in the DO, not in environment variables or local files. Karen's runtime fetches them from the DO on each turn that needs a specific integration:
+
+```typescript
+  async getNangoConnection(integrationId: string): Promise<NangoConnection | null> {
+    return this.sql.exec(`
+      SELECT * FROM nango_connections WHERE integration_id = ?
+    `, integrationId).one() ?? null;
+  }
+
+  async upsertNangoConnection(conn: NangoConnection) {
+    this.sql.exec(`
+      INSERT INTO nango_connections
+        (integration_id, connection_id, provider_config_key, expires_at, scopes, metadata, updated_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(integration_id) DO UPDATE SET
+        connection_id = excluded.connection_id,
+        expires_at    = excluded.expires_at,
+        metadata      = excluded.metadata,
+        updated_at    = excluded.updated_at
+    `, conn.integrationId, conn.connectionId, conn.providerConfigKey,
+       conn.expiresAt, JSON.stringify(conn.scopes), JSON.stringify(conn.metadata),
+       Date.now(), Date.now());
+  }
+```
+
+When Nango fires a token-refresh webhook, the DO is updated. Karen's runtime never holds a token in memory longer than a single turn.
+
+### 5.6 Cross-Surface Session Bridge
+
+Session bridging across Telegram and Slack requires shared, strongly consistent session state. The DO provides this:
+
+```typescript
+  async getOrCreateBridgeSession(
+    surface: 'telegram' | 'slack',
+    channelId: string,
+    existingBridgeId?: string
+  ): Promise<Session> {
+    // If a bridge ID is provided, find the existing session on this surface
+    if (existingBridgeId) {
+      const existing = this.sql.exec(`
+        SELECT * FROM sessions
+        WHERE bridge_session_id = ? AND surface = ? AND status = 'active'
+      `, existingBridgeId, surface).one();
+      if (existing) return existing;
+    }
+
+    // Create new session, linking to bridge if provided
+    const id = crypto.randomUUID();
+    this.sql.exec(`
+      INSERT INTO sessions (id, surface, surface_channel_id, bridge_session_id,
+        status, started_at, last_active_at)
+      VALUES (?, ?, ?, ?, 'active', ?, ?)
+    `, id, surface, channelId, existingBridgeId ?? id, Date.now(), Date.now());
+
+    return this.sql.exec(`SELECT * FROM sessions WHERE id = ?`, id).one();
+  }
+```
+
+When the user messages Karen on Slack after a Telegram session, the Slack surface handler passes the known `bridge_session_id`, and both surfaces see the same message history.
+
+### 5.7 How the Mac Mini Runtime Connects to DOs
+
+The Mac mini Karen runtime accesses the DO via a thin Cloudflare Worker proxy:
+
+```typescript
+// Karen runtime on Mac mini
+const karenDO = new KarenDOClient({
+  workerUrl: 'https://karen-state.yourdomain.workers.dev',
+  userId: context.userId,
+  authToken: relay.byok('karen-state-token'),
+});
+
+// Used in @agent-assistant/policy budget gate
+const decision = await karenDO.checkAndRecordSpend(tokens);
+
+// Used in @agent-assistant/sessions
+const session = await karenDO.getOrCreateBridgeSession('telegram', chatId);
+
+// Used in @agent-assistant/memory
+const memories = await karenDO.searchMemory(query);
+
+// Used in @agent-assistant/inbox (Nango token fetch)
+const slackToken = await karenDO.getNangoConnection('slack');
+```
+
+The DO worker is a thin HTTP→DO proxy. The Mac mini never stores anything persistent locally except burn.sqlite (which is local attribution for rtk/tilth/workshop tooling only — the authoritative spend record is in the DO).
+
+### 5.8 SDK Package Mapping to DO Implementations
+
+| agent-assistant package | DO implementation |
+|---|---|
+| `@agent-assistant/sessions` | `KarenDOSessionStore` — reads/writes `sessions` + `messages` |
+| `@agent-assistant/memory` | `KarenDOMemoryStore` — reads/writes `memory` + `memory_fts` |
+| `@agent-assistant/policy` (budget gate) | `KarenDOBudgetPolicy` — atomic read-modify-write on `budget` |
+| `@agent-assistant/proactive` (scheduler) | `KarenDOWorkflowStore` — reads/writes `workflow_state`; alarm-driven |
+| `@agent-assistant/inbox` (Nango) | `KarenDONangoAdapter` — reads `nango_connections` |
+| `@agent-assistant/continuation` | Stored in `workflow_state` with `type: 'continuation'` |
+
+### 5.9 Comparison: DO vs Hermes SQLite vs OpenClaw Files
+
+| Concern | Hermes (local SQLite) | OpenClaw (files) | OpenKaren (DO) |
+|---|---|---|---|
+| Transcript storage | SQLite on local disk | JSONL files | DO SQLite |
+| Cross-session search | FTS5 (local) | None | FTS5 (DO) |
+| Nango token storage | N/A | N/A | DO (secure, durable) |
+| Budget gate consistency | Not applicable | Not applicable | Strongly consistent (DO single-writer) |
+| Proactive workflow state | In-memory (lost on restart) | Not applicable | DO workflow_state table |
+| Cross-surface session | Not applicable | Not applicable | DO bridge_session_id |
+| Crash recovery | suspend + mark_resume | Re-read files | DO always consistent |
+| Memory scale ceiling | FTS5, limited to local disk | Context window | FTS5 in DO, Cloudflare-replicated |
+| PITR | None | None | 30-day rollback |
+
+---
+
+## 6. Multi-Surface Support and Session Bridging
+
+> *Session bridging state lives in KarenUserDO (see §5.6). The surfaces layer reads and writes session rows through the DO client; it does not hold session state in memory.*
 
 ### 5.1 Surfaces: Telegram + Slack
 
@@ -437,17 +785,17 @@ Single Slack connection → surfaces for conversation + VFS for data + bridge fo
 
 ---
 
-## 6. Local vs Hosted Breakdown
+## 7. Local vs Hosted Breakdown
 
-### What Runs on the Mac Mini (Fully Local)
+### Compute: Mac Mini (Fully Local)
 
 | Component | Local? | Notes |
 |---|---|---|
 | `agent-assistant` SDK | Yes | TypeScript runtime |
 | relayfile server | Yes | Go server + docker-compose |
-| relaycron | Yes | Node.js + SQLite, port 4007 |
+| relaycron | Yes | Node.js + SQLite, port 4007 (local scheduling; DO Alarms used when hosted) |
 | relaycast local daemon | Yes | Rust daemon, 127.0.0.1:7528 |
-| burn | Yes | SQLite at `~/.agentworkforce/burn/` |
+| burn | Yes | Local attribution only — `~/.agentworkforce/burn/`; authoritative spend in DO |
 | rtk | Yes | Single Rust binary, bash hook |
 | tilth | Yes | Rust binary + MCP server |
 | tokensave | Yes | MCP server + libSQL |
@@ -456,17 +804,20 @@ Single Slack connection → surfaces for conversation + VFS for data + bridge fo
 | n8n-nodes-relayfile | Yes | npm package installed in n8n instance |
 | relaycast-n8n-bridge | Yes | TypeScript daemon; Docker or bare Node |
 | Telegram (polling mode) | Yes | No webhook required locally |
-| Slack surface | Partial | Bot runs locally; Slack events require public URL (Cloudflare Tunnel) |
+| Slack surface | Partial | Bot runs locally; Slack events require Cloudflare Tunnel |
 | workforce personas | Yes | JSON config files |
 
-### What Requires Cloud (Cannot Run Fully Local)
+### State: Cloudflare Durable Objects (Always Cloud)
 
-| Component | Cloud Required? | Why |
+| Component | Cloud Required? | Notes |
 |---|---|---|
-| relaycast (webhooks) | Partial | External webhook triggers require public URL; local daemon works for agent-to-agent messaging; Telegram inbound works via polling |
-| Nango | Yes | OAuth management is their hosted service |
-| Composio | Yes | Integration platform is hosted |
-| Pipedream | Yes | Workflow automation is hosted |
+| **KarenUserDO** | Yes | Nango connections, sessions, messages+FTS5, workflow state, budget, memory+FTS5 |
+| **DO Alarms** | Yes | Per-user proactive scheduling in hosted mode |
+| **R2** | Yes | Trajectory files, skill artifacts, large blobs |
+| **KV** | Yes | Routing config, feature flags |
+| Nango | Yes | OAuth management — token writes trigger DO upsert |
+| Composio | Yes | Integration platform |
+| Pipedream | Yes | Workflow automation |
 | Sage (cloud mode) | Yes | If using hosted Sage |
 | Agent Relay (cloud) | Yes | If using hosted multi-agent fabric |
 
@@ -490,7 +841,7 @@ cloudflared tunnel run --url http://localhost:7528 openkaren
 
 ---
 
-## 7. Workforce Persona: Karen
+## 8. Workforce Persona: Karen
 
 [`AgentWorkforce/workforce`] defines Karen as a deployable persona JSON:
 
@@ -580,7 +931,7 @@ cloudflared tunnel run --url http://localhost:7528 openkaren
 
 ---
 
-## 8. BYOK Subscription Model
+## 9. BYOK Subscription Model
 
 Users bring their own API keys (Anthropic, OpenAI, etc.) via Relay's BYOK infrastructure. OpenKaren charges $75/month for the platform, not for model tokens.
 
@@ -605,7 +956,7 @@ Marketing angle: *"Karen doesn't just cost $75/month. She pays for part of herse
 
 ---
 
-## 9. Integration Setup (What Gets Configured)
+## 10. Integration Setup (What Gets Configured)
 
 ### What the User Sets Up (Guided Onboarding)
 
@@ -650,7 +1001,7 @@ Marketing angle: *"Karen doesn't just cost $75/month. She pays for part of herse
 
 ---
 
-## 10. n8n Integration — Bidirectional Automation Mesh
+## 11. n8n Integration — Bidirectional Automation Mesh
 
 The relay ↔ n8n integration is fully bidirectional through two dedicated bridge packages. This is not a simple "n8n can call Karen" setup — it is an automation mesh where relayfile events and relaycast agent messages both flow into n8n, and n8n flows back into Karen.
 
@@ -820,7 +1171,7 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 
 ---
 
-## 11. Comparison: OpenKaren vs OpenClaw vs Hermes Agent
+## 12. Comparison: OpenKaren vs OpenClaw vs Hermes Agent
 
 ### Feature Matrix
 
@@ -843,8 +1194,11 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 | **Canvas** | No (v1) | Yes (A2UI) | No |
 | **n8n bidirectional mesh** | Yes — relayfile→n8n + relaycast→n8n + n8n→Karen | No | No |
 | **Slack surface** | Yes — native via agent-assistant/surfaces + Nango | Yes (daemon) | Yes (gateway) |
-| **Cross-surface session bridge** | Yes — sessions package; Telegram ↔ Slack continuity | No | No |
-| **Nango OAuth** | Yes — single flow covers surface + VFS + bridge | Manual channel config | No |
+| **Cross-surface session bridge** | Yes — DO bridge_session_id; strongly consistent | No | No |
+| **Nango OAuth** | Yes — stored in DO; single flow covers surface + VFS + bridge | Manual config | No |
+| **Durable state / crash recovery** | Yes — Cloudflare DO; 30-day PITR | File re-read | suspend_session |
+| **Budget gate consistency** | Yes — DO single-writer; no race conditions | None | None |
+| **Cross-session search** | Yes — FTS5 in DO | None | FTS5 local SQLite |
 | **Fully local option** | Yes (Mac mini) | Yes | Yes |
 | **Self-hosted** | Yes | Yes | Yes |
 | **Telegram** | Yes | Yes | Yes |
@@ -884,7 +1238,7 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 
 ---
 
-## 12. What Makes OpenKaren the Right Product
+## 13. What Makes OpenKaren the Right Product
 
 Neither OpenClaw nor Hermes tries to own the cost conversation. Both assume tokens are essentially free — OpenClaw because it's local-first and focused on privacy, Hermes because it's research-focused and optimizing for capability.
 
@@ -899,9 +1253,20 @@ Combined with proactive behavior (Karen watches your integrations and surfaces w
 
 ---
 
-## 13. Implementation Roadmap
+## 14. Implementation Roadmap
 
-### Phase 0: Mac Mini Runtime (Week 1–2)
+### Phase 0: Durable State Foundation (Week 1)
+
+- [ ] Create `KarenUserDO` Cloudflare Worker project
+- [ ] Implement full SQLite schema with migrations (`blockConcurrencyWhile`)
+- [ ] Implement HTTP API: `POST /nango-connection`, `GET /nango-connection/:id`, `POST /budget/check-and-record`, `POST /sessions`, `GET /sessions/:bridgeId`, `POST /messages`, `GET /search/messages`, `POST /memory`, `GET /search/memory`, `POST /workflow`, `GET /workflow/due`
+- [ ] Implement DO Alarm handler: query `workflow_state` due items, execute, reschedule
+- [ ] Deploy to Cloudflare Workers with per-user DO routing: `env.KAREN_DO.idFromName(userId)`
+- [ ] Write `KarenDOClient` TypeScript SDK for Mac mini → DO calls
+- [ ] Integration test: concurrent budget check proves no overrun (two simultaneous requests at $74.50)
+- [ ] Wire Nango webhook → DO `upsert_nango_connection`
+
+### Phase 1: Mac Mini Runtime (Week 2–3)
 
 - [ ] Bootstrap `agent-assistant` SDK on Mac mini
 - [ ] Stand up relayfile with docker-compose (Linear + GitHub providers)
