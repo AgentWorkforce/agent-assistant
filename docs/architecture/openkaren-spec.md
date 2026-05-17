@@ -8,14 +8,15 @@
 
 ## 1. What OpenKaren Is
 
-OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SDK, designed specifically around two properties that neither OpenClaw nor Hermes Agent has:
+OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SDK, designed around three properties that neither OpenClaw nor Hermes Agent has:
 
 1. **Token consciousness** — the assistant knows exactly what it costs to run, surfaces that cost to the user, and actively minimizes unnecessary spend through compression, smart routing, and budget-gated policy
 2. **Proactive by default** — the assistant acts ahead of the user via scheduled triggers (relaycron), integration watches (relayfile), and multi-agent delegation — not just in response to messages
+3. **Multi-surface with session bridging** — Karen is reachable on Telegram and Slack simultaneously; conversations bridge seamlessly across surfaces so context is never lost when the user switches channels
 
-**Pricing:** $75/month hosted. Runs on a Mac mini. Reachable primarily via Telegram.
+**Pricing:** $75/month hosted. Runs on a Mac mini. Reachable via Telegram and Slack.
 
-**Tagline:** *"Your assistant that watches your integrations, surfaces what matters, and never burns your budget."*
+**Tagline:** *"Your assistant that watches your integrations, surfaces what matters, never burns your budget, and follows you wherever you work."*
 
 ---
 
@@ -25,8 +26,13 @@ OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SD
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        USER LAYER                                    │
 │                                                                      │
-│   Telegram ─────────────────────────────────────────────────────    │
-│   (primary surface; polling mode for local; webhook for hosted)     │
+│   Telegram ──────────────────────────────────────────────────────   │
+│   (polling mode local; webhook hosted)                              │
+│                                                                      │
+│   Slack ─────────────────────────────────────────────────────────   │
+│   (OAuth via Nango; bot token; thread-native replies)               │
+│                                                                      │
+│   ← sessions package bridges conversations across both surfaces →   │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -34,7 +40,7 @@ OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SD
 │                                                                      │
 │  @agent-assistant/core          ← OpenKaren assistant definition     │
 │  @agent-assistant/sessions      ← cross-surface session continuity   │
-│  @agent-assistant/surfaces      ← Telegram + relaycast surfaces      │
+│  @agent-assistant/surfaces      ← Telegram + Slack + relaycast       │
 │  @agent-assistant/traits        ← OpenKaren identity floor           │
 │  @agent-assistant/turn-context  ← token-aware context assembly       │
 │  @agent-assistant/policy        ← BYOK budget gates + approvals      │
@@ -318,7 +324,120 @@ const delegation = await coordination.delegate({
 
 ---
 
-## 5. Local vs Hosted Breakdown
+## 5. Multi-Surface Support and Session Bridging
+
+### 5.1 Surfaces: Telegram + Slack
+
+Karen runs two surfaces simultaneously via `@agent-assistant/surfaces`. Slack is already partially implemented in the SDK (Slack progress stream helpers, Slack thread gate tests pass in CI). Nango manages the Slack OAuth token — no manual bot configuration required during onboarding.
+
+```typescript
+const runtime = createAssistant({
+  id: 'karen',
+  traits: karenTraits,
+  surfaces: [
+    createTelegramSurface({
+      token: relay.byok('telegram'),
+      mode: 'polling',          // local Mac mini; no webhook needed
+    }),
+    createSlackSurface({
+      token: nango.getToken('slack-bot'),   // Nango manages OAuth lifecycle
+      signingSecret: relay.byok('slack-signing'),
+      replyMode: 'thread',      // always reply in-thread, not channel
+      allowChannels: ['#karen', '#general'],
+      dmPolicy: 'open',         // DMs always accepted
+    }),
+  ],
+});
+```
+
+**What Nango handles for Slack:**
+- Initial OAuth flow (user authorizes Karen's Slack app)
+- Bot token storage and refresh
+- Workspace-level token isolation per user
+- Token rotation without Karen's runtime restarting
+
+### 5.2 Cross-Surface Session Bridging
+
+`@agent-assistant/sessions` provides cross-surface session continuity — the same session can be active on multiple surfaces simultaneously. Karen uses this to bridge conversations:
+
+```
+User messages Karen on Telegram at 9am → session S1 starts
+User DMs Karen on Slack at 11am → sessions package attaches to S1
+  - Karen recognizes the same user
+  - Full conversation context from Telegram is available
+  - Reply goes to Slack; future Telegram messages still reference same session
+```
+
+Session affinity rules in Karen's persona:
+```typescript
+const sessionConfig = {
+  // Same user on different surfaces → same session
+  crossSurfaceAffinity: 'user-identity',
+
+  // How long before surfaces lose affinity and start fresh sessions
+  surfaceAffinityTtl: '4h',
+
+  // Which surface gets proactive messages when multiple are active
+  proactiveSurfacePreference: 'most-recent-active',
+};
+```
+
+### 5.3 Surface Routing Rules
+
+Not every message goes to every surface. Karen applies routing rules at delivery time:
+
+| Message Type | Telegram | Slack | Logic |
+|---|---|---|---|
+| User-initiated reply | ✓ | ✓ | Reply on the surface where the message arrived |
+| Proactive (low urgency) | ✓ | — | Primary surface only (default: Telegram) |
+| Proactive (high urgency) | ✓ | ✓ | Both surfaces — don't miss it |
+| `/spend` report | ✓ | ✓ | Both, so user sees it wherever they are |
+| Ricky finding (critical) | ✓ | ✓ | Both + Slack #incidents channel |
+| Sage plan complete | — | ✓ | Slack preferred for long-form structured output |
+| Daily standup | ✓ | — | Telegram only — personal, not team-facing |
+
+```typescript
+// In proactive engine delivery config
+const deliveryRules: SurfaceDeliveryRule[] = [
+  { when: { urgency: 'critical' },            surfaces: ['telegram', 'slack'] },
+  { when: { type: 'spend-report' },           surfaces: ['telegram', 'slack'] },
+  { when: { type: 'structured-plan' },        surfaces: ['slack'] },
+  { when: { type: 'daily-standup' },          surfaces: ['telegram'] },
+  { when: { urgency: 'low' },                 surfaces: ['most-recent-active'] },
+];
+```
+
+### 5.4 Slack Thread Context as Turn Enrichment
+
+Slack threads carry rich context Karen can read. When a user invokes Karen inside a Slack thread (e.g., `@Karen can you summarize this?`), the surfaces package captures the thread history and feeds it into `@agent-assistant/turn-context` as enrichment — Karen responds with full awareness of the thread without the user having to re-explain.
+
+```typescript
+// Surfaces package thread enrichment (already implemented for Slack progress streams)
+createSlackSurface({
+  threadContextDepth: 20,      // include up to 20 prior thread messages
+  threadContextAsEnrichment: true,  // fed into turn-context, not system prompt
+});
+```
+
+This is the integration point where Nango's Slack token and relayfile's Slack provider converge: relayfile can watch Slack channels for new messages that reference specific topics (e.g., `mention:incident`), while the surfaces package handles direct Karen interactions inside threads.
+
+### 5.5 Nango as the OAuth Foundation for All Surfaces
+
+Nango manages OAuth for both Slack (surface) and relayfile's Slack provider (VFS integration). This avoids two separate auth flows for the same workspace:
+
+```
+User connects Slack once (Nango OAuth flow)
+  → Nango stores bot token + user token
+  → Karen's Slack surface reads bot token from Nango
+  → relayfile's Slack adapter reads user token from Nango
+  → relaycast-n8n-bridge posts to Slack via the same token
+```
+
+Single Slack connection → surfaces for conversation + VFS for data + bridge for agent findings.
+
+---
+
+## 6. Local vs Hosted Breakdown
 
 ### What Runs on the Mac Mini (Fully Local)
 
@@ -337,6 +456,7 @@ const delegation = await coordination.delegate({
 | n8n-nodes-relayfile | Yes | npm package installed in n8n instance |
 | relaycast-n8n-bridge | Yes | TypeScript daemon; Docker or bare Node |
 | Telegram (polling mode) | Yes | No webhook required locally |
+| Slack surface | Partial | Bot runs locally; Slack events require public URL (Cloudflare Tunnel) |
 | workforce personas | Yes | JSON config files |
 
 ### What Requires Cloud (Cannot Run Fully Local)
@@ -370,7 +490,7 @@ cloudflared tunnel run --url http://localhost:7528 openkaren
 
 ---
 
-## 6. Workforce Persona: Karen
+## 7. Workforce Persona: Karen
 
 [`AgentWorkforce/workforce`] defines Karen as a deployable persona JSON:
 
@@ -446,7 +566,13 @@ cloudflared tunnel run --url http://localhost:7528 openkaren
     "tokensave": { "enabled": true, "mcpServer": true }
   },
 
-  "surfaces": ["telegram"],
+  "surfaces": ["telegram", "slack"],
+  "surfaceBridging": {
+    "crossSurfaceAffinity": "user-identity",
+    "surfaceAffinityTtl": "4h",
+    "proactiveSurfacePreference": "most-recent-active",
+    "urgentDelivery": "all-surfaces"
+  },
   "sandbox": { "mode": "none" },
   "subscription": { "tier": "byok", "billing": "relay-byok" }
 }
@@ -454,7 +580,7 @@ cloudflared tunnel run --url http://localhost:7528 openkaren
 
 ---
 
-## 7. BYOK Subscription Model
+## 8. BYOK Subscription Model
 
 Users bring their own API keys (Anthropic, OpenAI, etc.) via Relay's BYOK infrastructure. OpenKaren charges $75/month for the platform, not for model tokens.
 
@@ -479,22 +605,31 @@ Marketing angle: *"Karen doesn't just cost $75/month. She pays for part of herse
 
 ---
 
-## 8. Integration Setup (What Gets Configured)
+## 9. Integration Setup (What Gets Configured)
 
 ### What the User Sets Up (Guided Onboarding)
 
 ```
-1. Nango → OAuth for Linear, GitHub, Notion, Slack, HubSpot, Salesforce
-   (Nango manages OAuth tokens; relayfile uses them for VFS sync)
+1. Nango → Slack OAuth (single flow; covers all three Slack uses)
+   - Karen's Slack surface bot token (for conversation surface)
+   - relayfile's Slack provider token (for VFS sync of Slack messages)
+   - relaycast-n8n-bridge posting token (for agent findings → Slack)
+   One connection. Three consumers. Nango handles refresh.
 
-2. Composio → additional tool integrations
+2. Nango → OAuth for remaining integrations: Linear, GitHub, Notion,
+   HubSpot, Salesforce
+   (relayfile uses these for VFS sync; n8n-nodes-relayfile Trigger reads
+   the same workspace)
+
+3. Composio → additional tool integrations
    (composio tools surface through @agent-assistant/inbox)
 
-3. Pipedream → automation workflows that trigger Karen
+4. Pipedream → automation workflows that trigger Karen
    (webhook delivery to Karen's inbox surface)
 
-4. n8n → self-hosted automations connecting internal tools
-   (HTTP webhooks to Karen's inbox)
+5. n8n → self-hosted automations connecting internal tools
+   (HTTP webhooks to Karen's inbox; relayfile Trigger Node already
+   wired; relaycast-n8n-bridge already wired)
 ```
 
 ### What the Platform Pre-Wires (No User Config)
@@ -515,7 +650,7 @@ Marketing angle: *"Karen doesn't just cost $75/month. She pays for part of herse
 
 ---
 
-## 9. n8n Integration — Bidirectional Automation Mesh
+## 10. n8n Integration — Bidirectional Automation Mesh
 
 The relay ↔ n8n integration is fully bidirectional through two dedicated bridge packages. This is not a simple "n8n can call Karen" setup — it is an automation mesh where relayfile events and relaycast agent messages both flow into n8n, and n8n flows back into Karen.
 
@@ -685,7 +820,7 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 
 ---
 
-## 10. Comparison: OpenKaren vs OpenClaw vs Hermes Agent
+## 11. Comparison: OpenKaren vs OpenClaw vs Hermes Agent
 
 ### Feature Matrix
 
@@ -707,7 +842,9 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 | **Voice integration** | No (v1) | Yes (macOS/iOS) | No |
 | **Canvas** | No (v1) | Yes (A2UI) | No |
 | **n8n bidirectional mesh** | Yes — relayfile→n8n + relaycast→n8n + n8n→Karen | No | No |
-| **Nango OAuth** | Yes | Manual channel config | No |
+| **Slack surface** | Yes — native via agent-assistant/surfaces + Nango | Yes (daemon) | Yes (gateway) |
+| **Cross-surface session bridge** | Yes — sessions package; Telegram ↔ Slack continuity | No | No |
+| **Nango OAuth** | Yes — single flow covers surface + VFS + bridge | Manual channel config | No |
 | **Fully local option** | Yes (Mac mini) | Yes | Yes |
 | **Self-hosted** | Yes | Yes | Yes |
 | **Telegram** | Yes | Yes | Yes |
@@ -722,7 +859,8 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 - relayfile SaaS VFS — OpenClaw has no structured integration filesystem
 - Multi-agent delegation via relaycast — OpenClaw has session spawning but no specialist fabric
 - TypeScript SDK — OpenClaw is a daemon, not an embeddable library
-- n8n and Nango integration — OpenClaw handles channels manually
+- Cross-surface session bridging — OpenClaw routes channels to agents but doesn't bridge session context across surfaces
+- Nango single OAuth covers surface + VFS + bridge — OpenClaw requires manual channel configuration per platform
 
 **vs Hermes Agent:**
 - Token consciousness — Hermes has no burn, rtk, tilth, or tokensave equivalent
@@ -746,7 +884,7 @@ Sage posts plan to relaycast: "sage-plans/architecture-review"
 
 ---
 
-## 11. What Makes OpenKaren the Right Product
+## 12. What Makes OpenKaren the Right Product
 
 Neither OpenClaw nor Hermes tries to own the cost conversation. Both assume tokens are essentially free — OpenClaw because it's local-first and focused on privacy, Hermes because it's research-focused and optimizing for capability.
 
@@ -761,7 +899,7 @@ Combined with proactive behavior (Karen watches your integrations and surfaces w
 
 ---
 
-## 12. Implementation Roadmap
+## 13. Implementation Roadmap
 
 ### Phase 0: Mac Mini Runtime (Week 1–2)
 
@@ -773,7 +911,10 @@ Combined with proactive behavior (Karen watches your integrations and surfaces w
 - [ ] Install tokensave MCP server + index relayfile workspace
 - [ ] Install workshop for local trace dashboard
 - [ ] Configure Telegram surface (polling mode, no webhook required)
-- [ ] Cloudflare Tunnel for external webhook reception (n8n, Pipedream, Nango)
+- [ ] Cloudflare Tunnel for external webhook reception (Slack events, Nango, Pipedream)
+- [ ] Configure Nango Slack OAuth flow (single flow covers surface + relayfile + bridge)
+- [ ] Configure Slack surface with thread-reply mode and channel allowlist
+- [ ] Verify cross-surface session bridging: message on Telegram, continue on Slack
 
 ### Phase 1: Karen Persona + Token Consciousness (Week 2–3)
 
