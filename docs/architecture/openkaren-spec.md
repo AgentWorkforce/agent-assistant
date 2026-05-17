@@ -1,6 +1,6 @@
 # Spec: OpenKaren — Token-Conscious Proactive Agent Assistant
 
-**Date:** 2026-05-16  
+**Date:** 2026-05-17  
 **Status:** Proposal  
 **Governing rule:** Every token costs money. Every action should be necessary. Identity is portable. Learning is gated.
 
@@ -58,15 +58,31 @@ OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SD
 │                      │       └─────────────────────────────────────────┘
 │  relaycron           │
 │  (scheduling)        │
-└──────────────────────┘
+└──────────┬───────────┘
+           │  ↕ bidirectional bridge
+┌──────────▼──────────────────────────────────────────────────────────┐
+│              RELAY ↔ N8N AUTOMATION BRIDGE                           │
+│                                                                      │
+│  n8n-nodes-relayfile   ← relayfile events → n8n workflow triggers   │
+│  (Trigger + Action nodes; polls VFS; fires on create/update/delete) │
+│                                                                      │
+│  relaycast-n8n-bridge  ← relaycast channel msgs → n8n webhooks      │
+│  (glob pattern routing; agent findings → Slack/Jira/PagerDuty)      │
+└──────────┬───────────────────────────────────────────────────────────┘
            │
 ┌──────────▼──────────────────────────────────────────────────────────┐
-│                  COORDINATION & WORKFLOWS                            │
+│                  N8N AUTOMATION LAYER (self-hosted)                  │
+│                                                                      │
+│  n8n    ← receives from bridge; sends back to Karen's inbox          │
+│  workflows: Stripe alerts, calendar prep, GA4 summaries, etc.        │
+└──────────┬───────────────────────────────────────────────────────────┘
+           │
+┌──────────▼──────────────────────────────────────────────────────────┐
+│                  COORDINATION & SPECIALISTS                          │
 │                                                                      │
 │  Sage    ← planning assistant (deep research, architecture)          │
 │  Ricky   ← workflow reliability (debug, repair, restart)             │
 │  Agent Relay ← multi-agent fabric                                    │
-│  n8n     ← automation workflows (self-hosted)                        │
 │  workforce personas ← Karen + specialist persona definitions         │
 └─────────────────────────────────────────────────────────────────────┘
            │
@@ -76,7 +92,6 @@ OpenKaren is a hosted personal agent assistant built on the `agent-assistant` SD
 │  Nango      ← OAuth management (hosted; no local option)            │
 │  Composio   ← tool/integration platform (hosted)                    │
 │  Pipedream  ← workflow automation (hosted)                           │
-│  n8n        ← self-hosted automation alternative                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -318,7 +333,9 @@ const delegation = await coordination.delegate({
 | tilth | Yes | Rust binary + MCP server |
 | tokensave | Yes | MCP server + libSQL |
 | workshop (raindrop) | Yes | TypeScript daemon + Vite UI, localhost:5899 |
-| n8n | Yes | Self-hosted automation |
+| n8n | Yes | Self-hosted automation, port 5678 |
+| n8n-nodes-relayfile | Yes | npm package installed in n8n instance |
+| relaycast-n8n-bridge | Yes | TypeScript daemon; Docker or bare Node |
 | Telegram (polling mode) | Yes | No webhook required locally |
 | workforce personas | Yes | JSON config files |
 
@@ -484,32 +501,133 @@ Marketing angle: *"Karen doesn't just cost $75/month. She pays for part of herse
 
 ```
 - relayfile workspace (pre-provisioned)
-- relaycast channels (karen-main, karen-proactive, karen-coordination)
+- relaycast channels (karen-main, karen-proactive, karen-coordination, karen-findings/*)
 - relaycron schedules (daily standup, weekly review)
 - burn stamping (automatic for all sessions)
 - rtk bash hook (automatic in harness tool wrapper)
 - tilth MCP server (auto-started with Karen runtime)
 - tokensave semantic index (auto-built on first integration sync)
 - workflow personas (sage, ricky pre-registered in relaycast)
+- n8n-nodes-relayfile installed in n8n instance
+- relaycast-n8n-bridge running as daemon with default glob routes
+- n8n base workflows (severity router, inbox forwarder, Notion writeback)
 ```
 
 ---
 
-## 9. n8n Integration
+## 9. n8n Integration — Bidirectional Automation Mesh
 
-n8n runs self-hosted on the Mac mini. It bridges Karen with automations that don't have native relayfile/relaycast support:
+The relay ↔ n8n integration is fully bidirectional through two dedicated bridge packages. This is not a simple "n8n can call Karen" setup — it is an automation mesh where relayfile events and relaycast agent messages both flow into n8n, and n8n flows back into Karen.
+
+### 9.1 relayfile → n8n: `n8n-nodes-relayfile`
+
+[`AgentWorkforce/n8n-nodes-relayfile`] is a community n8n node package with three node types:
+
+**Relayfile Trigger Node** — polls a relayfile workspace for new filesystem events and emits them as n8n workflow triggers:
 
 ```
-n8n workflow examples:
-  - "When Stripe payment > $1000 → notify Karen → Karen surfaces to user"
-  - "When AWS billing alert fires → Karen investigates and reports"
-  - "When calendar event in 1 hour → Karen sends prep brief via Telegram"
-  - "Daily: fetch analytics from GA4 → Karen summarizes trends"
+Config:
+  Workspace ID: rw_karen_main
+  Event Types:  created, updated, deleted
+  Provider:     linear, github, notion
+  Poll Interval: 30s
+
+Output per event:
+  eventId, type, path, revision, provider, correlationId, timestamp, nextCursor
 ```
 
-n8n's webhook nodes POST to Karen's `@agent-assistant/inbox`:
+This means n8n workflows can fire directly from relayfile events — without Karen needing to be in the loop for every event. Routine notifications (issue assigned → Slack DM, PR merged → update project tracker) run entirely in n8n automation.
+
+**Relayfile Action Node** — seven operations Karen (or n8n) can invoke against the VFS:
+- `Read File`, `Write File`, `Query Files`, `List Tree`
+- `Bulk Write` — batch writeback for multiple integration updates
+- `Get Events` — retrieve event history for a path
+- `Export Workspace` — full workspace snapshot
+
+**Relayfile Ops Node** — monitors the writeback pipeline:
+- `List Operations`, `Get Operation`, `Replay Operation`
+- Useful for n8n error-handling flows when writeback to Linear/GitHub fails
+
+Example n8n workflow using the trigger:
+```
+[Relayfile Trigger: /github/repos/*/pulls CREATED]
+  → [IF: pr.assignee == context.userId]
+    → [HTTP: POST to Karen's inbox → Karen investigates]
+  → [ELSE]
+    → [Slack: notify team channel directly]
+```
+
+This offloads high-volume routing decisions from Karen to n8n, preserving Karen's token budget for decisions that actually need intelligence.
+
+### 9.2 relaycast → n8n: `relaycast-n8n-bridge`
+
+[`AgentWorkforce/relaycast-n8n-bridge`] runs as a lightweight daemon that subscribes to relaycast channels and forwards agent messages to n8n webhook URLs with exponential backoff retry.
+
+**How it works:**
+
+```
+Karen/Sage/Ricky post a finding to a relaycast channel
+  → bridge subscribes via glob pattern (e.g., "karen-findings/*")
+  → 100ms queue batching to prevent webhook floods
+  → HTTP POST to matched n8n webhook URL
+  → retry on failure: 3 attempts, exponential backoff
+```
+
+**Message shape forwarded to n8n:**
+
+```json
+{
+  "channel": "karen-findings/ricky-debug",
+  "messageId": "msg_abc123",
+  "sender": "ricky",
+  "timestamp": "2026-05-17T09:14:00Z",
+  "content": "...",
+  "metadata": {
+    "prNumber": 42,
+    "filePaths": ["src/policy/index.ts"],
+    "severity": "high",
+    "agentRole": "workflow-debugger",
+    "agentId": "ricky-v1"
+  },
+  "bridge": {
+    "bridgeId": "openkaren-bridge",
+    "routeRef": "ricky-findings",
+    "processedAt": "2026-05-17T09:14:00Z"
+  }
+}
+```
+
+**n8n routing by severity:**
+
+```
+[Webhook Trigger: relaycast-bridge POST]
+  → [Switch on $json.metadata.severity]
+    → "critical" → [PagerDuty: open incident]
+    → "high"     → [Slack: #incidents DM + Telegram to user]
+    → "medium"   → [Jira: create ticket]
+    → "low"      → [Slack: #general summary]
+```
+
+**Health endpoint:** `GET /health` exposes message counters, retry metrics, and per-route stats — feeds into the burn dashboard for operational visibility.
+
+**Glob pattern routing config:**
+
+```json
+{
+  "routes": [
+    { "pattern": "karen-findings/*",    "webhook": "http://n8n:5678/webhook/karen-findings" },
+    { "pattern": "ricky-debug/*",       "webhook": "http://n8n:5678/webhook/ricky-findings" },
+    { "pattern": "sage-plans/*",        "webhook": "http://n8n:5678/webhook/sage-output" },
+    { "pattern": "karen-proactive/*",   "webhook": "http://n8n:5678/webhook/proactive-surface" }
+  ]
+}
+```
+
+### 9.3 n8n → Karen: Inbox Surface
+
+n8n's outbound flows POST back to Karen's `@agent-assistant/inbox` for anything that needs intelligence, not just routing:
+
 ```typescript
-// Karen's inbox handler for n8n events
 inbox.register({
   source: 'n8n',
   handler: async (event) => {
@@ -521,6 +639,48 @@ inbox.register({
     await karen.proactiveReply(projection);
   },
 });
+```
+
+Example flows that need Karen's intelligence (not just n8n routing):
+- `"AWS billing alert fired → Karen investigates root cause, not just notifies"`
+- `"Calendar event in 1 hour → Karen assembles context-aware prep brief"`
+- `"GA4 daily summary → Karen synthesizes trends and flags anomalies"`
+
+### 9.4 Full Event Flow Examples
+
+**Scenario A: Linear issue assigned (routine — Karen not involved)**
+```
+Linear webhook → Nango → relayfile VFS update (/linear/issues/AGE-42)
+  → n8n-nodes-relayfile Trigger fires
+  → n8n IF: not assigned to user → Slack #team notification
+  (Karen's budget untouched)
+```
+
+**Scenario B: GitHub PR opened on critical path (Karen involved)**
+```
+GitHub webhook → Nango → relayfile VFS update (/github/pulls/99)
+  → n8n-nodes-relayfile Trigger fires
+  → n8n IF: pr.base == 'main' && labels include 'critical'
+  → POST to Karen's inbox
+  → Karen reviews PR, surfaces blockers to user via Telegram
+```
+
+**Scenario C: Ricky finds a bug overnight (agent finding → downstream)**
+```
+Ricky posts finding to relaycast: "karen-findings/ricky-debug"
+  → relaycast-n8n-bridge picks up (glob match)
+  → metadata.severity == "high"
+  → n8n: Slack #incidents + Telegram DM to user + Jira ticket created
+  (Karen wakes up to a morning summary, Jira already filed)
+```
+
+**Scenario D: Sage completes a plan (structured output → downstream)**
+```
+Sage posts plan to relaycast: "sage-plans/architecture-review"
+  → relaycast-n8n-bridge picks up
+  → n8n: writes plan to Notion via relayfile Action Node
+  → n8n: Slack notification to team
+  → n8n: POSTs summary to Karen's inbox → Karen surfaces to user
 ```
 
 ---
@@ -546,7 +706,7 @@ inbox.register({
 | **Policy governance** | Yes — @agent-assistant/policy | Ad hoc config | No |
 | **Voice integration** | No (v1) | Yes (macOS/iOS) | No |
 | **Canvas** | No (v1) | Yes (A2UI) | No |
-| **n8n integration** | Yes | No | No |
+| **n8n bidirectional mesh** | Yes — relayfile→n8n + relaycast→n8n + n8n→Karen | No | No |
 | **Nango OAuth** | Yes | Manual channel config | No |
 | **Fully local option** | Yes (Mac mini) | Yes | Yes |
 | **Self-hosted** | Yes | Yes | Yes |
@@ -640,13 +800,19 @@ Combined with proactive behavior (Karen watches your integrations and surfaces w
 - [ ] Wire Ricky's workflow monitoring to relaycron health-check schedule
 - [ ] Integration test: complex planning request → delegation to Sage → synthesis → delivery
 
-### Phase 4: Integration Plane (Week 5–6)
+### Phase 4: Relay ↔ n8n Automation Mesh (Week 5–6)
 
+- [ ] Install `n8n-nodes-relayfile` package in self-hosted n8n instance
+- [ ] Configure Relayfile Trigger Node: watch `/linear/issues`, `/github/repos/*/pulls`, `/notion/pages`
+- [ ] Build n8n routing workflows: severity-based Switch → Slack / Jira / Karen inbox
+- [ ] Stand up `relaycast-n8n-bridge` daemon with glob routes for `karen-findings/*`, `ricky-debug/*`, `sage-plans/*`
 - [ ] Configure Nango for OAuth management (Linear, GitHub, Notion, Slack)
 - [ ] Wire Composio tools through `@agent-assistant/inbox`
 - [ ] Wire Pipedream webhooks through `@agent-assistant/inbox`
-- [ ] Install n8n self-hosted + configure webhook delivery to Karen's inbox
-- [ ] Integration test: n8n calendar trigger → Karen prep brief → Telegram delivery
+- [ ] Integration test A: Linear issue created → relayfile event → n8n trigger → Slack (Karen budget untouched)
+- [ ] Integration test B: Ricky finding → relaycast → bridge → n8n → PagerDuty + Jira + Telegram
+- [ ] Integration test C: n8n calendar trigger → Karen inbox → prep brief → Telegram delivery
+- [ ] Integration test D: Sage plan → relaycast → bridge → n8n → Notion write via Relayfile Action Node
 
 ### Phase 5: BYOK + Subscription (Week 6–7)
 
@@ -667,6 +833,7 @@ Combined with proactive behavior (Karen watches your integrations and surfaces w
 | relaycast local | 7528 | Agent messaging daemon |
 | workshop | 5899 | Trace dashboard UI |
 | n8n | 5678 | Automation UI |
+| relaycast-n8n-bridge | 3721 | Bridge daemon + /health endpoint |
 | tokensave MCP | stdio | MCP server via subprocess |
 | tilth MCP | stdio | MCP server via subprocess |
 | Cloudflare Tunnel | — | Routes external webhooks to localhost |
