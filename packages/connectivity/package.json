@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/connectivity",
-  "version": "0.4.33",
+  "version": "0.4.35",
   "description": "Typed in-process connectivity signals for Agent Assistant SDK",
   "type": "module",
   "main": "dist/index.js",
