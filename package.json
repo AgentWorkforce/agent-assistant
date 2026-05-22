@@ -8,6 +8,7 @@
     "packages/vfs",
     "packages/harness",
     "packages/memory",
+    "packages/persona",
     "packages/inbox",
     "packages/continuation",
     "packages/turn-context",
