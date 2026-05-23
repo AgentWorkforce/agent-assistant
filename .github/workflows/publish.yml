@@ -185,7 +185,7 @@ jobs:
           set -euo pipefail
           # Topological build order. dist/ is no longer committed, so each
           # package's tsc needs its workspace deps' dist on disk first.
-          ORDER=(traits persona connectivity memory vfs core coordination surfaces sessions policy harness turn-context proactive inbox continuation telemetry specialists sdk webhook-runtime cloudflare-runtime)
+          ORDER=(traits persona dispatch connectivity memory vfs core coordination surfaces sessions policy harness turn-context proactive inbox continuation telemetry specialists sdk webhook-runtime cloudflare-runtime)
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
