@@ -88,7 +88,10 @@ jobs:
               # DelegationRequest types) — must build + publish after it. Same
               # max-parallel: 1 contract keeps webhook-runtime's publish after
               # specialists'.
-              PACKAGES='["traits","persona","connectivity","coordination","core","sessions","surfaces","policy","proactive","harness","telemetry","memory","turn-context","inbox","continuation","sdk","vfs","specialists","webhook-runtime","cloudflare-runtime"]'
+              # persona + dispatch (Phase 0 of proactive-unification) are types-only
+              # packages with zero runtime deps — keep persona where main placed it
+              # (after traits) and insert dispatch alongside it.
+              PACKAGES='["traits","persona","dispatch","connectivity","coordination","core","sessions","surfaces","policy","proactive","harness","telemetry","memory","turn-context","inbox","continuation","sdk","vfs","specialists","webhook-runtime","cloudflare-runtime"]'
               FIRST='traits'
               ;;
             *)

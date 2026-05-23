@@ -1,9 +1,17 @@
 export type {
   PersonaDefinition,
-  PersonaDeliveryConfig,
   PersonaExecutor,
-  PersonaMemoryConfig,
-  PersonaTrigger,
   RouterConfig,
   SandboxBorrowConfig,
+  PersonaSchedule,
+  InboxTrigger,
+  IntegrationDecl,
+  WatchRule,
+  PersonaMount,
+  MemoryConfig,
+  DeliveryChannel,
+  HarnessSettings,
+  InputDecl,
 } from "./types.js";
+
+export { PERSONA_SCHEMA_URL } from "./types.js";

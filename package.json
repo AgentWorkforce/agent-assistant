@@ -17,6 +17,7 @@
     "packages/routing",
     "packages/connectivity",
     "packages/coordination",
+    "packages/dispatch",
     "packages/proactive",
     "packages/policy",
     "packages/integration",
@@ -29,6 +30,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck -w @agent-assistant/dispatch && npm run typecheck -w @agent-assistant/persona",
     "build:sdk": "npm run build -w @agent-assistant/sdk",
     "pretest": "npm run build",
     "test": "npm run test --workspaces --if-present -- --passWithNoTests",
