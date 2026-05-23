@@ -297,6 +297,17 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/publish-artifacts
           for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ ! -f "packages/$pkg/package.json" ]; then
+              echo "ERROR: packages/$pkg/package.json is missing" >&2
+              exit 1
+            fi
+
+            if [ ! -d "packages/$pkg/dist" ]; then
+              echo "ERROR: packages/$pkg/dist is missing after build. The publish matrix includes a package that did not produce build artifacts." >&2
+              echo "Package: $pkg" >&2
+              exit 1
+            fi
+
             cp -R "packages/$pkg/dist" "/tmp/publish-artifacts/dist-$pkg"
             cp "packages/$pkg/package.json" "/tmp/publish-artifacts/manifest-$pkg.json"
           done
