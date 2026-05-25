@@ -135,6 +135,17 @@ jobs:
           echo "Publishing Agent Assistant package group: ${{ github.event.inputs.package_group }}"
           echo "Packages: ${{ needs.resolve-packages.outputs.package_list }}"
 
+      - name: Validate publish matrix packages exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ ! -f "packages/$pkg/package.json" ]; then
+              echo "ERROR: publish matrix references missing package directory packages/$pkg" >&2
+              exit 1
+            fi
+          done
+
       # Tests import from @agent-assistant/* siblings whose package.json
       # exports point at dist/. dist/ is not committed, so every dep that
       # any test in the matrix imports must be built before vitest runs.
@@ -186,6 +197,12 @@ jobs:
           # Topological build order. dist/ is no longer committed, so each
           # package's tsc needs its workspace deps' dist on disk first.
           ORDER=(traits persona dispatch connectivity memory vfs core coordination surfaces sessions policy harness turn-context proactive inbox continuation telemetry specialists sdk webhook-runtime cloudflare-runtime)
+          for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if ! printf '%s\n' "${ORDER[@]}" | grep -qx "$pkg"; then
+              echo "ERROR: package '$pkg' is in publish matrix but missing from dependency-aware build order" >&2
+              exit 1
+            fi
+          done
           for pkg in "${ORDER[@]}"; do
             if echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -e --arg pkg "$pkg" '.[] | select(. == $pkg)' >/dev/null; then
               echo "==> Building $pkg"
@@ -297,6 +314,17 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/publish-artifacts
           for pkg in $(echo '${{ needs.resolve-packages.outputs.matrix }}' | jq -r '.[]'); do
+            if [ ! -f "packages/$pkg/package.json" ]; then
+              echo "ERROR: packages/$pkg/package.json is missing" >&2
+              exit 1
+            fi
+
+            if [ ! -d "packages/$pkg/dist" ]; then
+              echo "ERROR: packages/$pkg/dist is missing after build. The publish matrix includes a package that did not produce build artifacts." >&2
+              echo "Package: $pkg" >&2
+              exit 1
+            fi
+
             cp -R "packages/$pkg/dist" "/tmp/publish-artifacts/dist-$pkg"
             cp "packages/$pkg/package.json" "/tmp/publish-artifacts/manifest-$pkg.json"
           done
