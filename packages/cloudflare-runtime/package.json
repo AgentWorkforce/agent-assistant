@@ -32,6 +32,7 @@
     "type": "git",
     "url": "https://github.com/AgentWorkforce/agent-assistant"
   },
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   }
