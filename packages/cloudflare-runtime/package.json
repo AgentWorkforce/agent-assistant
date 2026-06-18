@@ -22,7 +22,20 @@
     "@agent-assistant/surfaces": "^0.3.0",
     "@agent-assistant/webhook-runtime": "^0.2.5"
   },
+  "peerDependencies": {
+    "@agent-assistant/proactive": "^0.4.0",
+    "@agent-assistant/sessions": "^0.4.0",
+    "@agent-assistant/vfs": "^0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@agent-assistant/proactive": { "optional": true },
+    "@agent-assistant/sessions": { "optional": true },
+    "@agent-assistant/vfs": { "optional": true }
+  },
   "devDependencies": {
+    "@agent-assistant/proactive": "^0.4.35",
+    "@agent-assistant/sessions": "^0.4.35",
+    "@agent-assistant/vfs": "^0.4.35",
     "@cloudflare/workers-types": "^4.20260417.1",
     "@types/node": "^24.6.0",
     "typescript": "^5.9.3",
