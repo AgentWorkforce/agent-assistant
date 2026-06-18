@@ -26,6 +26,7 @@
     "packages/telemetry",
     "packages/examples",
     "packages/cloudflare-runtime",
+    "packages/gcp-runtime",
     "packages/webhook-runtime"
   ],
   "scripts": {

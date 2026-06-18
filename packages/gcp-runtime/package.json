@@ -1,0 +1,51 @@
+{
+  "name": "@agent-assistant/gcp-runtime",
+  "version": "0.4.35",
+  "description": "Google Cloud Platform adapters for Agent Assistant SDK (Firestore, Cloud Tasks, Cloud Storage)",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agent-assistant/continuation": "^0.3.4"
+  },
+  "peerDependencies": {
+    "@agent-assistant/proactive": "^0.4.0",
+    "@agent-assistant/sessions": "^0.4.0",
+    "@agent-assistant/vfs": "^0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@agent-assistant/proactive": { "optional": true },
+    "@agent-assistant/sessions": { "optional": true },
+    "@agent-assistant/vfs": { "optional": true }
+  },
+  "devDependencies": {
+    "@agent-assistant/harness": "^0.4.35",
+    "@agent-assistant/proactive": "^0.4.35",
+    "@agent-assistant/sessions": "^0.4.35",
+    "@agent-assistant/vfs": "^0.4.35",
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgentWorkforce/agent-assistant"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
