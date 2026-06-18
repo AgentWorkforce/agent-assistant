@@ -71,7 +71,7 @@ export class GcpCloudTasksContinuationScheduler implements ContinuationScheduler
     };
 
     if (this.serviceAccountEmail) {
-      (httpRequest as Record<string, unknown>)['oidcToken'] = {
+      (httpRequest as unknown as Record<string, unknown>)['oidcToken'] = {
         serviceAccountEmail: this.serviceAccountEmail,
         audience: this.handlerUrl,
       };
