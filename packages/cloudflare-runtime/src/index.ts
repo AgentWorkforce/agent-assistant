@@ -71,6 +71,35 @@ export type {
   SpecialistCallInput,
   SpecialistResultInput,
 } from './adapters/cf-specialist-client.js';
+export {
+  CfShellVfsProvider,
+} from './adapters/cf-shell-vfs-provider.js';
+export type {
+  CloudflareShellLike,
+  CfShellVfsProviderOptions,
+} from './adapters/cf-shell-vfs-provider.js';
+export {
+  CfKvSessionStoreAdapter,
+} from './adapters/cf-kv-session-store-adapter.js';
+export type {
+  CfKvSessionStoreAdapterOptions,
+} from './adapters/cf-kv-session-store-adapter.js';
+export {
+  CfWorkflowSchedulerBinding,
+} from './adapters/cf-workflow-scheduler-binding.js';
+export type {
+  CloudflareWorkflowBindingLike,
+  CfWorkflowSchedulerBindingOptions,
+  WorkflowInstanceLike,
+} from './adapters/cf-workflow-scheduler-binding.js';
+export {
+  CfFiberTurnExecutor,
+} from './adapters/cf-fiber-turn-executor.js';
+export type {
+  FiberContextLike,
+  RunFiberFn,
+  CfFiberTurnExecutorOptions,
+} from './adapters/cf-fiber-turn-executor.js';
 export type {
   CfBindingsShape,
   SpecialistCallQueueMessage,
