@@ -96,8 +96,11 @@ async function startHarnessWithRunner(runner: CliRunner): Promise<Harness> {
 async function teardown(harness: Harness | undefined): Promise<void> {
   if (!harness) return;
   harness.bridge.dispose();
-  await harness.relay.release(WORKER_NAME).catch(() => {});
-  await harness.relay.release(ORCHESTRATOR_NAME).catch(() => {});
+  // Shutting down the broker stops every agent it spawned. Per-agent
+  // release() is deliberately skipped: with the 12.x broker it waits for the
+  // hosted fleet to confirm owned-identity cleanup (measured in CI at
+  // ~5-8.5s per agent, sometimes "cleanup unconfirmed; retry retained"),
+  // which is remote latency unrelated to what these tests verify.
   await harness.relay.shutdown().catch(() => {});
   rmSync(harness.cwd, { recursive: true, force: true });
 }
