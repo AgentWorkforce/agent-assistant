@@ -33,7 +33,7 @@ const silentLogger = {
 
 async function startHarness(scriptBody: string): Promise<Harness> {
   const cwd = mkdtempSync(join(tmpdir(), "harness-worker-bridge-"));
-  const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID] });
+  const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID], shutdownTimeoutMs: SHUTDOWN_BUDGET_MS });
   await relay.start();
 
   // Pre-register the orchestrator name so the bridge can reply.
@@ -65,7 +65,7 @@ async function startHarness(scriptBody: string): Promise<Harness> {
 
 async function startHarnessWithRunner(runner: CliRunner): Promise<Harness> {
   const cwd = mkdtempSync(join(tmpdir(), "harness-worker-bridge-"));
-  const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID] });
+  const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID], shutdownTimeoutMs: SHUTDOWN_BUDGET_MS });
   await relay.start();
 
   const orchestrator = await relay.spawn({
@@ -93,14 +93,31 @@ async function startHarnessWithRunner(runner: CliRunner): Promise<Harness> {
   return { cwd, relay, bridge };
 }
 
+// Teardown budget, derived from CI measurements of the 12.x broker:
+// release() waits for the hosted fleet to confirm owned-identity cleanup
+// (~5-8.5s per agent, sometimes "cleanup unconfirmed; retry retained") and
+// shutdown() took ~1.8s. Agents are released concurrently so the hosted
+// identities are still cleaned up, but the wait is bounded; RelayAdapter
+// bounds shutdown itself (shutdownTimeoutMs, then SIGKILL).
+const RELEASE_BUDGET_MS = 10_000;
+const SHUTDOWN_BUDGET_MS = 5_000;
+const TEARDOWN_TIMEOUT_MS = RELEASE_BUDGET_MS + SHUTDOWN_BUDGET_MS + 2_000;
+
+async function releaseAll(relay: RelayAdapter, names: readonly string[]): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled(names.map((name) => relay.release(name))),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, RELEASE_BUDGET_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+}
+
 async function teardown(harness: Harness | undefined): Promise<void> {
   if (!harness) return;
   harness.bridge.dispose();
-  // Shutting down the broker stops every agent it spawned. Per-agent
-  // release() is deliberately skipped: with the 12.x broker it waits for the
-  // hosted fleet to confirm owned-identity cleanup (measured in CI at
-  // ~5-8.5s per agent, sometimes "cleanup unconfirmed; retry retained"),
-  // which is remote latency unrelated to what these tests verify.
+  await releaseAll(harness.relay, [WORKER_NAME, ORCHESTRATOR_NAME]);
   await harness.relay.shutdown().catch(() => {});
   rmSync(harness.cwd, { recursive: true, force: true });
 }
@@ -115,7 +132,7 @@ describe("createRelayWorkerBridge integration", () => {
   afterEach(async () => {
     await teardown(harness);
     harness = undefined;
-  });
+  }, TEARDOWN_TIMEOUT_MS);
 
   it(
     "round-trips a real ExecutionRequest through the broker + bash runner",
