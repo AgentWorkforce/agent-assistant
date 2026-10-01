@@ -32,6 +32,12 @@ export interface RelayAdapterOptions {
   channels?: string[];
   /** Environment variables forwarded to the broker process. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Upper bound for a graceful `shutdown()` (broker `/api/shutdown` plus
+   * process exit). When it elapses the broker process is SIGKILLed so it
+   * never outlives the caller. Default: 5000ms.
+   */
+  shutdownTimeoutMs?: number;
 }
 
 export interface RelaySpawnRequest {
@@ -103,6 +109,17 @@ function buildSpawnTask(task: string | undefined, includeWorkflowConventions?: b
   return `${normalized}\n\n${WORKFLOW_CONVENTIONS}`;
 }
 
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 5_000;
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -111,7 +128,9 @@ export class RelayAdapter {
   private client: HarnessDriverClient | null = null;
   private started = false;
   private startPromise: Promise<void> | null = null;
-  private readonly spawnOpts: RelayAdapterOptions & { channels: string[] };
+  private shutdownPromise: Promise<void> | null = null;
+  private readonly spawnOpts: Omit<RelayAdapterOptions, 'shutdownTimeoutMs'> & { channels: string[] };
+  private readonly shutdownTimeoutMs: number;
   private readonly stderrListeners = new Set<(line: string) => void>();
   private readonly eventListeners = new Map<(event: BrokerEvent) => void, () => void>();
 
@@ -122,6 +141,7 @@ export class RelayAdapter {
       cwd: opts.cwd,
       env: opts.env,
     };
+    this.shutdownTimeoutMs = opts.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
   }
 
   private ensureClient(): HarnessDriverClient {
@@ -133,6 +153,7 @@ export class RelayAdapter {
 
   /** Start the broker process. Idempotent — concurrent calls share one spawn. */
   async start(): Promise<void> {
+    if (this.shutdownPromise) await this.shutdownPromise;
     if (this.started) return;
     if (this.startPromise) return this.startPromise;
     this.startPromise = this.doStart();
@@ -164,11 +185,60 @@ export class RelayAdapter {
     this.started = true;
   }
 
-  /** Shut down the broker and all spawned agents. */
+  /**
+   * Shut down the broker and all spawned agents.
+   *
+   * - Waits for an in-flight `start()` so the broker it spawns is not left
+   *   running unowned.
+   * - No-op when the broker never started (or startup failed), so callers can
+   *   always shut down in a `finally` without masking the original error.
+   * - Bounded by `shutdownTimeoutMs`; a broker still alive after that is
+   *   SIGKILLed. Concurrent calls share one shutdown.
+   */
   async shutdown(): Promise<void> {
-    await this.ensureClient().shutdown();
+    if (this.shutdownPromise) return this.shutdownPromise;
+    this.shutdownPromise = this.doShutdown();
+    try {
+      await this.shutdownPromise;
+    } finally {
+      this.shutdownPromise = null;
+    }
+  }
+
+  private async doShutdown(): Promise<void> {
+    if (this.startPromise) {
+      await this.startPromise.catch(() => {});
+    }
+    const client = this.client;
+    if (!client) return;
     this.client = null;
     this.started = false;
+    const brokerPid = client.brokerPid;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), this.shutdownTimeoutMs);
+    });
+    try {
+      await Promise.race([client.shutdown().catch(() => {}), timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // Graceful shutdown did not finish in time (or the broker ignored it):
+    // drop the connection and make sure the broker process is gone.
+    try {
+      client.disconnect();
+    } catch {
+      /* already disconnected */
+    }
+    if (brokerPid !== undefined && isProcessAlive(brokerPid)) {
+      try {
+        process.kill(brokerPid, 'SIGKILL');
+      } catch {
+        /* exited between the check and the kill */
+      }
+    }
   }
 
   /** Spawn an agent via the broker's PTY runtime. */
@@ -180,7 +250,7 @@ export class RelayAdapter {
         name: req.name,
         cli: req.cli,
         task: buildSpawnTask(req.task, req.includeWorkflowConventions),
-        channels: ['general'],
+        channels: this.spawnOpts.channels,
         model: req.model,
         cwd: req.cwd,
         team: req.team,
