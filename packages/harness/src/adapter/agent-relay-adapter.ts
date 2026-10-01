@@ -832,6 +832,9 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
       cwd: this.spawnWorker.cwd,
       team: this.spawnWorker.team,
       includeWorkflowConventions: this.spawnWorker.includeWorkflowConventions ?? true,
+      // Requests go to `workerName` when set; otherwise they are posted to
+      // the channel, so the auto-spawned worker must join it to receive them.
+      ...(this.workerName ? {} : { channels: [this.channelId] }),
     });
 
     if (!result.success) {

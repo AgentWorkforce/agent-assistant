@@ -38,20 +38,17 @@ describe('RelayAdapter', () => {
     vi.restoreAllMocks();
   });
 
-  it('subscribes spawned agents to the configured channels', async () => {
+  it('starts the broker on the configured channels', async () => {
     const relay = new RelayAdapter({ cwd: '/tmp/x', channels: ['wf-custom'] });
     const spawned = relay.spawn({ name: 'Worker', cli: 'bash' });
     driver.state.release?.();
     await expect(spawned).resolves.toMatchObject({ success: true, name: 'Worker' });
 
     expect(driver.spawn).toHaveBeenCalledWith(expect.objectContaining({ channels: ['wf-custom'] }));
-    expect(driver.client.spawnPty).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Worker', channels: ['wf-custom'] }),
-    );
   });
 
-  it('defaults spawned agents to the general channel', async () => {
-    const relay = new RelayAdapter({ cwd: '/tmp/x' });
+  it('spawns agents on general by default (sdk 6.x parity)', async () => {
+    const relay = new RelayAdapter({ cwd: '/tmp/x', channels: ['wf-custom'] });
     const spawned = relay.spawn({ name: 'Worker', cli: 'bash' });
     driver.state.release?.();
     await spawned;
@@ -59,6 +56,56 @@ describe('RelayAdapter', () => {
     expect(driver.client.spawnPty).toHaveBeenCalledWith(
       expect.objectContaining({ channels: ['general'] }),
     );
+  });
+
+  it('spawns agents on explicitly requested channels', async () => {
+    const relay = new RelayAdapter({ cwd: '/tmp/x' });
+    const spawned = relay.spawn({ name: 'Worker', cli: 'bash', channels: ['wf-custom'] });
+    driver.state.release?.();
+    await spawned;
+
+    expect(driver.client.spawnPty).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Worker', channels: ['wf-custom'] }),
+    );
+  });
+
+  it('returns a failed spawn/release result when the broker cannot start', async () => {
+    const relay = new RelayAdapter({ cwd: '/tmp/x' });
+    const spawned = relay.spawn({ name: 'Worker', cli: 'bash' });
+    driver.state.fail?.(new Error('broker boom'));
+    await expect(spawned).resolves.toEqual({ success: false, name: 'Worker', error: 'broker boom' });
+
+    const released = relay.release('Worker');
+    await vi.waitFor(() => expect(driver.spawn).toHaveBeenCalledTimes(2));
+    driver.state.fail?.(new Error('broker boom again'));
+    await expect(released).resolves.toEqual({
+      success: false,
+      name: 'Worker',
+      error: 'broker boom again',
+    });
+  });
+
+  it('tracks each onEvent registration independently, across start()', async () => {
+    const detachA = vi.fn();
+    const detachB = vi.fn();
+    driver.client.onEvent.mockReturnValueOnce(detachA).mockReturnValueOnce(detachB);
+    const relay = new RelayAdapter({ cwd: '/tmp/x' });
+    const listener = vi.fn();
+    const offA = relay.onEvent(listener);
+    const offB = relay.onEvent(listener);
+
+    const started = relay.start();
+    driver.state.release?.();
+    await started;
+    expect(driver.client.onEvent).toHaveBeenCalledTimes(2);
+
+    offA();
+    expect(detachA).toHaveBeenCalledTimes(1);
+    expect(detachB).not.toHaveBeenCalled();
+    offA();
+    expect(detachA).toHaveBeenCalledTimes(1);
+    offB();
+    expect(detachB).toHaveBeenCalledTimes(1);
   });
 
   it('treats shutdown() before start() as a no-op', async () => {
@@ -114,12 +161,9 @@ describe('RelayAdapter', () => {
     expect(kill).toHaveBeenCalledWith(424242, 'SIGKILL');
   });
 
-  it('does not kill a broker that already exited after graceful shutdown', async () => {
+  it('does not signal the broker when graceful shutdown completes in time', async () => {
     driver.client.brokerPid = 424243;
-    const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
-      if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
-      return true;
-    });
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true);
 
     const relay = new RelayAdapter({ cwd: '/tmp/x' });
     const started = relay.start();
@@ -128,13 +172,61 @@ describe('RelayAdapter', () => {
     await relay.shutdown();
 
     expect(driver.client.shutdown).toHaveBeenCalledTimes(1);
-    expect(kill).not.toHaveBeenCalledWith(424243, 'SIGKILL');
+    expect(kill).not.toHaveBeenCalled();
+    expect(driver.client.disconnect).not.toHaveBeenCalled();
   });
 });
 
 describe('AgentRelayExecutionAdapter with the default RelayAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('joins an auto-spawned worker to the channel when requests target the channel', async () => {
+    const spawn = vi.fn(async (req: { name: string }) => ({ success: true, name: req.name }));
+    const adapter = createAgentRelayExecutionAdapter({
+      channelId: 'wf-test',
+      timeoutMs: 20,
+      spawnWorker: { enabled: true, name: 'Worker', cli: 'bash' },
+      relay: {
+        start: async () => {},
+        sendMessage: async () => ({ event_id: 'e1', targets: [] }),
+        onEvent: () => () => {},
+        listAgents: async () => [],
+        spawn,
+      },
+    });
+    await adapter.execute({
+      assistantId: 'a',
+      turnId: 'turn-ch',
+      message: { id: 'm', text: 'hi', receivedAt: new Date().toISOString() },
+      instructions: { systemPrompt: 'sys' },
+    });
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ name: 'Worker', channels: ['wf-test'] }));
+  });
+
+  it('keeps a named auto-spawned worker on its default channel', async () => {
+    const spawn = vi.fn(async (req: { name: string }) => ({ success: true, name: req.name }));
+    const adapter = createAgentRelayExecutionAdapter({
+      channelId: 'wf-test',
+      workerName: 'Worker',
+      timeoutMs: 20,
+      spawnWorker: { enabled: true, cli: 'bash' },
+      relay: {
+        start: async () => {},
+        sendMessage: async () => ({ event_id: 'e1', targets: [] }),
+        onEvent: () => () => {},
+        listAgents: async () => [],
+        spawn,
+      },
+    });
+    await adapter.execute({
+      assistantId: 'a',
+      turnId: 'turn-named',
+      message: { id: 'm', text: 'hi', receivedAt: new Date().toISOString() },
+      instructions: { systemPrompt: 'sys' },
+    });
+    expect(spawn.mock.calls[0]?.[0]).not.toHaveProperty('channels');
   });
 
   it('returns a typed failure when the broker fails to start and shutdownAfterExecute is set', async () => {

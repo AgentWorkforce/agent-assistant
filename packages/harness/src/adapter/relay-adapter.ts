@@ -50,6 +50,13 @@ export interface RelaySpawnRequest {
   shadowMode?: string;
   shadowOf?: string;
   includeWorkflowConventions?: boolean;
+  /**
+   * Channels the spawned agent joins. Defaults to `['general']`, matching
+   * the `@agent-relay/sdk` 6.x RelayAdapter. Agents are addressed by name;
+   * joining a busy work channel injects every channel post into the agent's
+   * terminal, so opt in explicitly.
+   */
+  channels?: string[];
 }
 
 export interface RelaySpawnResult {
@@ -120,6 +127,11 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+interface EventSubscription {
+  listener: (event: BrokerEvent) => void;
+  detach: () => void;
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -132,7 +144,7 @@ export class RelayAdapter {
   private readonly spawnOpts: Omit<RelayAdapterOptions, 'shutdownTimeoutMs'> & { channels: string[] };
   private readonly shutdownTimeoutMs: number;
   private readonly stderrListeners = new Set<(line: string) => void>();
-  private readonly eventListeners = new Map<(event: BrokerEvent) => void, () => void>();
+  private readonly eventSubscriptions = new Set<EventSubscription>();
 
   constructor(opts: RelayAdapterOptions) {
     this.spawnOpts = {
@@ -178,9 +190,9 @@ export class RelayAdapter {
       },
     });
     this.client = client;
-    // Attach listeners registered before start().
-    for (const listener of this.eventListeners.keys()) {
-      this.eventListeners.set(listener, client.onEvent(listener));
+    // Attach listeners registered before start() (or before a restart).
+    for (const subscription of this.eventSubscriptions) {
+      subscription.detach = client.onEvent(subscription.listener);
     }
     this.started = true;
   }
@@ -219,14 +231,22 @@ export class RelayAdapter {
     const timedOut = new Promise<'timeout'>((resolve) => {
       timer = setTimeout(() => resolve('timeout'), this.shutdownTimeoutMs);
     });
+    let outcome: 'done' | 'timeout';
     try {
-      await Promise.race([client.shutdown().catch(() => {}), timedOut]);
+      outcome = await Promise.race([
+        client.shutdown().then(
+          () => 'done' as const,
+          () => 'done' as const,
+        ),
+        timedOut,
+      ]);
     } finally {
       clearTimeout(timer);
     }
+    if (outcome === 'done') return;
 
-    // Graceful shutdown did not finish in time (or the broker ignored it):
-    // drop the connection and make sure the broker process is gone.
+    // Graceful shutdown did not finish in time: drop the connection and make
+    // sure the broker process is gone instead of leaving it orphaned.
     try {
       client.disconnect();
     } catch {
@@ -243,14 +263,14 @@ export class RelayAdapter {
 
   /** Spawn an agent via the broker's PTY runtime. */
   async spawn(req: RelaySpawnRequest): Promise<RelaySpawnResult> {
-    await this.start();
-    const client = this.ensureClient();
     try {
+      await this.start();
+      const client = this.ensureClient();
       const result = await client.spawnPty({
         name: req.name,
         cli: req.cli,
         task: buildSpawnTask(req.task, req.includeWorkflowConventions),
-        channels: this.spawnOpts.channels,
+        channels: req.channels ?? ['general'],
         model: req.model,
         cwd: req.cwd,
         team: req.team,
@@ -272,8 +292,8 @@ export class RelayAdapter {
 
   /** Release (stop) a spawned agent. */
   async release(name: string, reason?: string): Promise<RelayReleaseResult> {
-    await this.start();
     try {
+      await this.start();
       await this.ensureClient().release(name, reason);
       return { success: true, name };
     } catch (err) {
@@ -323,11 +343,16 @@ export class RelayAdapter {
    * attached once the broker is up.
    */
   onEvent(listener: (event: BrokerEvent) => void): () => void {
-    const detach = this.client ? this.client.onEvent(listener) : () => {};
-    this.eventListeners.set(listener, detach);
+    // Each call is its own subscription, so registering the same listener
+    // twice yields two independent handles.
+    const subscription: EventSubscription = {
+      listener,
+      detach: this.client ? this.client.onEvent(listener) : () => {},
+    };
+    this.eventSubscriptions.add(subscription);
     return () => {
-      this.eventListeners.get(listener)?.();
-      this.eventListeners.delete(listener);
+      if (!this.eventSubscriptions.delete(subscription)) return;
+      subscription.detach();
     };
   }
 
