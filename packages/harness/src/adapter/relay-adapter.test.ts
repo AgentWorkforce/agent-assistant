@@ -226,6 +226,7 @@ describe('AgentRelayExecutionAdapter with the default RelayAdapter', () => {
       message: { id: 'm', text: 'hi', receivedAt: new Date().toISOString() },
       instructions: { systemPrompt: 'sys' },
     });
+    expect(spawn).toHaveBeenCalledTimes(1);
     expect(spawn.mock.calls[0]?.[0]).not.toHaveProperty('channels');
   });
 
