@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BrokerEvent, RelaySpawnRequest, SendMessageInput } from '@agent-relay/sdk';
+import type { BrokerEvent, RelaySpawnRequest, SendMessageInput } from './relay-adapter.js';
 
 import {
   AGENT_RELAY_EXECUTION_REQUEST_TYPE,

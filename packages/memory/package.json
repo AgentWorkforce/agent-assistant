@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-relay/memory": "^6.0.9",
+    "@agent-relay/memory": "^7.1.1",
     "supermemory": "^4.21.1"
   },
   "devDependencies": {

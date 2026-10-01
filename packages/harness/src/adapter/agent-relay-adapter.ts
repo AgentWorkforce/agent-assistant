@@ -1,9 +1,9 @@
-import { RelayAdapter } from '@agent-relay/sdk';
+import { RelayAdapter } from './relay-adapter.js';
 import type {
   BrokerEvent,
   RelaySpawnRequest,
   SendMessageInput,
-} from '@agent-relay/sdk';
+} from './relay-adapter.js';
 
 import {
   EXECUTION_CONTRACT_SCHEMA_VERSION,
@@ -845,3 +845,15 @@ export function createAgentRelayExecutionAdapter(
 ): ExecutionAdapter {
   return new AgentRelayExecutionAdapter(config);
 }
+
+export { RelayAdapter } from './relay-adapter.js';
+export type {
+  BrokerEvent,
+  RelayAdapterOptions,
+  RelayAgentInfo,
+  RelayReleaseResult,
+  RelaySpawnRequest,
+  RelaySpawnResult,
+  SendMessageInput,
+  SendMessageResult,
+} from './relay-adapter.js';

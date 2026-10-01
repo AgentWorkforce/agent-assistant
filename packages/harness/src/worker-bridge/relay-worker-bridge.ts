@@ -1,4 +1,4 @@
-import type { RelayAdapter, BrokerEvent } from "@agent-relay/sdk";
+import type { RelayAdapter, BrokerEvent } from "../adapter/relay-adapter.js";
 
 import {
   AGENT_RELAY_EXECUTION_REQUEST_TYPE,

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { RelayAdapter } from "@agent-relay/sdk";
+import { RelayAdapter } from "../adapter/relay-adapter.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createAgentRelayExecutionAdapter } from "../adapter/agent-relay-adapter.js";

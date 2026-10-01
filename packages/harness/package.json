@@ -57,12 +57,12 @@
     "@agent-assistant/core": "^0.2.0",
     "@agent-assistant/memory": "^0.4.0",
     "@agent-assistant/traits": "^0.2.0",
-    "@agent-assistant/turn-context": "^0.3.4",
     "@agent-assistant/vfs": "^0.2.23",
-    "@agent-relay/sdk": "^6.0.9",
-    "zod": "^3.25.0"
+    "@agent-relay/harness-driver": "^12.2.2",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@agent-assistant/turn-context": "^0.4.35",
     "@types/node": "^24.6.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

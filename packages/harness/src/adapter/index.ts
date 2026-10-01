@@ -2,10 +2,10 @@ export { ClaudeCodeExecutionAdapter, createClaudeCodeAdapter } from './claude-co
 export { BuiltInHarnessAdapter, createBuiltInHarnessAdapter } from './built-in-harness-adapter.js';
 export type { BuiltInHarnessAdapterConfig } from './built-in-harness-adapter.js';
 // NOTE: AgentRelayExecutionAdapter is intentionally NOT re-exported from
-// the default barrel. It imports RelayAdapter from @agent-relay/sdk, which
-// has a Node-only implementation — the SDK's workerd/worker conditional
-// export omits RelayAdapter, so bundlers targeting Cloudflare Workers fail
-// to link this file when it's pulled in transitively.
+// the default barrel. It uses RelayAdapter (./relay-adapter.ts), which
+// spawns a local broker through @agent-relay/harness-driver — a Node-only
+// implementation that bundlers targeting Cloudflare Workers cannot link
+// when it's pulled in transitively.
 //
 // Consumers that need the adapter should import from the dedicated subpath:
 //     import { createAgentRelayExecutionAdapter } from '@agent-assistant/harness/agent-relay';

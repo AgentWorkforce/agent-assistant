@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { RelayAdapter, type BrokerEvent } from "@agent-relay/sdk";
 import {
+  RelayAdapter,
+  type BrokerEvent,
   AGENT_RELAY_EXECUTION_REQUEST_TYPE,
   AGENT_RELAY_EXECUTION_RESULT_TYPE,
   createAgentRelayExecutionAdapter,
