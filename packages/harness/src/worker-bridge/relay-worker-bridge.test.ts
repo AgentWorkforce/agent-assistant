@@ -66,7 +66,9 @@ async function startHarness(scriptBody: string): Promise<Harness> {
 async function startHarnessWithRunner(runner: CliRunner): Promise<Harness> {
   const cwd = mkdtempSync(join(tmpdir(), "harness-worker-bridge-"));
   const relay = new RelayAdapter({ cwd, channels: [CHANNEL_ID] });
+  const t0 = Date.now();
   await relay.start();
+  console.error(`[diag] start ${Date.now() - t0}ms`);
 
   const orchestrator = await relay.spawn({
     name: ORCHESTRATOR_NAME,
@@ -95,10 +97,18 @@ async function startHarnessWithRunner(runner: CliRunner): Promise<Harness> {
 
 async function teardown(harness: Harness | undefined): Promise<void> {
   if (!harness) return;
+  // TEMP DIAG: time each teardown step in CI.
+  let t = Date.now();
+  const lap = (label: string, extra?: unknown) => {
+    console.error(`[diag] ${label} ${Date.now() - t}ms`, extra ?? "");
+    t = Date.now();
+  };
   harness.bridge.dispose();
-  await harness.relay.release(WORKER_NAME).catch(() => {});
-  await harness.relay.release(ORCHESTRATOR_NAME).catch(() => {});
+  lap("dispose");
+  lap("release worker", await harness.relay.release(WORKER_NAME).catch((e) => String(e)));
+  lap("release orch", await harness.relay.release(ORCHESTRATOR_NAME).catch((e) => String(e)));
   await harness.relay.shutdown().catch(() => {});
+  lap("shutdown");
   rmSync(harness.cwd, { recursive: true, force: true });
 }
 
