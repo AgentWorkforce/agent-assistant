@@ -1,9 +1,9 @@
-import { RelayAdapter } from '@agent-relay/sdk';
+import { RelayAdapter } from './relay-adapter.js';
 import type {
   BrokerEvent,
   RelaySpawnRequest,
   SendMessageInput,
-} from '@agent-relay/sdk';
+} from './relay-adapter.js';
 
 import {
   EXECUTION_CONTRACT_SCHEMA_VERSION,
@@ -832,6 +832,9 @@ export class AgentRelayExecutionAdapter implements ExecutionAdapter {
       cwd: this.spawnWorker.cwd,
       team: this.spawnWorker.team,
       includeWorkflowConventions: this.spawnWorker.includeWorkflowConventions ?? true,
+      // Requests go to `workerName` when set; otherwise they are posted to
+      // the channel, so the auto-spawned worker must join it to receive them.
+      ...(this.workerName ? {} : { channels: [this.channelId] }),
     });
 
     if (!result.success) {
@@ -845,3 +848,15 @@ export function createAgentRelayExecutionAdapter(
 ): ExecutionAdapter {
   return new AgentRelayExecutionAdapter(config);
 }
+
+export { RelayAdapter } from './relay-adapter.js';
+export type {
+  BrokerEvent,
+  RelayAdapterOptions,
+  RelayAgentInfo,
+  RelayReleaseResult,
+  RelaySpawnRequest,
+  RelaySpawnResult,
+  SendMessageInput,
+  SendMessageResult,
+} from './relay-adapter.js';

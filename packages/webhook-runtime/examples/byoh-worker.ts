@@ -16,7 +16,7 @@
  */
 import process from "node:process";
 
-import { RelayAdapter } from "@agent-relay/sdk";
+import { RelayAdapter } from "@agent-assistant/harness/agent-relay";
 import {
   createBashCliRunner,
   createClaudeCliRunner,

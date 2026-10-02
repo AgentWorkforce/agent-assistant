@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { RelayAdapter, type BrokerEvent } from "@agent-relay/sdk";
 import {
+  RelayAdapter,
+  type BrokerEvent,
   AGENT_RELAY_EXECUTION_REQUEST_TYPE,
   AGENT_RELAY_EXECUTION_RESULT_TYPE,
   createAgentRelayExecutionAdapter,
@@ -47,7 +48,7 @@ async function startWorkerHarness(
   agentNames: readonly string[] = [WORKER_NAME, ORCHESTRATOR_NAME],
 ): Promise<WorkerHarness> {
   const cwd = mkdtempSync(join(tmpdir(), "byoh-real-broker-"));
-  const workerRelay = new RelayAdapter({ cwd, channels: [CHANNEL_ID] });
+  const workerRelay = new RelayAdapter({ cwd, channels: [CHANNEL_ID], shutdownTimeoutMs: SHUTDOWN_BUDGET_MS });
   await workerRelay.start();
 
   const spawnedAgents: string[] = [];
@@ -94,12 +95,31 @@ async function startWorkerHarness(
   return { workerRelay, cwd, spawnedAgents, received, unsubscribe };
 }
 
+// Teardown budget, derived from CI measurements of the 12.x broker:
+// release() waits for the hosted fleet to confirm owned-identity cleanup
+// (~5-8.5s per agent, sometimes "cleanup unconfirmed; retry retained") and
+// shutdown() took ~1.8s. Agents are released concurrently so the hosted
+// identities are still cleaned up, but the wait is bounded; RelayAdapter
+// bounds shutdown itself (shutdownTimeoutMs, then SIGKILL).
+const RELEASE_BUDGET_MS = 10_000;
+const SHUTDOWN_BUDGET_MS = 5_000;
+const TEARDOWN_TIMEOUT_MS = RELEASE_BUDGET_MS + SHUTDOWN_BUDGET_MS + 2_000;
+
+async function releaseAll(relay: RelayAdapter, names: readonly string[]): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled(names.map((name) => relay.release(name))),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, RELEASE_BUDGET_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+}
+
 async function teardown(harness: WorkerHarness | undefined): Promise<void> {
   if (!harness) return;
   harness.unsubscribe();
-  for (const name of harness.spawnedAgents) {
-    await harness.workerRelay.release(name).catch(() => {});
-  }
+  await releaseAll(harness.workerRelay, harness.spawnedAgents);
   await harness.workerRelay.shutdown().catch(() => {});
   rmSync(harness.cwd, { recursive: true, force: true });
 }
@@ -114,7 +134,7 @@ describe("byoh real-broker E2E", () => {
   afterEach(async () => {
     await teardown(harness);
     harness = undefined;
-  });
+  }, TEARDOWN_TIMEOUT_MS);
 
   it(
     "round-trips an ExecutionRequest through the real agent-relay broker and returns a typed ExecutionResult",

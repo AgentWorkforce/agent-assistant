@@ -1,8 +1,8 @@
-import { RelayAdapter } from '@agent-relay/sdk';
+import { RelayAdapter } from '../relay-adapter.js';
 import { createConnectivityLayer } from '@agent-assistant/connectivity';
 import { createTraitsProvider, type TraitsProvider } from '@agent-assistant/traits';
 import type { ConnectivityLayer, ConnectivitySignal } from '@agent-assistant/connectivity';
-import type { BrokerEvent } from '@agent-relay/sdk';
+import type { BrokerEvent } from '../relay-adapter.js';
 
 import type {
   ExecutionAdapter,

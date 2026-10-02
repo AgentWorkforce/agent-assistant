@@ -283,7 +283,9 @@ testing), captures stdout, and replies with a correctly-shaped
 `agent-assistant.execution-result.v1` message.
 
 ```ts
-import { RelayAdapter } from '@agent-relay/sdk';
+// RelayAdapter wraps @agent-relay/harness-driver's broker client. It was
+// exported by @agent-relay/sdk up to 6.x; the SDK no longer ships it.
+import { RelayAdapter } from '@agent-assistant/harness/agent-relay';
 import {
   createClaudeCliRunner,
   createRelayWorkerBridge,
