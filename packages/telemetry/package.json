@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/telemetry",
-  "version": "0.4.35",
+  "version": "0.4.36",
   "description": "Usage, cost, and response telemetry primitives for Agent Assistant",
   "type": "module",
   "main": "dist/index.js",

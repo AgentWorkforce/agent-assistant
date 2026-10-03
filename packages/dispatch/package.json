@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/dispatch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dispatch envelope and async response contract types for Agent Assistant proactive personas",
   "type": "module",
   "main": "dist/index.js",

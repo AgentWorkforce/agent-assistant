@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/persona",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Shared persona type contracts for agent assistant services (canonical-spec §6 schema).",
   "type": "module",
   "main": "dist/index.js",
