@@ -247,6 +247,10 @@ describe("byoh real-broker E2E", () => {
       expect(result.error?.retryable).toBe(true);
       expect(harness.received).toHaveLength(0);
     },
-    15_000,
+    // Setup starts the broker and pre-spawns three agents; each 12.x spawn
+    // registers a hosted identity, so setup alone outruns a 15s budget (the
+    // two-spawn round-trip above takes ~22s in CI). The adapter's own 1.5s
+    // timeout is what this test asserts, not the setup time.
+    45_000,
   );
 });
