@@ -65,6 +65,7 @@ permissions:
 
 env:
   NODE_VERSION: "22.14.0"
+  NPM_VERSION: "11"
   NPM_REGISTRY_URL: "https://registry.npmjs.org"
 
 jobs:
@@ -125,8 +126,11 @@ jobs:
           registry-url: ${{ env.NPM_REGISTRY_URL }}
           cache: npm
 
-      - name: Update npm to latest (required for provenance)
-        run: npm install -g npm@latest
+      # Pin npm to a major line rather than @latest: new npm majors raise the
+      # Node engine floor (npm 12 requires Node >=22.22.2), which broke publish
+      # on our pinned Node. npm 11 (>=11.5.1) supports provenance + trusted publishing.
+      - name: Update npm (required for provenance)
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - run: npm ci
 
@@ -360,8 +364,11 @@ jobs:
           registry-url: ${{ env.NPM_REGISTRY_URL }}
           cache: npm
 
-      - name: Update npm to latest (required for provenance)
-        run: npm install -g npm@latest
+      # Pin npm to a major line rather than @latest: new npm majors raise the
+      # Node engine floor (npm 12 requires Node >=22.22.2), which broke publish
+      # on our pinned Node. npm 11 (>=11.5.1) supports provenance + trusted publishing.
+      - name: Update npm (required for provenance)
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - run: npm ci
 
