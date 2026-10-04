@@ -323,4 +323,20 @@ describe('vendored InMemoryAdapter', () => {
     expect(stats.byAgent?.['__proto__']).toBe(2);
     expect(stats.byProject?.['constructor']).toBe(2);
   });
+
+  it('returns nothing for a blank query', async () => {
+    const adapter = new InMemoryAdapter();
+    await adapter.add('anything at all');
+
+    expect(await adapter.search({ query: '   ' })).toEqual([]);
+  });
+
+  it('treats before: 0 as a real cutoff in clear()', async () => {
+    const adapter = new InMemoryAdapter();
+    await adapter.add('keep me');
+
+    await adapter.clear({ before: 0 });
+
+    expect(await adapter.list()).toHaveLength(1);
+  });
 });

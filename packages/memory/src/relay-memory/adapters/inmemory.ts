@@ -93,8 +93,8 @@ export class InMemoryAdapter implements MemoryAdapter {
       // Apply filters
       if (query.agentId && entry.agentId !== query.agentId) continue;
       if (query.projectId && entry.projectId !== query.projectId) continue;
-      if (query.since && entry.createdAt < query.since) continue;
-      if (query.before && entry.createdAt > query.before) continue;
+      if (query.since !== undefined && entry.createdAt < query.since) continue;
+      if (query.before !== undefined && entry.createdAt > query.before) continue;
       if (query.tags && query.tags.length > 0) {
         if (!entry.tags || !query.tags.some((t) => entry.tags!.includes(t))) {
           continue;
@@ -106,7 +106,8 @@ export class InMemoryAdapter implements MemoryAdapter {
       let score = 0;
 
       // Exact phrase match gets highest score
-      if (contentLower.includes(queryLower)) {
+      // A blank query would match everything via includes('').
+      if (queryLower.trim().length > 0 && contentLower.includes(queryLower)) {
         score += 0.5;
       }
 
@@ -199,7 +200,7 @@ export class InMemoryAdapter implements MemoryAdapter {
       if (options?.projectId && entry.projectId !== options.projectId) {
         shouldDelete = false;
       }
-      if (options?.before && entry.createdAt >= options.before) {
+      if (options?.before !== undefined && entry.createdAt >= options.before) {
         shouldDelete = false;
       }
 
