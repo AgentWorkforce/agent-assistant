@@ -1,0 +1,520 @@
+/**
+ * Vendored from @agent-relay/memory 7.1.1 (AgentWorkforce/proactive, packages/memory/src).
+ * That package can no longer be released and still depends on the deleted
+ * @agent-relay/hooks, which pulls @agent-relay/sdk 7 and zod 3 into every consumer.
+ * Only the adapter layer this package uses lives here.
+ */
+
+/**
+ * Supermemory.ai Memory Adapter
+ *
+ * Integration with supermemory.ai for semantic memory storage and retrieval.
+ * Provides AI-optimized search with embedding-based similarity.
+ *
+ * @see https://supermemory.ai/docs
+ */
+
+import type {
+  MemoryAdapter,
+  MemoryEntry,
+  MemorySearchQuery,
+  AddMemoryOptions,
+  MemoryResult,
+} from '../types.js';
+
+/**
+ * Options for the Supermemory adapter
+ */
+export interface SupermemoryAdapterOptions {
+  /** API key for supermemory.ai (required) */
+  apiKey: string;
+  /** API endpoint (default: https://api.supermemory.ai) */
+  endpoint?: string;
+  /** Container/namespace for memories (optional) */
+  container?: string;
+  /** Default agent ID */
+  defaultAgentId?: string;
+  /** Default project ID */
+  defaultProjectId?: string;
+  /** Request timeout in ms (default: 30000) */
+  timeout?: number;
+}
+
+/**
+ * Supermemory API response types
+ */
+interface SupermemoryDocument {
+  id: string;
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** One result of `POST /v3/search` (see `SearchDocumentsResponse` in the supermemory SDK). */
+interface SupermemorySearchResult {
+  documentId: string;
+  score: number;
+  createdAt?: string;
+  content?: string | null;
+  chunks?: Array<{ content: string }>;
+  metadata?: Record<string, unknown> | null;
+}
+
+/** Shape of `POST /v3/documents/list` (see `DocumentListResponse` in the supermemory SDK). */
+interface SupermemoryListResponse {
+  memories?: SupermemoryDocument[];
+  pagination?: {
+    currentPage?: number;
+    totalPages?: number;
+    totalItems?: number;
+  };
+}
+
+/**
+ * Supermemory.ai adapter for semantic memory storage
+ */
+export class SupermemoryAdapter implements MemoryAdapter {
+  readonly type = 'supermemory';
+
+  private apiKey: string;
+  private endpoint: string;
+  private container?: string;
+  private defaultAgentId?: string;
+  private defaultProjectId?: string;
+  private timeout: number;
+  private initialized = false;
+
+  constructor(options: SupermemoryAdapterOptions) {
+    if (!options.apiKey) {
+      throw new Error('SupermemoryAdapter requires an API key');
+    }
+
+    this.apiKey = options.apiKey;
+    this.endpoint = options.endpoint ?? 'https://api.supermemory.ai';
+    this.container = options.container;
+    this.defaultAgentId = options.defaultAgentId;
+    this.defaultProjectId = options.defaultProjectId;
+    this.timeout = options.timeout ?? 30000;
+  }
+
+  async init(): Promise<void> {
+    // Verify API key by making a simple request
+    try {
+      const response = await this.fetch('/v3/documents/list', {
+        method: 'POST',
+        body: JSON.stringify({ limit: 1 }),
+      });
+
+      if (!response.ok && response.status !== 404) {
+        const error = await response.text();
+        throw new Error(`Supermemory API error: ${error}`);
+      }
+
+      this.initialized = true;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('fetch')) {
+        throw new Error(`Failed to connect to Supermemory API: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  async add(content: string, options?: AddMemoryOptions): Promise<MemoryResult> {
+    try {
+      const metadata: Record<string, unknown> = {
+        source: options?.source ?? 'agent-relay',
+        agentId: options?.agentId ?? this.defaultAgentId,
+        projectId: options?.projectId ?? this.defaultProjectId,
+        sessionId: options?.sessionId,
+        tags: options?.tags,
+        ...options?.metadata,
+      };
+
+      // Remove undefined values
+      Object.keys(metadata).forEach((key) => {
+        if (metadata[key] === undefined) {
+          delete metadata[key];
+        }
+      });
+
+      const body: Record<string, unknown> = {
+        content,
+        metadata,
+      };
+
+      if (this.container) {
+        body.containerTags = [this.container];
+      }
+
+      const response = await this.fetch('/v3/documents', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        return { success: false, error: `Failed to add memory: ${error}` };
+      }
+
+      const result = (await response.json()) as { id?: string; documentId?: string };
+      return { success: true, id: result.id ?? result.documentId };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  async search(query: MemorySearchQuery): Promise<MemoryEntry[]> {
+    try {
+      const filterConditions: Array<{ key: string; value: unknown }> = [];
+
+      if (query.agentId) {
+        filterConditions.push({ key: 'agentId', value: query.agentId });
+      }
+      if (query.projectId) {
+        filterConditions.push({ key: 'projectId', value: query.projectId });
+      }
+      if (query.tags && query.tags.length > 0) {
+        filterConditions.push({ key: 'tags', value: query.tags });
+      }
+
+      const minScore = query.minScore ?? 0.5;
+      const body: Record<string, unknown> = {
+        q: query.query,
+        limit: query.limit ?? 10,
+        // documentThreshold is deprecated and ignored by v3 search.
+        chunkThreshold: minScore,
+        includeFullDocs: true,
+      };
+
+      if (filterConditions.length > 0) {
+        body.filters = { AND: filterConditions };
+      }
+
+      if (this.container) {
+        body.containerTags = [this.container];
+      }
+
+      const response = await this.fetch('/v3/search', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        console.error('[supermemory] Search failed:', await response.text());
+        return [];
+      }
+
+      const result = (await response.json()) as { results?: SupermemorySearchResult[] };
+      return (result.results ?? [])
+        .map((doc) => this.searchResultToMemoryEntry(doc))
+        .filter(
+          (entry) =>
+            (entry.score ?? 0) >= minScore &&
+            (query.since === undefined || entry.createdAt >= query.since) &&
+            (query.before === undefined || entry.createdAt <= query.before),
+        );
+    } catch (error) {
+      console.error('[supermemory] Search error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get a memory by id. Returns null only for 404; other HTTP and transport
+   * failures throw so an outage is not mistaken for a missing memory.
+   */
+  async get(id: string): Promise<MemoryEntry | null> {
+    const response = await this.fetch(`/v3/documents/${encodeURIComponent(id)}`, {
+      method: 'GET',
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(`Supermemory get failed (${response.status}): ${await response.text()}`);
+    }
+
+    const doc = (await response.json()) as SupermemoryDocument;
+    return this.documentToMemoryEntry(doc);
+  }
+
+  async delete(id: string): Promise<MemoryResult> {
+    try {
+      const response = await this.fetch(`/v3/documents/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok && response.status !== 404) {
+        const error = await response.text();
+        return { success: false, error: `Failed to delete: ${error}` };
+      }
+
+      return { success: true, id };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  async update(id: string, content: string, options?: Partial<AddMemoryOptions>): Promise<MemoryResult> {
+    try {
+      const body: Record<string, unknown> = { content };
+
+      if (options) {
+        const metadata: Record<string, unknown> = {};
+        if (options.tags) metadata.tags = options.tags;
+        if (options.metadata) Object.assign(metadata, options.metadata);
+        if (Object.keys(metadata).length > 0) {
+          body.metadata = metadata;
+        }
+      }
+
+      const response = await this.fetch(`/v3/documents/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        return { success: false, error: `Failed to update: ${error}` };
+      }
+
+      return { success: true, id };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * List memories, newest first. Throws on transport, HTTP or parse failure so
+   * callers cannot mistake an outage for an empty store.
+   */
+  async list(options?: { limit?: number; agentId?: string; projectId?: string }): Promise<MemoryEntry[]> {
+    const page = await this.listPage(options);
+    return page.entries;
+  }
+
+  private async listPage(options?: {
+    limit?: number;
+    agentId?: string;
+    projectId?: string;
+    page?: number;
+  }): Promise<{ entries: MemoryEntry[]; hasMore: boolean }> {
+    const page = options?.page ?? 1;
+    const body: Record<string, unknown> = {
+      limit: options?.limit ?? 50,
+      page,
+      sort: 'createdAt',
+      order: 'desc',
+      // Content is omitted from list results unless requested.
+      includeContent: true,
+    };
+
+    const filterConditions: Array<{ key: string; value: unknown }> = [];
+    if (options?.agentId) filterConditions.push({ key: 'agentId', value: options.agentId });
+    if (options?.projectId) filterConditions.push({ key: 'projectId', value: options.projectId });
+
+    if (filterConditions.length > 0) {
+      body.filters = { AND: filterConditions };
+    }
+
+    if (this.container) {
+      body.containerTags = [this.container];
+    }
+
+    const response = await this.fetch('/v3/documents/list', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Supermemory list failed (${response.status}): ${await response.text()}`);
+    }
+
+    const result = (await response.json()) as SupermemoryListResponse;
+    const memories = result.memories ?? [];
+    const currentPage = result.pagination?.currentPage ?? page;
+    const totalPages = result.pagination?.totalPages ?? currentPage;
+    if (currentPage < page) {
+      // Guards clear()'s paging loop against a backend that never advances.
+      throw new Error(`Supermemory list did not advance to requested page ${page} (got ${currentPage})`);
+    }
+    return {
+      entries: memories.map((doc) => this.documentToMemoryEntry(doc)),
+      hasMore: memories.length > 0 && currentPage < totalPages,
+    };
+  }
+
+  async clear(options?: { agentId?: string; projectId?: string; before?: number }): Promise<MemoryResult> {
+    try {
+      // Bulk delete only filters by container tag, so it is safe only when the
+      // caller asked to clear the whole container.
+      if (!options?.agentId && !options?.projectId && options?.before === undefined && this.container) {
+        const response = await this.fetch('/v3/documents/bulk', {
+          method: 'DELETE',
+          body: JSON.stringify({ containerTags: [this.container] }),
+        });
+
+        if (!response.ok) {
+          return { success: false, error: await response.text() };
+        }
+        return { success: true };
+      }
+
+      // Enumerate every matching page before deleting so deletes cannot shift
+      // later pages under us.
+      const toDelete: MemoryEntry[] = [];
+      const seenIds = new Set<string>();
+      for (let pageNumber = 1; ; pageNumber++) {
+        const page = await this.listPage({
+          limit: CLEAR_PAGE_SIZE,
+          agentId: options?.agentId,
+          projectId: options?.projectId,
+          page: pageNumber,
+        });
+        for (const memory of page.entries) {
+          if (seenIds.has(memory.id)) continue;
+          seenIds.add(memory.id);
+          if (options?.before === undefined || memory.createdAt < options.before) {
+            toDelete.push(memory);
+          }
+        }
+        if (!page.hasMore) break;
+      }
+
+      const failures: string[] = [];
+      for (const memory of toDelete) {
+        const result = await this.delete(memory.id);
+        if (!result.success) failures.push(`${memory.id}: ${result.error ?? 'unknown error'}`);
+      }
+
+      if (failures.length > 0) {
+        return {
+          success: false,
+          error: `Failed to delete ${failures.length} of ${toDelete.length} memories: ${failures.join('; ')}`,
+        };
+      }
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  async stats(): Promise<{
+    totalCount: number;
+    byAgent?: Record<string, number>;
+    byProject?: Record<string, number>;
+  }> {
+    // Supermemory doesn't have a stats endpoint, so we approximate
+    const memories = await this.list({ limit: 1000 });
+
+    const byAgent: Record<string, number> = {};
+    const byProject: Record<string, number> = {};
+
+    for (const memory of memories) {
+      if (memory.agentId) {
+        byAgent[memory.agentId] = (byAgent[memory.agentId] ?? 0) + 1;
+      }
+      if (memory.projectId) {
+        byProject[memory.projectId] = (byProject[memory.projectId] ?? 0) + 1;
+      }
+    }
+
+    return {
+      totalCount: memories.length,
+      byAgent,
+      byProject,
+    };
+  }
+
+  async close(): Promise<void> {
+    this.initialized = false;
+  }
+
+  /**
+   * Make a fetch request to the Supermemory API.
+   *
+   * The body is read inside the timeout so a stalled body cannot hang the
+   * caller, and so every response body is consumed (Cloudflare Workers caps
+   * concurrent outbound requests and unread bodies hold their slot open).
+   * Callers get a buffered Response they can read as usual.
+   */
+  private async fetch(path: string, options: RequestInit): Promise<Response> {
+    const url = `${this.endpoint}${path}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await globalThis.fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          ...options.headers,
+        },
+        signal: controller.signal,
+      });
+      const text = await response.text();
+
+      return new Response(NULL_BODY_STATUSES.has(response.status) ? null : text, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Convert a Supermemory document to a MemoryEntry
+   */
+  private documentToMemoryEntry(doc: SupermemoryDocument): MemoryEntry {
+    return this.toMemoryEntry(doc.id, doc.content, doc.createdAt, doc.metadata);
+  }
+
+  private searchResultToMemoryEntry(doc: SupermemorySearchResult): MemoryEntry {
+    const content = doc.content ?? (doc.chunks ?? []).map((chunk) => chunk.content).join('\n');
+    return {
+      ...this.toMemoryEntry(doc.documentId, content, doc.createdAt, doc.metadata),
+      score: doc.score,
+    };
+  }
+
+  private toMemoryEntry(
+    id: string,
+    content: string,
+    createdAt: string | undefined,
+    rawMetadata: Record<string, unknown> | null | undefined,
+  ): MemoryEntry {
+    const metadata = rawMetadata ?? {};
+    return {
+      id,
+      content,
+      createdAt: createdAt ? new Date(createdAt).getTime() : Date.now(),
+      tags: metadata.tags as string[] | undefined,
+      source: metadata.source as string | undefined,
+      agentId: metadata.agentId as string | undefined,
+      projectId: metadata.projectId as string | undefined,
+      sessionId: metadata.sessionId as string | undefined,
+      metadata,
+    };
+  }
+}
+
+/** Page size used when enumerating memories to clear. */
+const CLEAR_PAGE_SIZE = 100;
+
+/** Statuses whose Response must be constructed without a body. */
+const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);

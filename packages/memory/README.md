@@ -1,8 +1,8 @@
 # `@agent-assistant/memory`
 
-`@agent-assistant/memory` is the v1 assistant-facing composition layer over `@agent-relay/memory`.
+`@agent-assistant/memory` is the v1 assistant-facing composition layer over the relay memory adapters it ships (`InMemoryAdapter`, `SupermemoryAdapter`, `createMemoryAdapter`; originally from `@agent-relay/memory`).
 
-It reuses relay adapters directly for persistence and CRUD, then adds only the approved v1 behaviors:
+It uses those adapters directly for persistence and CRUD, then adds only the approved v1 behaviors:
 - assistant memory scopes: `session`, `user`, `workspace`, `org`, `object`
 - structured retrieval by scope, tags, and recency
 - optional user-scope expansion into an explicit session scope
@@ -73,7 +73,7 @@ const compacted = await memory.compact({
 
 ## Relay Reuse
 
-V1 reuses `@agent-relay/memory` directly:
+V1 reuses the relay memory adapters (vendored from `@agent-relay/memory` 7.1.1 under `src/relay-memory/`):
 - `InMemoryAdapter` powers `InMemoryMemoryStoreAdapter`
 - any compatible relay `MemoryAdapter` can be wrapped with `RelayMemoryStoreAdapter`
 - relay `add()`, `get()`, `update()`, `delete()`, and `list()` remain the underlying storage operations
@@ -141,8 +141,11 @@ The package preserves assistant provenance metadata through writes, updates, pro
 ## Production Usage
 
 ```typescript
-import { createMemoryStore, RelayMemoryStoreAdapter } from '@agent-assistant/memory';
-import { createMemoryAdapter } from '@agent-relay/memory';
+import {
+  createMemoryAdapter,
+  createMemoryStore,
+  RelayMemoryStoreAdapter,
+} from '@agent-assistant/memory';
 
 const relayAdapter = await createMemoryAdapter({
   type: 'supermemory',

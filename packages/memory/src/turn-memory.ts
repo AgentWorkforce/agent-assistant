@@ -1,8 +1,8 @@
-import { createMemoryAdapter } from '@agent-relay/memory';
+import { createMemoryAdapter } from './relay-memory/index.js';
 import type {
   MemoryAdapter as RelayMemoryAdapter,
   MemoryConfig as RelayMemoryConfig,
-} from '@agent-relay/memory';
+} from './relay-memory/index.js';
 
 import {
   createMemoryStore,
