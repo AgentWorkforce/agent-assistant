@@ -247,6 +247,7 @@ describe('vendored relay memory adapters', () => {
               metadata: { agentId: 'agent-1' },
             },
             { documentId: 'new', score: 0.7, createdAt: '2026-06-01T00:00:00Z', content: 'new' },
+            { documentId: 'weak', score: 0.2, createdAt: '2026-03-02T00:00:00Z', content: 'weak' },
           ],
           timing: 1,
           total: 3,
@@ -269,7 +270,7 @@ describe('vendored relay memory adapters', () => {
         body: {
           q: 'notes',
           limit: 5,
-          documentThreshold: 0.5,
+          chunkThreshold: 0.5,
           includeFullDocs: true,
           filters: { AND: [{ key: 'agentId', value: 'agent-1' }] },
           containerTags: ['team'],

@@ -181,10 +181,12 @@ export class SupermemoryAdapter implements MemoryAdapter {
         filterConditions.push({ key: 'tags', value: query.tags });
       }
 
+      const minScore = query.minScore ?? 0.5;
       const body: Record<string, unknown> = {
         q: query.query,
         limit: query.limit ?? 10,
-        documentThreshold: query.minScore ?? 0.5,
+        // documentThreshold is deprecated and ignored by v3 search.
+        chunkThreshold: minScore,
         includeFullDocs: true,
       };
 
@@ -211,6 +213,7 @@ export class SupermemoryAdapter implements MemoryAdapter {
         .map((doc) => this.searchResultToMemoryEntry(doc))
         .filter(
           (entry) =>
+            (entry.score ?? 0) >= minScore &&
             (query.since === undefined || entry.createdAt >= query.since) &&
             (query.before === undefined || entry.createdAt <= query.before),
         );
