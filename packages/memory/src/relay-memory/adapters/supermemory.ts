@@ -103,7 +103,6 @@ export class SupermemoryAdapter implements MemoryAdapter {
         const error = await response.text();
         throw new Error(`Supermemory API error: ${error}`);
       }
-      discardBody(response);
 
       this.initialized = true;
     } catch (error) {
@@ -217,10 +216,7 @@ export class SupermemoryAdapter implements MemoryAdapter {
       });
 
       if (!response.ok) {
-        if (response.status === 404) {
-          discardBody(response);
-          return null;
-        }
+        if (response.status === 404) return null;
         console.error('[supermemory] Get failed:', await response.text());
         return null;
       }
@@ -243,7 +239,6 @@ export class SupermemoryAdapter implements MemoryAdapter {
         const error = await response.text();
         return { success: false, error: `Failed to delete: ${error}` };
       }
-      discardBody(response);
 
       return { success: true, id };
     } catch (error) {
@@ -276,7 +271,6 @@ export class SupermemoryAdapter implements MemoryAdapter {
         const error = await response.text();
         return { success: false, error: `Failed to update: ${error}` };
       }
-      discardBody(response);
 
       return { success: true, id };
     } catch (error) {
@@ -287,50 +281,65 @@ export class SupermemoryAdapter implements MemoryAdapter {
     }
   }
 
+  /**
+   * List memories, newest first. Throws on transport, HTTP or parse failure so
+   * callers cannot mistake an outage for an empty store.
+   */
   async list(options?: { limit?: number; agentId?: string; projectId?: string }): Promise<MemoryEntry[]> {
-    try {
-      const body: Record<string, unknown> = {
-        limit: options?.limit ?? 50,
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-      };
+    const page = await this.listPage(options);
+    return page.entries;
+  }
 
-      const filterConditions: Array<{ key: string; value: unknown }> = [];
-      if (options?.agentId) filterConditions.push({ key: 'agentId', value: options.agentId });
-      if (options?.projectId) filterConditions.push({ key: 'projectId', value: options.projectId });
+  private async listPage(options?: {
+    limit?: number;
+    agentId?: string;
+    projectId?: string;
+    cursor?: string;
+  }): Promise<{ entries: MemoryEntry[]; hasMore: boolean; cursor?: string }> {
+    const body: Record<string, unknown> = {
+      limit: options?.limit ?? 50,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    };
 
-      if (filterConditions.length > 0) {
-        body.filters = { AND: filterConditions };
-      }
+    const filterConditions: Array<{ key: string; value: unknown }> = [];
+    if (options?.agentId) filterConditions.push({ key: 'agentId', value: options.agentId });
+    if (options?.projectId) filterConditions.push({ key: 'projectId', value: options.projectId });
 
-      if (this.container) {
-        body.containerTags = [this.container];
-      }
-
-      const response = await this.fetch('/v3/documents/list', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        console.error('[supermemory] List failed:', await response.text());
-        return [];
-      }
-
-      const result = (await response.json()) as SupermemoryListResponse;
-      return (result.documents ?? []).map((doc) => this.documentToMemoryEntry(doc));
-    } catch (error) {
-      console.error('[supermemory] List error:', error);
-      return [];
+    if (filterConditions.length > 0) {
+      body.filters = { AND: filterConditions };
     }
+
+    if (this.container) {
+      body.containerTags = [this.container];
+    }
+
+    if (options?.cursor) {
+      body.cursor = options.cursor;
+    }
+
+    const response = await this.fetch('/v3/documents/list', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Supermemory list failed (${response.status}): ${await response.text()}`);
+    }
+
+    const result = (await response.json()) as SupermemoryListResponse;
+    return {
+      entries: (result.documents ?? []).map((doc) => this.documentToMemoryEntry(doc)),
+      hasMore: result.hasMore === true && typeof result.cursor === 'string' && result.cursor !== '',
+      cursor: result.cursor,
+    };
   }
 
   async clear(options?: { agentId?: string; projectId?: string; before?: number }): Promise<MemoryResult> {
     try {
-      // Supermemory supports bulk delete by container tags
-      // For more specific filtering, we need to list and delete individually
-      if (!options?.agentId && !options?.projectId && this.container) {
-        // Delete by container
+      // Bulk delete only filters by container tag, so it is safe only when the
+      // caller asked to clear the whole container.
+      if (!options?.agentId && !options?.projectId && options?.before === undefined && this.container) {
         const response = await this.fetch('/v3/documents/bulk', {
           method: 'DELETE',
           body: JSON.stringify({ containerTags: [this.container] }),
@@ -339,23 +348,46 @@ export class SupermemoryAdapter implements MemoryAdapter {
         if (!response.ok) {
           return { success: false, error: await response.text() };
         }
-        discardBody(response);
         return { success: true };
       }
 
-      // List and delete matching memories
-      const memories = await this.list({
-        limit: 1000,
-        agentId: options?.agentId,
-        projectId: options?.projectId,
-      });
-
-      const toDelete = options?.before ? memories.filter((m) => m.createdAt < options.before!) : memories;
-
-      for (const memory of toDelete) {
-        await this.delete(memory.id);
+      // Enumerate every matching page before deleting so deletes cannot shift
+      // the cursor under us.
+      const toDelete: MemoryEntry[] = [];
+      const seenIds = new Set<string>();
+      const seenCursors = new Set<string>();
+      let cursor: string | undefined;
+      for (;;) {
+        const page = await this.listPage({
+          limit: 1000,
+          agentId: options?.agentId,
+          projectId: options?.projectId,
+          cursor,
+        });
+        for (const memory of page.entries) {
+          if (seenIds.has(memory.id)) continue;
+          seenIds.add(memory.id);
+          if (options?.before === undefined || memory.createdAt < options.before) {
+            toDelete.push(memory);
+          }
+        }
+        if (!page.hasMore || !page.cursor || seenCursors.has(page.cursor)) break;
+        seenCursors.add(page.cursor);
+        cursor = page.cursor;
       }
 
+      const failures: string[] = [];
+      for (const memory of toDelete) {
+        const result = await this.delete(memory.id);
+        if (!result.success) failures.push(`${memory.id}: ${result.error ?? 'unknown error'}`);
+      }
+
+      if (failures.length > 0) {
+        return {
+          success: false,
+          error: `Failed to delete ${failures.length} of ${toDelete.length} memories: ${failures.join('; ')}`,
+        };
+      }
       return { success: true };
     } catch (error) {
       return {
@@ -397,7 +429,12 @@ export class SupermemoryAdapter implements MemoryAdapter {
   }
 
   /**
-   * Make a fetch request to the Supermemory API
+   * Make a fetch request to the Supermemory API.
+   *
+   * The body is read inside the timeout so a stalled body cannot hang the
+   * caller, and so every response body is consumed (Cloudflare Workers caps
+   * concurrent outbound requests and unread bodies hold their slot open).
+   * Callers get a buffered Response they can read as usual.
    */
   private async fetch(path: string, options: RequestInit): Promise<Response> {
     const url = `${this.endpoint}${path}`;
@@ -414,8 +451,13 @@ export class SupermemoryAdapter implements MemoryAdapter {
         },
         signal: controller.signal,
       });
+      const text = await response.text();
 
-      return response;
+      return new Response(NULL_BODY_STATUSES.has(response.status) ? null : text, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
     } finally {
       clearTimeout(timeoutId);
     }
@@ -444,10 +486,5 @@ export class SupermemoryAdapter implements MemoryAdapter {
   }
 }
 
-/**
- * Release a response body we do not read. Cloudflare Workers caps concurrent
- * outbound requests, and unread bodies hold their slot open.
- */
-function discardBody(response: Response): void {
-  response.body?.cancel().catch(() => {});
-}
+/** Statuses whose Response must be constructed without a body. */
+const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
