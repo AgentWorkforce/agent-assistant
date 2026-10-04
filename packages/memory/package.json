@@ -1,6 +1,6 @@
 {
   "name": "@agent-assistant/memory",
-  "version": "0.4.36",
+  "version": "0.4.37",
   "description": "Assistant-scoped memory composition layer with in-memory and Supermemory adapters",
   "type": "module",
   "main": "dist/index.js",
