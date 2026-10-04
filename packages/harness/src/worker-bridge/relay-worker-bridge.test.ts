@@ -251,6 +251,8 @@ describe("createRelayWorkerBridge integration", () => {
       expect(result.error?.message ?? "").toContain("synthetic runner crash");
       expect(result.error?.message ?? "").toContain("throwing-test-runner");
     },
-    30_000,
+    // Same budget as the sibling real-broker tests: broker startup plus
+    // teardown alone runs ~30s on CI runners.
+    45_000,
   );
 });

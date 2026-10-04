@@ -288,6 +288,32 @@ describe('vendored relay memory adapters', () => {
   });
 });
 
+describe('SupermemoryAdapter clear() paging', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('fails instead of looping when the backend does not advance pages', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (new URL(String(input)).pathname === '/v3/documents/list') {
+        return jsonResponse({
+          memories: [{ id: 'doc-1', content: 'a' }],
+          pagination: { currentPage: 1, totalPages: 2, totalItems: 2 },
+        });
+      }
+      return jsonResponse({ deleted: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const adapter = new SupermemoryAdapter({ apiKey: 'test-key' });
+    const result = await adapter.clear({ agentId: 'agent-1' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('did not advance to requested page 2');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('vendored InMemoryAdapter', () => {
   it('matches regex metacharacters in search text literally', async () => {
     const adapter = new InMemoryAdapter();

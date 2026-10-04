@@ -343,6 +343,10 @@ export class SupermemoryAdapter implements MemoryAdapter {
     const memories = result.memories ?? [];
     const currentPage = result.pagination?.currentPage ?? page;
     const totalPages = result.pagination?.totalPages ?? currentPage;
+    if (currentPage < page) {
+      // Guards clear()'s paging loop against a backend that never advances.
+      throw new Error(`Supermemory list did not advance to requested page ${page} (got ${currentPage})`);
+    }
     return {
       entries: memories.map((doc) => this.documentToMemoryEntry(doc)),
       hasMore: memories.length > 0 && currentPage < totalPages,
