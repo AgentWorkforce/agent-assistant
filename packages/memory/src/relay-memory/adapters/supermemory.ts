@@ -58,10 +58,14 @@ interface SupermemorySearchResult {
   metadata?: Record<string, unknown>;
 }
 
+/** Shape of `POST /v3/documents/list` (see `DocumentListResponse` in the supermemory SDK). */
 interface SupermemoryListResponse {
-  documents: SupermemoryDocument[];
-  hasMore?: boolean;
-  cursor?: string;
+  memories?: SupermemoryDocument[];
+  pagination?: {
+    currentPage?: number;
+    totalPages?: number;
+    totalItems?: number;
+  };
 }
 
 /**
@@ -294,12 +298,16 @@ export class SupermemoryAdapter implements MemoryAdapter {
     limit?: number;
     agentId?: string;
     projectId?: string;
-    cursor?: string;
-  }): Promise<{ entries: MemoryEntry[]; hasMore: boolean; cursor?: string }> {
+    page?: number;
+  }): Promise<{ entries: MemoryEntry[]; hasMore: boolean }> {
+    const page = options?.page ?? 1;
     const body: Record<string, unknown> = {
       limit: options?.limit ?? 50,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
+      page,
+      sort: 'createdAt',
+      order: 'desc',
+      // Content is omitted from list results unless requested.
+      includeContent: true,
     };
 
     const filterConditions: Array<{ key: string; value: unknown }> = [];
@@ -314,10 +322,6 @@ export class SupermemoryAdapter implements MemoryAdapter {
       body.containerTags = [this.container];
     }
 
-    if (options?.cursor) {
-      body.cursor = options.cursor;
-    }
-
     const response = await this.fetch('/v3/documents/list', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -328,10 +332,12 @@ export class SupermemoryAdapter implements MemoryAdapter {
     }
 
     const result = (await response.json()) as SupermemoryListResponse;
+    const memories = result.memories ?? [];
+    const currentPage = result.pagination?.currentPage ?? page;
+    const totalPages = result.pagination?.totalPages ?? currentPage;
     return {
-      entries: (result.documents ?? []).map((doc) => this.documentToMemoryEntry(doc)),
-      hasMore: result.hasMore === true && typeof result.cursor === 'string' && result.cursor !== '',
-      cursor: result.cursor,
+      entries: memories.map((doc) => this.documentToMemoryEntry(doc)),
+      hasMore: memories.length > 0 && currentPage < totalPages,
     };
   }
 
@@ -352,17 +358,15 @@ export class SupermemoryAdapter implements MemoryAdapter {
       }
 
       // Enumerate every matching page before deleting so deletes cannot shift
-      // the cursor under us.
+      // later pages under us.
       const toDelete: MemoryEntry[] = [];
       const seenIds = new Set<string>();
-      const seenCursors = new Set<string>();
-      let cursor: string | undefined;
-      for (;;) {
+      for (let pageNumber = 1; ; pageNumber++) {
         const page = await this.listPage({
-          limit: 1000,
+          limit: CLEAR_PAGE_SIZE,
           agentId: options?.agentId,
           projectId: options?.projectId,
-          cursor,
+          page: pageNumber,
         });
         for (const memory of page.entries) {
           if (seenIds.has(memory.id)) continue;
@@ -371,9 +375,7 @@ export class SupermemoryAdapter implements MemoryAdapter {
             toDelete.push(memory);
           }
         }
-        if (!page.hasMore || !page.cursor || seenCursors.has(page.cursor)) break;
-        seenCursors.add(page.cursor);
-        cursor = page.cursor;
+        if (!page.hasMore) break;
       }
 
       const failures: string[] = [];
@@ -485,6 +487,9 @@ export class SupermemoryAdapter implements MemoryAdapter {
     };
   }
 }
+
+/** Page size used when enumerating memories to clear. */
+const CLEAR_PAGE_SIZE = 100;
 
 /** Statuses whose Response must be constructed without a body. */
 const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);

@@ -92,6 +92,49 @@ describe('vendored relay memory adapters', () => {
     await expect(adapter.list({ agentId: 'agent-1' })).rejects.toThrow(/list failed \(500\)/);
   });
 
+  it('list() speaks the documents/list contract: page/sort/order/includeContent in, memories out', async () => {
+    const listBodies: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        listBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return jsonResponse({
+          memories: [
+            {
+              id: 'doc-1',
+              content: 'remember this',
+              createdAt: '2026-01-01T00:00:00Z',
+              metadata: { agentId: 'agent-1', projectId: 'project-1' },
+            },
+          ],
+          pagination: { currentPage: 1, totalPages: 1, totalItems: 1 },
+        });
+      }),
+    );
+
+    const adapter = new SupermemoryAdapter({ apiKey: 'test-key' });
+    const entries = await adapter.list({ limit: 5, agentId: 'agent-1' });
+
+    expect(listBodies).toEqual([
+      {
+        limit: 5,
+        page: 1,
+        sort: 'createdAt',
+        order: 'desc',
+        includeContent: true,
+        filters: { AND: [{ key: 'agentId', value: 'agent-1' }] },
+      },
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: 'doc-1',
+      content: 'remember this',
+      agentId: 'agent-1',
+      projectId: 'project-1',
+      createdAt: Date.parse('2026-01-01T00:00:00Z'),
+    });
+  });
+
   it('clear({ before }) on a container deletes only older memories, never the whole container', async () => {
     const calls: string[] = [];
     vi.stubGlobal(
@@ -101,10 +144,11 @@ describe('vendored relay memory adapters', () => {
         calls.push(`${init?.method} ${path}`);
         if (path === '/v3/documents/list') {
           return jsonResponse({
-            documents: [
+            memories: [
               { id: 'old', content: 'old', createdAt: '2026-01-01T00:00:00Z' },
               { id: 'new', content: 'new', createdAt: '2026-06-01T00:00:00Z' },
             ],
+            pagination: { currentPage: 1, totalPages: 1, totalItems: 2 },
           });
         }
         return jsonResponse({ deleted: true });
@@ -128,9 +172,11 @@ describe('vendored relay memory adapters', () => {
         if (path === '/v3/documents/list') {
           const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
           listBodies.push(body);
-          return body.cursor === 'page-2'
-            ? jsonResponse({ documents: [{ id: 'doc-2', content: 'b' }], hasMore: false })
-            : jsonResponse({ documents: [{ id: 'doc-1', content: 'a' }], hasMore: true, cursor: 'page-2' });
+          const page = body.page as number;
+          return jsonResponse({
+            memories: [{ id: `doc-${page}`, content: String(page) }],
+            pagination: { currentPage: page, totalPages: 2, totalItems: 2 },
+          });
         }
         const id = path.split('/').pop()!;
         deleted.push(id);
@@ -141,7 +187,7 @@ describe('vendored relay memory adapters', () => {
     const adapter = new SupermemoryAdapter({ apiKey: 'test-key' });
     const result = await adapter.clear({ agentId: 'agent-1' });
 
-    expect(listBodies.map((body) => body.cursor)).toEqual([undefined, 'page-2']);
+    expect(listBodies.map((body) => body.page)).toEqual([1, 2]);
     expect(deleted).toEqual(['doc-1', 'doc-2']);
     expect(result.success).toBe(false);
     expect(result.error).toContain('doc-2');
