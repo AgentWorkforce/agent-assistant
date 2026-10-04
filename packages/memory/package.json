@@ -1,7 +1,7 @@
 {
   "name": "@agent-assistant/memory",
   "version": "0.4.36",
-  "description": "Assistant-scoped memory composition layer over @agent-relay/memory",
+  "description": "Assistant-scoped memory composition layer with in-memory and Supermemory adapters",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +22,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-relay/memory": "^7.1.1",
     "supermemory": "^4.21.1"
   },
   "devDependencies": {

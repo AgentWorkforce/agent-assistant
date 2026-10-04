@@ -1,9 +1,9 @@
-import { InMemoryAdapter } from '@agent-relay/memory';
+import { InMemoryAdapter } from './relay-memory/index.js';
 import type {
   AddMemoryOptions,
   MemoryAdapter as RelayMemoryAdapter,
   MemoryEntry as RelayMemoryEntry,
-} from '@agent-relay/memory';
+} from './relay-memory/index.js';
 
 import {
   CompactionError,

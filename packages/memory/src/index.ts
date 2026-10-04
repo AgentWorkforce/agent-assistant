@@ -65,3 +65,16 @@ export type {
   CreateSupermemoryClientOptions,
   EnvSource,
 } from './supermemory-client.js';
+
+// Storage adapters formerly imported from @agent-relay/memory.
+export {
+  createMemoryAdapter,
+  InMemoryAdapter,
+  SupermemoryAdapter,
+} from './relay-memory/index.js';
+export type {
+  AddMemoryOptions as RelayAddMemoryOptions,
+  MemoryAdapter as RelayMemoryAdapter,
+  MemoryConfig as RelayMemoryConfig,
+  MemoryEntry as RelayMemoryEntry,
+} from './relay-memory/index.js';
