@@ -15,7 +15,6 @@
  * For production use with semantic search, use SupermemoryAdapter or similar.
  */
 
-import { randomUUID } from 'node:crypto';
 import type {
   MemoryAdapter,
   MemoryEntry,
@@ -58,7 +57,8 @@ export class InMemoryAdapter implements MemoryAdapter {
   }
 
   async add(content: string, options?: AddMemoryOptions): Promise<MemoryResult> {
-    const id = randomUUID();
+    // Web Crypto, so Workers without nodejs_compat can load this adapter.
+    const id = globalThis.crypto.randomUUID();
     const now = Date.now();
 
     const entry: MemoryEntry = {
@@ -66,12 +66,12 @@ export class InMemoryAdapter implements MemoryAdapter {
       content,
       createdAt: now,
       lastAccessedAt: now,
-      tags: options?.tags,
+      tags: options?.tags ? [...options.tags] : undefined,
       source: options?.source ?? 'agent',
       agentId: options?.agentId ?? this.defaultAgentId,
       projectId: options?.projectId ?? this.defaultProjectId,
       sessionId: options?.sessionId,
-      metadata: options?.metadata,
+      metadata: options?.metadata ? { ...options.metadata } : undefined,
     };
 
     this.memories.set(id, entry);
@@ -112,7 +112,7 @@ export class InMemoryAdapter implements MemoryAdapter {
 
       // Term frequency scoring
       for (const term of queryTerms) {
-        const matches = (contentLower.match(new RegExp(term, 'gi')) || []).length;
+        const matches = (contentLower.match(new RegExp(escapeRegExp(term), 'gi')) || []).length;
         score += matches * 0.1;
       }
 
@@ -122,7 +122,7 @@ export class InMemoryAdapter implements MemoryAdapter {
       if (score > 0 && (!query.minScore || score >= query.minScore)) {
         // Update last accessed time
         entry.lastAccessedAt = Date.now();
-        results.push({ ...entry, score });
+        results.push({ ...cloneEntry(entry), score });
       }
     }
 
@@ -138,7 +138,7 @@ export class InMemoryAdapter implements MemoryAdapter {
     const entry = this.memories.get(id);
     if (entry) {
       entry.lastAccessedAt = Date.now();
-      return { ...entry };
+      return cloneEntry(entry);
     }
     return null;
   }
@@ -162,7 +162,7 @@ export class InMemoryAdapter implements MemoryAdapter {
       ...existing,
       content,
       lastAccessedAt: Date.now(),
-      ...(options?.tags && { tags: options.tags }),
+      ...(options?.tags && { tags: [...options.tags] }),
       ...(options?.metadata && { metadata: { ...existing.metadata, ...options.metadata } }),
     };
 
@@ -176,7 +176,7 @@ export class InMemoryAdapter implements MemoryAdapter {
     for (const entry of this.memories.values()) {
       if (options?.agentId && entry.agentId !== options.agentId) continue;
       if (options?.projectId && entry.projectId !== options.projectId) continue;
-      results.push({ ...entry });
+      results.push(cloneEntry(entry));
     }
 
     // Sort by creation time descending
@@ -221,8 +221,9 @@ export class InMemoryAdapter implements MemoryAdapter {
     byAgent?: Record<string, number>;
     byProject?: Record<string, number>;
   }> {
-    const byAgent: Record<string, number> = {};
-    const byProject: Record<string, number> = {};
+    // Prototype-free so ids like `__proto__` or `constructor` count correctly.
+    const byAgent: Record<string, number> = Object.create(null);
+    const byProject: Record<string, number> = Object.create(null);
 
     for (const entry of this.memories.values()) {
       if (entry.agentId) {
@@ -255,4 +256,17 @@ export class InMemoryAdapter implements MemoryAdapter {
       this.memories.delete(id);
     }
   }
+}
+
+/** Copy an entry and its nested arrays/objects so callers cannot mutate stored state. */
+function cloneEntry(entry: MemoryEntry): MemoryEntry {
+  return {
+    ...entry,
+    ...(entry.tags && { tags: [...entry.tags] }),
+    ...(entry.metadata && { metadata: { ...entry.metadata } }),
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

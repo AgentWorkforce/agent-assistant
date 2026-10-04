@@ -46,16 +46,19 @@ export interface SupermemoryAdapterOptions {
 interface SupermemoryDocument {
   id: string;
   content: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
+/** One result of `POST /v3/search` (see `SearchDocumentsResponse` in the supermemory SDK). */
 interface SupermemorySearchResult {
-  id: string;
-  content: string;
+  documentId: string;
   score: number;
-  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  content?: string | null;
+  chunks?: Array<{ content: string }>;
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Shape of `POST /v3/documents/list` (see `DocumentListResponse` in the supermemory SDK). */
@@ -179,9 +182,10 @@ export class SupermemoryAdapter implements MemoryAdapter {
       }
 
       const body: Record<string, unknown> = {
-        query: query.query,
+        q: query.query,
         limit: query.limit ?? 10,
-        minScore: query.minScore ?? 0.5,
+        documentThreshold: query.minScore ?? 0.5,
+        includeFullDocs: true,
       };
 
       if (filterConditions.length > 0) {
@@ -192,8 +196,7 @@ export class SupermemoryAdapter implements MemoryAdapter {
         body.containerTags = [this.container];
       }
 
-      // Use v4 search for lower latency
-      const response = await this.fetch('/v4/search', {
+      const response = await this.fetch('/v3/search', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -204,33 +207,35 @@ export class SupermemoryAdapter implements MemoryAdapter {
       }
 
       const result = (await response.json()) as { results?: SupermemorySearchResult[] };
-      const results = result.results ?? [];
-
-      return results.map((doc) => this.documentToMemoryEntry(doc));
+      return (result.results ?? [])
+        .map((doc) => this.searchResultToMemoryEntry(doc))
+        .filter(
+          (entry) =>
+            (query.since === undefined || entry.createdAt >= query.since) &&
+            (query.before === undefined || entry.createdAt <= query.before),
+        );
     } catch (error) {
       console.error('[supermemory] Search error:', error);
       return [];
     }
   }
 
+  /**
+   * Get a memory by id. Returns null only for 404; other HTTP and transport
+   * failures throw so an outage is not mistaken for a missing memory.
+   */
   async get(id: string): Promise<MemoryEntry | null> {
-    try {
-      const response = await this.fetch(`/v3/documents/${encodeURIComponent(id)}`, {
-        method: 'GET',
-      });
+    const response = await this.fetch(`/v3/documents/${encodeURIComponent(id)}`, {
+      method: 'GET',
+    });
 
-      if (!response.ok) {
-        if (response.status === 404) return null;
-        console.error('[supermemory] Get failed:', await response.text());
-        return null;
-      }
-
-      const doc = (await response.json()) as SupermemoryDocument;
-      return this.documentToMemoryEntry(doc);
-    } catch (error) {
-      console.error('[supermemory] Get error:', error);
-      return null;
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(`Supermemory get failed (${response.status}): ${await response.text()}`);
     }
+
+    const doc = (await response.json()) as SupermemoryDocument;
+    return this.documentToMemoryEntry(doc);
   }
 
   async delete(id: string): Promise<MemoryResult> {
@@ -468,21 +473,34 @@ export class SupermemoryAdapter implements MemoryAdapter {
   /**
    * Convert a Supermemory document to a MemoryEntry
    */
-  private documentToMemoryEntry(doc: SupermemoryDocument | SupermemorySearchResult): MemoryEntry {
-    const metadata = doc.metadata ?? {};
+  private documentToMemoryEntry(doc: SupermemoryDocument): MemoryEntry {
+    return this.toMemoryEntry(doc.id, doc.content, doc.createdAt, doc.metadata);
+  }
 
+  private searchResultToMemoryEntry(doc: SupermemorySearchResult): MemoryEntry {
+    const content = doc.content ?? (doc.chunks ?? []).map((chunk) => chunk.content).join('\n');
     return {
-      id: doc.id,
-      content: doc.content,
-      createdAt: (doc as SupermemoryDocument).createdAt
-        ? new Date((doc as SupermemoryDocument).createdAt!).getTime()
-        : Date.now(),
+      ...this.toMemoryEntry(doc.documentId, content, doc.createdAt, doc.metadata),
+      score: doc.score,
+    };
+  }
+
+  private toMemoryEntry(
+    id: string,
+    content: string,
+    createdAt: string | undefined,
+    rawMetadata: Record<string, unknown> | null | undefined,
+  ): MemoryEntry {
+    const metadata = rawMetadata ?? {};
+    return {
+      id,
+      content,
+      createdAt: createdAt ? new Date(createdAt).getTime() : Date.now(),
       tags: metadata.tags as string[] | undefined,
       source: metadata.source as string | undefined,
       agentId: metadata.agentId as string | undefined,
       projectId: metadata.projectId as string | undefined,
       sessionId: metadata.sessionId as string | undefined,
-      score: (doc as SupermemorySearchResult).score,
       metadata,
     };
   }

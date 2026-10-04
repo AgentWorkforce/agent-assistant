@@ -74,7 +74,11 @@ export {
 } from './relay-memory/index.js';
 export type {
   AddMemoryOptions as RelayAddMemoryOptions,
+  InMemoryAdapterOptions,
   MemoryAdapter as RelayMemoryAdapter,
   MemoryConfig as RelayMemoryConfig,
   MemoryEntry as RelayMemoryEntry,
+  MemoryResult as RelayMemoryResult,
+  MemorySearchQuery as RelayMemorySearchQuery,
+  SupermemoryAdapterOptions,
 } from './relay-memory/index.js';

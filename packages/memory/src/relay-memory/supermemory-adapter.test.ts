@@ -15,7 +15,26 @@ describe('vendored relay memory adapters', () => {
   });
 
   it('defaults createMemoryAdapter to the in-memory adapter', async () => {
+    const saved = process.env.AGENT_RELAY_MEMORY_TYPE;
+    delete process.env.AGENT_RELAY_MEMORY_TYPE;
+    try {
+      const adapter = await createMemoryAdapter();
+      expect(adapter).toBeInstanceOf(InMemoryAdapter);
+    } finally {
+      if (saved !== undefined) process.env.AGENT_RELAY_MEMORY_TYPE = saved;
+    }
+  });
+
+  it('rejects unknown adapter types instead of silently using transient storage', async () => {
+    await expect(createMemoryAdapter({ type: 'supermemroy' })).rejects.toThrow(
+      'Unsupported memory adapter type: supermemroy',
+    );
+  });
+
+  it('builds an adapter from explicit config when process is unavailable (Workers without nodejs_compat)', async () => {
+    vi.stubGlobal('process', undefined);
     const adapter = await createMemoryAdapter({ type: 'inmemory' });
+    vi.unstubAllGlobals();
     expect(adapter).toBeInstanceOf(InMemoryAdapter);
   });
 
@@ -191,5 +210,117 @@ describe('vendored relay memory adapters', () => {
     expect(deleted).toEqual(['doc-1', 'doc-2']);
     expect(result.success).toBe(false);
     expect(result.error).toContain('doc-2');
+  });
+
+  it('get() returns null only for 404 and throws on other failures', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith('/missing')
+          ? jsonResponse({ error: 'not found' }, 404)
+          : jsonResponse({ error: 'unavailable' }, 503),
+      ),
+    );
+
+    const adapter = new SupermemoryAdapter({ apiKey: 'test-key' });
+    await expect(adapter.get('missing')).resolves.toBeNull();
+    await expect(adapter.get('doc-1')).rejects.toThrow(/get failed \(503\)/);
+  });
+
+  it('search() speaks the /v3/search contract and applies since/before', async () => {
+    const requests: Array<{ path: string; body: Record<string, unknown> }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          path: new URL(String(input)).pathname,
+          body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+        });
+        return jsonResponse({
+          results: [
+            { documentId: 'old', score: 0.9, createdAt: '2026-01-01T00:00:00Z', content: 'old', metadata: null },
+            {
+              documentId: 'mid',
+              score: 0.8,
+              createdAt: '2026-03-01T00:00:00Z',
+              chunks: [{ content: 'part one' }, { content: 'part two' }],
+              metadata: { agentId: 'agent-1' },
+            },
+            { documentId: 'new', score: 0.7, createdAt: '2026-06-01T00:00:00Z', content: 'new' },
+          ],
+          timing: 1,
+          total: 3,
+        });
+      }),
+    );
+
+    const adapter = new SupermemoryAdapter({ apiKey: 'test-key', container: 'team' });
+    const entries = await adapter.search({
+      query: 'notes',
+      limit: 5,
+      agentId: 'agent-1',
+      since: Date.parse('2026-02-01T00:00:00Z'),
+      before: Date.parse('2026-04-01T00:00:00Z'),
+    });
+
+    expect(requests).toEqual([
+      {
+        path: '/v3/search',
+        body: {
+          q: 'notes',
+          limit: 5,
+          documentThreshold: 0.5,
+          includeFullDocs: true,
+          filters: { AND: [{ key: 'agentId', value: 'agent-1' }] },
+          containerTags: ['team'],
+        },
+      },
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: 'mid',
+      content: 'part one\npart two',
+      score: 0.8,
+      agentId: 'agent-1',
+      createdAt: Date.parse('2026-03-01T00:00:00Z'),
+    });
+  });
+});
+
+describe('vendored InMemoryAdapter', () => {
+  it('matches regex metacharacters in search text literally', async () => {
+    const adapter = new InMemoryAdapter();
+    await adapter.add('I write C++ and (some) Rust');
+
+    const results = await adapter.search({ query: 'C++ (some)' });
+
+    expect(results).toHaveLength(1);
+  });
+
+  it('does not share tags or metadata with callers', async () => {
+    const adapter = new InMemoryAdapter();
+    const tags = ['a'];
+    const metadata: Record<string, unknown> = { k: 'v' };
+    const { id } = await adapter.add('hello', { tags, metadata });
+
+    tags.push('mutated');
+    metadata.k = 'mutated';
+    const fetched = await adapter.get(id!);
+    fetched!.tags!.push('mutated-again');
+    fetched!.metadata!.k = 'mutated-again';
+    (await adapter.list())[0].tags!.push('mutated-via-list');
+
+    expect(await adapter.get(id!)).toMatchObject({ tags: ['a'], metadata: { k: 'v' } });
+  });
+
+  it('counts ids that collide with Object.prototype keys in stats()', async () => {
+    const adapter = new InMemoryAdapter();
+    await adapter.add('one', { agentId: '__proto__', projectId: 'constructor' });
+    await adapter.add('two', { agentId: '__proto__', projectId: 'constructor' });
+
+    const stats = await adapter.stats();
+
+    expect(stats.byAgent?.['__proto__']).toBe(2);
+    expect(stats.byProject?.['constructor']).toBe(2);
   });
 });

@@ -26,16 +26,22 @@ import { SupermemoryAdapter } from './adapters/supermemory.js';
  * - SUPERMEMORY_API_KEY: Supermemory-specific API key (fallback)
  */
 export function getMemoryConfigFromEnv(): MemoryConfig {
-  const type = process.env.AGENT_RELAY_MEMORY_TYPE ?? 'inmemory';
-  const apiKey = process.env.AGENT_RELAY_MEMORY_API_KEY ?? process.env.SUPERMEMORY_API_KEY;
+  const env = readEnv();
+  const type = env.AGENT_RELAY_MEMORY_TYPE ?? 'inmemory';
+  const apiKey = env.AGENT_RELAY_MEMORY_API_KEY ?? env.SUPERMEMORY_API_KEY;
 
   return {
     type,
     apiKey,
-    endpoint: process.env.AGENT_RELAY_MEMORY_ENDPOINT,
-    defaultAgentId: process.env.AGENT_RELAY_AGENT_ID,
-    defaultProjectId: process.env.AGENT_RELAY_PROJECT_ID,
+    endpoint: env.AGENT_RELAY_MEMORY_ENDPOINT,
+    defaultAgentId: env.AGENT_RELAY_AGENT_ID,
+    defaultProjectId: env.AGENT_RELAY_PROJECT_ID,
   };
+}
+
+/** `process` is absent in Workers without nodejs_compat; treat that as an empty env. */
+function readEnv(): Record<string, string | undefined> {
+  return globalThis.process?.env ?? {};
 }
 
 /**
@@ -110,8 +116,7 @@ export async function createMemoryAdapter(config?: Partial<MemoryConfig>): Promi
 
     case 'inmemory':
     case 'memory':
-    case 'none':
-    default: {
+    case 'none': {
       adapter = new InMemoryAdapter({
         defaultAgentId: finalConfig.defaultAgentId,
         defaultProjectId: finalConfig.defaultProjectId,
@@ -119,6 +124,10 @@ export async function createMemoryAdapter(config?: Partial<MemoryConfig>): Promi
       });
       break;
     }
+
+    default:
+      // A misspelled persistent backend must not silently become transient storage.
+      throw new Error(`Unsupported memory adapter type: ${finalConfig.type}`);
   }
 
   await adapter.init();
@@ -143,7 +152,7 @@ export function isMemoryAdapterAvailable(type: string): boolean {
     case 'supermemory':
     case 'supermemory.ai':
       // Available if API key is configured
-      return !!(process.env.AGENT_RELAY_MEMORY_API_KEY || process.env.SUPERMEMORY_API_KEY);
+      return !!(readEnv().AGENT_RELAY_MEMORY_API_KEY || readEnv().SUPERMEMORY_API_KEY);
 
     case 'claude':
     case 'claude-memory':
@@ -161,7 +170,8 @@ export function isMemoryAdapterAvailable(type: string): boolean {
 export function getAvailableMemoryAdapters(): string[] {
   const adapters: string[] = ['inmemory'];
 
-  if (process.env.AGENT_RELAY_MEMORY_API_KEY || process.env.SUPERMEMORY_API_KEY) {
+  const env = readEnv();
+  if (env.AGENT_RELAY_MEMORY_API_KEY || env.SUPERMEMORY_API_KEY) {
     adapters.push('supermemory');
   }
 
