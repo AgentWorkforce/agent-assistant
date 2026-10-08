@@ -12,7 +12,6 @@ concurrency:
 
 jobs:
   ci:
-    if: (github.event_name != 'pull_request' && github.event_name != 'pull_request_target') || github.head_ref == 'trunk'
     name: Build, Test & Typecheck
     runs-on: ubuntu-latest
     steps:
