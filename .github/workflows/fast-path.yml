@@ -1,0 +1,144 @@
+# Fast path: build, test and typecheck every runtime-core package (the same
+# checks as publish.yml's build job, a superset of ci.yml) and pack them on
+# Blacksmith runners, outside the shared GitHub-hosted queue. Anyone with write
+# access (people or agents) may start it; nothing runs until Khaliq approves
+# the fast-path environment.
+#
+# It does not publish to npm: the packages publish through npm trusted
+# publishing (OIDC) bound to publish.yml, so this workflow cannot authenticate
+# to the registry. It uploads one `npm pack` tarball per package, at the
+# versions already in package.json, as the workflow artifact
+# agent-assistant-npm-<sha>. It never bumps versions, commits, or moves a
+# dist-tag.
+name: fast-path
+run-name: fast-path ${{ inputs.ref }} (${{ inputs.reason }})
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build (a PR branch is fine)
+        required: true
+        default: main
+      reason:
+        description: Why this needs the fast path
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: fast-path-${{ inputs.ref }}
+  cancel-in-progress: false
+env:
+  NODE_VERSION: "22.14.0"
+  # publish.yml's runtime-core group, in its dependency-aware build order.
+  PACKAGES: >-
+    traits persona dispatch connectivity memory vfs core coordination surfaces
+    sessions policy harness turn-context proactive inbox continuation telemetry
+    specialists sdk webhook-runtime cloudflare-runtime
+jobs:
+  test:
+    environment: fast-path
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Build packages in dependency-aware order
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in $PACKAGES; do
+            echo "==> Building $pkg"
+            npm run build -w "@agent-assistant/$pkg"
+          done
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in $PACKAGES; do
+            if jq -e '.scripts.test' "packages/$pkg/package.json" >/dev/null; then
+              echo "==> Testing $pkg"
+              npm test -w "@agent-assistant/$pkg"
+            fi
+          done
+      - name: Typecheck packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in $PACKAGES; do
+            if jq -e '.scripts.typecheck' "packages/$pkg/package.json" >/dev/null; then
+              echo "==> Typechecking $pkg"
+              npm run typecheck -w "@agent-assistant/$pkg"
+            else
+              echo "==> Typechecking $pkg via tsc"
+              (cd "packages/$pkg" && npx tsc --noEmit -p tsconfig.json)
+            fi
+          done
+      - name: Verify no test artifacts in dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          FAIL=0
+          for pkg in $PACKAGES; do
+            if find "packages/$pkg/dist" -name '*.test.*' 2>/dev/null | grep -q .; then
+              echo "ERROR: test artifacts found in packages/$pkg/dist/"
+              find "packages/$pkg/dist" -name '*.test.*'
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" -eq 1 ]; then exit 1; fi
+          echo "No test artifacts in dist — OK"
+  pack:
+    needs: test
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.test.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Build and pack packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/npm-pack"
+          for pkg in $PACKAGES; do
+            npm run build -w "@agent-assistant/$pkg"
+          done
+          for pkg in $PACKAGES; do
+            if [ ! -d "packages/$pkg/dist" ]; then
+              echo "ERROR: packages/$pkg/dist is missing after build" >&2
+              exit 1
+            fi
+            (cd "packages/$pkg" && npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/npm-pack")
+          done
+          ls "$RUNNER_TEMP/npm-pack" > "$RUNNER_TEMP/npm-pack-list.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-assistant-npm-${{ needs.test.outputs.sha }}
+          path: ${{ runner.temp }}/npm-pack/*.tgz
+          if-no-files-found: error
+      - name: Summary
+        env:
+          REF: ${{ inputs.ref }}
+          SHA: ${{ needs.test.outputs.sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "### agent-assistant fast path"
+            echo "- ref: \`$REF\` at \`$SHA\`"
+            echo "- reason: $REASON"
+            echo "- npm tarballs in artifact \`agent-assistant-npm-$SHA\` (not published: npm trusted publishing is bound to publish.yml):"
+            while read -r f; do echo "  - \`$f\`"; done < "$RUNNER_TEMP/npm-pack-list.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
