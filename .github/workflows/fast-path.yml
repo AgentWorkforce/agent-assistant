@@ -10,6 +10,9 @@
 # versions already in package.json, as the workflow artifact
 # agent-assistant-npm-<sha>. It never bumps versions, commits, or moves a
 # dist-tag.
+#
+# Caches are restore-only: this builds unreviewed refs, so it never saves into
+# a cache that normal CI or release workflows restore.
 name: fast-path
 run-name: fast-path ${{ inputs.ref }} (${{ inputs.reason }})
 on:
@@ -25,7 +28,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: fast-path-${{ inputs.ref }}
+  # run_id: a run waiting for approval must not let a later dispatch cancel it.
+  group: fast-path-${{ inputs.ref }}-${{ github.run_id }}
   cancel-in-progress: false
 env:
   NODE_VERSION: "22.14.0"
@@ -49,7 +53,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
       - run: npm ci
       - name: Build packages in dependency-aware order
         shell: bash
@@ -106,7 +109,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
       - run: npm ci
       - name: Build and pack packages
         shell: bash
