@@ -1,178 +1,31 @@
-<!-- prpm:snippet:start @agent-workforce/trail-snippet@1.1.2 -->
-# Trail
+# Working in agent-assistant
 
-Record your work as a trajectory for future agents and humans to follow.
-
-## Usage
-
-If `trail` is installed globally, run commands directly:
-```bash
-trail start "Task description"
+```sh
+npm ci
+npm run typecheck
+npm run test
+npm run build
 ```
 
-If not globally installed, use npx to run from local installation:
-```bash
-npx trail start "Task description"
-```
+- For Worker-bound HTTP calls, use a call-time lambda over `globalThis.fetch`, not a stored bare fetch or a module-load binding; keep `vi.stubGlobal` effective. Read `.claude/rules/workers-fetch.md`.
+- Code-producing sandbox workflows must use `workflows/lib/agent-assistant-repo-setup.ts`; workspace `dist/` outputs must exist before imports resolve. Read `workflows/AGENTS.md` for that task.
 
-## When Starting Work
+## Agency and guidance
 
-Start a trajectory when beginning a task:
+- Act autonomously on routine assigned work; ask forgiveness rather than permission. Preserve explicit production, release and credential gates.
+- For guidance, ask the engineering leads, the agent that spawned you, or the layered owner on Agent Relay.
+- Only a truly pressing or blocking question goes to `khaliq-gant` or `will-washburn` (CODEOWNERS) on Agent Relay.
 
-```bash
-trail start "Implement user authentication"
-```
+## Cross-repo context
 
-With external task reference:
-```bash
-trail start "Fix login bug" --task "ENG-123"
-```
+- Before and during changes, understand how this repo fits the wider system; consult its repo map and related-repo docs where available.
+- Check relevant agents’ summaries on Agent Relay and proactively contact owning agents about dependencies, adjacent changes and work in flight.
 
-## Recording Decisions
+## Pull requests (when used)
 
-Record key decisions as you work:
-
-```bash
-trail decision "Chose JWT over sessions" \
-  --reasoning "Stateless scaling requirements"
-```
-
-For minor decisions, reasoning is optional:
-```bash
-trail decision "Used existing auth middleware"
-```
-
-**Record decisions when you:**
-- Choose between alternatives
-- Make architectural trade-offs
-- Decide on an approach after investigation
-
-## Recording Reflections
-
-Periodically step back and synthesize progress:
-
-```bash
-trail reflect "Workers aligned on auth approach, API layer progressing well" \
-  --confidence 0.8
-```
-
-With focal points and adjustments:
-```bash
-trail reflect "Frontend and backend duplicating validation logic" \
-  --focal-points "duplication,ownership" \
-  --adjustments "Reassigning validation to backend team" \
-  --confidence 0.7
-```
-
-**Record reflections when you:**
-- Have received several updates and need to synthesize the big picture
-- Notice workers or tasks diverging from the plan
-- Want to course-correct before continuing
-- Are coordinating multiple agents and need to assess overall progress
-
-Reflections differ from decisions: decisions record a specific choice,
-reflections record a higher-level synthesis of what's happening and whether
-the current approach is working.
-
-## Completing Work
-
-When done, complete with a retrospective:
-
-```bash
-trail complete --summary "Added JWT auth with refresh tokens" --confidence 0.85
-```
-
-After completing work, compact the finished trajectory or merged PR into a
-durable summary. When the compacted summary is sufficient, discard the raw
-source trajectories so `.trajectories/index.json` and list output stay focused:
-
-```bash
-trail compact --discard-sources
-# or after a PR merge:
-trail compact --pr 42 --discard-sources
-```
-
-`--discard-sources` removes the source trajectory JSON/Markdown/trace files and
-updates the index. Use it after confirming the compacted artifact is the record
-you want to keep.
-
-**Confidence levels:**
-- 0.9+ : High confidence, well-tested
-- 0.7-0.9 : Good confidence, standard implementation
-- 0.5-0.7 : Some uncertainty, edge cases possible
-- <0.5 : Significant uncertainty, needs review
-
-## Abandoning Work
-
-If you need to stop without completing:
-
-```bash
-trail abandon --reason "Blocked by missing API credentials"
-```
-
-## Checking Status
-
-View current trajectory:
-```bash
-trail status
-```
-
-## Listing and Viewing Trajectories
-
-List all trajectories:
-```bash
-trail list
-```
-
-View a specific trajectory:
-```bash
-trail show <trajectory-id>
-```
-
-Export a trajectory (markdown, json, timeline, html):
-```bash
-trail export <trajectory-id> --format markdown
-```
-
-## Compacting Trajectories
-
-After a PR merge, compact related trajectories into a single summary and prune
-raw source trajectories when the summary should replace them:
-
-```bash
-trail compact --pr 42 --discard-sources
-```
-
-Compact by branch (finds trajectories with commits not in the specified base branch):
-```bash
-trail compact --branch main --discard-sources
-```
-
-Compact by specific commits:
-```bash
-trail compact --commits abc123,def456 --discard-sources
-```
-
-Compaction consolidates decisions and creates a grouped summary. Adding
-`--discard-sources` makes the compacted artifact the durable record by removing
-the raw trajectories and their index entries.
-
-## Why Trail?
-
-Your trajectory helps others understand:
-- **What** you built (commits show this)
-- **Why** you built it this way (trajectory shows this)
-- **What alternatives** you considered
-- **What challenges** you faced
-
-Future agents can query past trajectories to learn from your decisions.
-<!-- prpm:snippet:end @agent-workforce/trail-snippet@1.1.2 -->
-
-# Cloudflare Workers compatibility
-
-Several downstream consumers of `@agent-assistant/*` deploy to Cloudflare Workers (cloud/specialist-worker, sage, relayfile, cataloging-agent, web). When adding or modifying any `fetch()` call site in this repo, follow `.claude/rules/workers-fetch.md`. The short version:
-
-- **Never** store a bare `fetch` reference at module load or in a constructor: `this.fetchImpl = config.fetchImpl ?? fetch;` is wrong.
-- **Always** fall back to a lambda that reads `globalThis.fetch` at call time: `this.fetchImpl = config.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));`
-
-The bare-fetch pattern has caused `Illegal invocation` runtime failures in Worker consumers downstream (cloud#328, sage#110, and most recently an entire specialist incident on 2026-04-24 where every OpenRouter call through `createOpenRouterModelAdapter` threw on first invocation). Tests use `vi.stubGlobal("fetch", fetchMock)` — the lambda variant stays stubbable while the bare `fetch` variant does not.
+- Open PRs as ready for review by default. If merging requires Khaliq’s OK, use `merge-train:hold` instead of draft status.
+- If you open a PR, immediately subscribe to its feedback through Agent Relay using [this skill](https://github.com/AgentWorkforce/skills/blob/main/skills/subscribing-relay-webhooks-and-writebacks/SKILL.md), and verify subscription readiness.
+- Evaluate each review finding. Address applicable feedback and explain declined changes in the thread.
+- A PR is not ready while feedback remains unaddressed or merge conflicts remain.
+- When ready, alert the CODEOWNERS and the agent that spawned you on Agent Relay.
+- Keep related open PRs from going stale: find their authoring agent on Agent Relay and coordinate; if that agent is no longer on the relay, escalate to the CODEOWNERS or the layered owner.
